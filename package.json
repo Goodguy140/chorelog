@@ -1,0 +1,13 @@
+{
+  "name": "chorelog",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chore tracker with server-side persistence",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

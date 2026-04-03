@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Maskable safe zone: keep artwork inside ~central 80% (padding ~51px) -->
+  <rect width="512" height="512" rx="108" fill="#1a1a18"/>
+  <rect x="96" y="120" width="320" height="280" rx="24" fill="#f4f3ef" stroke="#5f5e5a" stroke-width="8"/>
+  <path d="M160 268l52 52 140-140" fill="none" stroke="#1d9e75" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="128" y="200" width="96" height="16" rx="4" fill="#888780"/>
+  <rect x="128" y="236" width="160" height="16" rx="4" fill="#eceae4"/>
+</svg>

@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="Track household chores and monthly contributions.">
+  <meta name="theme-color" content="#1a1a18" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1e1e1c" media="(prefers-color-scheme: dark)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Chorelog">
+  <meta name="application-name" content="Chorelog">
+  <meta name="msapplication-TileColor" content="#1a1a18">
+  <title>Chore Tracker</title>
+  <link rel="icon" href="/icons/app-icon.svg" type="image/svg+xml" sizes="any">
+  <link rel="shortcut icon" href="/icons/app-icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="/site.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/app-icon.svg">
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --color-background-primary: #ffffff;
+      --color-background-secondary: #f4f3ef;
+      --color-background-tertiary: #eceae4;
+      --color-text-primary: #1a1a18;
+      --color-text-secondary: #5f5e5a;
+      --color-text-tertiary: #888780;
+      --color-border-tertiary: rgba(0, 0, 0, 0.12);
+      --color-border-secondary: rgba(0, 0, 0, 0.22);
+      --border-radius-md: 8px;
+      --border-radius-lg: 12px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --color-background-primary: #1e1e1c;
+        --color-background-secondary: #2a2a27;
+        --color-background-tertiary: #141412;
+        --color-text-primary: #f0ede6;
+        --color-text-secondary: #b4b2a9;
+        --color-text-tertiary: #888780;
+        --color-border-tertiary: rgba(255, 255, 255, 0.10);
+        --color-border-secondary: rgba(255, 255, 255, 0.20);
+      }
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--color-background-tertiary);
+      color: var(--color-text-primary);
+      padding: max(2rem, env(safe-area-inset-top, 0px)) max(1rem, env(safe-area-inset-right, 0px)) max(2rem, env(safe-area-inset-bottom, 0px)) max(1rem, env(safe-area-inset-left, 0px));
+      min-height: 100vh;
+      min-height: 100dvh;
+    }
+
+    .wrap {
+      max-width: 820px;
+      margin: 0 auto;
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .title {
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+    }
+
+    .month-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      font-size: 12px;
+      padding: 5px 12px;
+      border-radius: var(--border-radius-md);
+      border: 0.5px solid var(--color-border-secondary);
+      background: transparent;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+    }
+
+    .tab.active {
+      background: var(--color-text-primary);
+      color: var(--color-background-primary);
+      border-color: var(--color-text-primary);
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .stat-card {
+      background: var(--color-background-secondary);
+      border-radius: var(--border-radius-md);
+      padding: 0.75rem;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      margin-bottom: 4px;
+    }
+
+    .stat-val {
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+    }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+      margin-top: 2px;
+    }
+
+    .section {
+      background: var(--color-background-primary);
+      border: 0.5px solid var(--color-border-tertiary);
+      border-radius: var(--border-radius-lg);
+      padding: 1.25rem;
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+      margin-bottom: 14px;
+    }
+
+    .person-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .person-label {
+      font-size: 13px;
+      color: var(--color-text-primary);
+      width: 72px;
+      flex-shrink: 0;
+    }
+
+    .bar-track {
+      flex: 1;
+      background: var(--color-background-secondary);
+      border-radius: 4px;
+      height: 22px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      font-size: 12px;
+      font-weight: 500;
+      transition: width 0.3s ease;
+    }
+
+    .count-num {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      width: 28px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .divider {
+      border: none;
+      border-top: 0.5px solid var(--color-border-tertiary);
+      margin: 14px 0;
+    }
+
+    .add-form {
+      display: grid;
+      /* minmax(0,1fr) lets columns shrink; plain 1fr can let date inputs blow column width on iOS */
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: end;
+    }
+
+    .add-form .field {
+      min-width: 0;
+    }
+
+    .add-form input[type=text],
+    .add-form .date-input-shell,
+    .add-form select {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    .field label {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    input[type=text],
+    select {
+      max-width: 100%;
+      min-width: 0;
+      width: 100%;
+      padding: 6px 10px;
+      font-size: 13px;
+      border: 0.5px solid var(--color-border-secondary);
+      border-radius: var(--border-radius-md);
+      background: var(--color-background-primary);
+      color: var(--color-text-primary);
+      height: 34px;
+    }
+
+    /*
+      Border lives on .date-input-shell so overflow:hidden can clip iOS WebKit overflow
+      without eating the visible stroke (border on the input was clipped with .field overflow).
+    */
+    .date-input-shell {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      min-height: 34px;
+      border: 0.5px solid var(--color-border-secondary);
+      border-radius: var(--border-radius-md);
+      background: var(--color-background-primary);
+      overflow: hidden;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+    }
+
+    .date-input-shell input[type=date] {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      padding: 0 10px;
+      font-size: 13px;
+      line-height: 34px;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      color: var(--color-text-primary);
+      color-scheme: light dark;
+      height: 34px;
+      box-sizing: border-box;
+      display: block;
+      margin: 0;
+    }
+
+    .date-input-shell input[type=date]::-webkit-date-and-time-value {
+      text-align: left;
+    }
+
+    /* iOS/WebKit: vertically center the native date segments inside the control */
+    .date-input-shell input[type=date]::-webkit-datetime-edit,
+    .date-input-shell input[type=date]::-webkit-datetime-edit-fields-wrapper {
+      height: 100%;
+    }
+
+    .date-input-shell input[type=date]::-webkit-datetime-edit-fields-wrapper {
+      display: flex;
+      align-items: center;
+    }
+
+    .btn-add {
+      height: 34px;
+      padding: 0 16px;
+      font-size: 13px;
+      border: 0.5px solid var(--color-border-secondary);
+      border-radius: var(--border-radius-md);
+      background: var(--color-text-primary);
+      color: var(--color-background-primary);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .btn-add:hover {
+      opacity: 0.85;
+    }
+
+    .log-list {
+      max-height: 220px;
+      overflow-y: auto;
+    }
+
+    .log-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 0;
+      border-bottom: 0.5px solid var(--color-border-tertiary);
+      font-size: 13px;
+    }
+
+    .log-item:last-child {
+      border-bottom: none;
+    }
+
+    .log-date {
+      color: var(--color-text-tertiary);
+      width: 58px;
+      flex-shrink: 0;
+      font-size: 12px;
+    }
+
+    .log-chore {
+      flex: 1;
+      color: var(--color-text-primary);
+    }
+
+    .log-person {
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    .btn-del {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--color-text-tertiary);
+      padding: 0 4px;
+      line-height: 1;
+    }
+
+    .btn-del:hover {
+      color: #E24B4A;
+    }
+
+    .empty {
+      font-size: 13px;
+      color: var(--color-text-tertiary);
+      padding: 12px 0;
+    }
+
+    .mom-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .mom-name {
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+
+    .mom-val {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+    }
+
+    .up {
+      color: #1D9E75;
+    }
+
+    .down {
+      color: #D85A30;
+    }
+
+    /* Phones / narrow layout: identical box model for every control (iOS date was taller due to extra padding) */
+    @media (max-width: 896px) {
+      .add-form .date-input-shell {
+        min-height: 44px;
+      }
+
+      .add-form input[type=text],
+      .add-form select {
+        height: 44px;
+        min-height: 44px;
+        padding: 0 12px;
+        font-size: 16px;
+        line-height: normal;
+      }
+
+      .add-form .date-input-shell input[type=date] {
+        height: 44px;
+        min-height: 44px;
+        padding: 0 12px;
+        font-size: 16px;
+        line-height: 44px;
+      }
+
+      .add-form .btn-add {
+        height: 44px;
+        min-height: 44px;
+        padding: 0 16px;
+        font-size: 16px;
+      }
+    }
+
+    @media(max-width:560px) {
+      .stat-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .add-form {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        justify-items: stretch;
+      }
+
+      .add-form .field {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        max-width: 100%;
+      }
+
+      .add-form .date-input-shell {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      .add-form .date-input-shell input[type=date]::-webkit-datetime-edit,
+      .add-form .date-input-shell input[type=date]::-webkit-datetime-edit-fields-wrapper {
+        max-width: 100%;
+      }
+
+      .mom-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="top-bar">
+      <span class="title">Chore tracker</span>
+      <div class="month-tabs" id="monthTabs"></div>
+    </div>
+    <p id="loadError" class="empty" style="display:none;margin-bottom:12px;color:#E24B4A;"></p>
+
+    <div class="stat-grid" id="statsGrid"></div>
+
+    <div class="section">
+      <p class="section-title">Contributions this month</p>
+      <div id="barsArea"></div>
+    </div>
+
+    <div class="section">
+      <p class="section-title">Log a chore</p>
+      <div class="add-form">
+        <div class="field field-date"><label for="inDate">Date</label>
+          <div class="date-input-shell"><input type="date" id="inDate" autocomplete="off"></div>
+        </div>
+        <div class="field"><label>Chore</label><input type="text" id="inChore" placeholder="e.g. Dishes; Swept kitchen">
+        </div>
+        <div class="field"><label>Person</label>
+          <select id="inPerson">
+            <option value="Dylan">Dylan</option>
+            <option value="Rachel">Rachel</option>
+            <option value="Vic">Vic</option>
+            <option value="Christian">Christian</option>
+          </select>
+        </div>
+        <button class="btn-add" onclick="addEntry()">+ Add</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <p class="section-title">Log for <span id="logMonthLabel"></span></p>
+      <div class="log-list" id="logList"></div>
+    </div>
+
+    <div class="section">
+      <p class="section-title">Month-over-month</p>
+      <div class="mom-grid" id="momGrid"></div>
+    </div>
+  </div>
+
+  <script>
+    const PEOPLE = ['Dylan', 'Rachel', 'Vic', 'Christian'];
+    const COLORS = {
+      Dylan: { bar: '#378ADD', text: '#E6F1FB' },
+      Rachel: { bar: '#D85A30', text: '#FAECE7' },
+      Vic: { bar: '#7F77DD', text: '#EEEDFE' },
+      Christian: { bar: '#1D9E75', text: '#E1F5EE' },
+    };
+
+    let entries = [];
+    let loadError = null;
+
+    async function load() {
+      loadError = null;
+      try {
+        const r = await fetch('/api/entries');
+        if (!r.ok) throw new Error('Bad response');
+        const data = await r.json();
+        entries = Array.isArray(data.entries) ? data.entries : [];
+      } catch (e) {
+        entries = [];
+        loadError = 'Could not load chores from the server. Run `npm start` and open this page from the app URL (not file://).';
+      }
+    }
+
+    function getMonthKey(d) { return d.slice(0, 7); }
+    function getMonthLabel(k) {
+      const [y, m] = k.split('-');
+      return new Date(y, m - 1, 1).toLocaleDateString('en-CA', { month: 'long', year: 'numeric' });
+    }
+
+    function thisCalendarMonthKey() {
+      return new Date().toISOString().slice(0, 7);
+    }
+
+    let currentMonth = thisCalendarMonthKey();
+
+    function getMonths() {
+      return [...new Set(entries.map(e => getMonthKey(e.d)))].sort().reverse();
+    }
+
+    function countsByPerson(monthKey) {
+      const c = {};
+      PEOPLE.forEach(p => c[p] = 0);
+      entries.filter(e => getMonthKey(e.d) === monthKey).forEach(e => { if (c[e.p] !== undefined) c[e.p]++; });
+      return c;
+    }
+
+    function render() {
+      const errEl = document.getElementById('loadError');
+      if (loadError) {
+        errEl.textContent = loadError;
+        errEl.style.display = 'block';
+      } else {
+        errEl.style.display = 'none';
+      }
+
+      const months = getMonths();
+      if (!months.includes(currentMonth) && months.length) currentMonth = months[0];
+
+      const tabs = document.getElementById('monthTabs');
+      tabs.innerHTML = months.map(m =>
+        `<button class="tab${m === currentMonth ? ' active' : ''}" onclick="switchMonth('${m}')">${getMonthLabel(m)}</button>`
+      ).join('');
+
+      const cur = countsByPerson(currentMonth);
+      const total = Object.values(cur).reduce((a, b) => a + b, 0);
+      const topPerson = PEOPLE.reduce((a, b) => cur[a] >= cur[b] ? a : b);
+      const activeDays = new Set(entries.filter(e => getMonthKey(e.d) === currentMonth).map(e => e.d)).size;
+
+      document.getElementById('statsGrid').innerHTML = `
+    <div class="stat-card"><p class="stat-label">Total tasks</p><p class="stat-val">${total}</p><p class="stat-sub">${getMonthLabel(currentMonth)}</p></div>
+    <div class="stat-card"><p class="stat-label">Most active</p><p class="stat-val" style="font-size:15px;">${topPerson}</p><p class="stat-sub">${cur[topPerson]} tasks</p></div>
+    <div class="stat-card"><p class="stat-label">Active days</p><p class="stat-val">${activeDays}</p><p class="stat-sub">days with chores</p></div>
+    <div class="stat-card"><p class="stat-label">Members</p><p class="stat-val">${PEOPLE.filter(p => cur[p] > 0).length}</p><p class="stat-sub">contributed</p></div>
+  `;
+
+      const max = Math.max(...Object.values(cur), 1);
+      const sorted = [...PEOPLE].sort((a, b) => cur[b] - cur[a]);
+      document.getElementById('barsArea').innerHTML = sorted.map(p => {
+        const pct = Math.round((cur[p] / max) * 100);
+        const col = COLORS[p];
+        return `<div class="person-row">
+      <span class="person-label">${p}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col.bar};color:${col.text};">${cur[p] > 2 ? cur[p] + ' tasks' : ''}</div></div>
+      <span class="count-num">${cur[p]}</span>
+    </div>`;
+      }).join('');
+
+      document.getElementById('logMonthLabel').textContent = getMonthLabel(currentMonth);
+      const monthEntries = entries.filter(e => getMonthKey(e.d) === currentMonth).sort((a, b) => b.d.localeCompare(a.d));
+      const logList = document.getElementById('logList');
+      if (!monthEntries.length) {
+        logList.innerHTML = '<p class="empty">No entries yet this month.</p>';
+      } else {
+        logList.innerHTML = monthEntries.map(e => {
+          const col = COLORS[e.p] || { bar: '#888', text: '#fff' };
+          const [, m, d] = e.d.split('-');
+          const safeId = String(e.id).replace(/'/g, "\\'");
+          return `<div class="log-item">
+        <span class="log-date">${m}/${d}</span>
+        <span class="log-chore">${e.c}</span>
+        <span class="log-person" style="background:${col.bar};color:${col.text};">${e.p}</span>
+        <button class="btn-del" onclick="delEntry('${safeId}')">×</button>
+      </div>`;
+        }).join('');
+      }
+
+      const allMonths = getMonths();
+      const prevMonth = allMonths[allMonths.indexOf(currentMonth) + 1];
+      const prev = prevMonth ? countsByPerson(prevMonth) : null;
+      const momGrid = document.getElementById('momGrid');
+      if (prev) {
+        momGrid.innerHTML = PEOPLE.map(p => {
+          const diff = cur[p] - prev[p];
+          const pct = prev[p] > 0 ? Math.round(Math.abs(diff) / prev[p] * 100) : null;
+          const cls = diff > 0 ? 'up' : diff < 0 ? 'down' : '';
+          const arrow = diff > 0 ? '↑' : diff < 0 ? '↓' : '';
+          const label = pct !== null ? `${arrow} ${pct}% vs ${getMonthLabel(prevMonth)}` : (diff === 0 ? 'No change' : 'New data');
+          return `<div><p class="mom-name">${p}</p><p class="mom-val">${prev[p]} → ${cur[p]}</p><p class="mom-delta ${cls}" style="font-size:12px;margin-top:3px;">${label}</p></div>`;
+        }).join('');
+      } else {
+        momGrid.innerHTML = '<p style="font-size:13px;color:var(--color-text-tertiary);grid-column:1/-1;">No previous month to compare.</p>';
+      }
+    }
+
+    function switchMonth(m) { currentMonth = m; render(); }
+
+    async function addEntry() {
+      const d = document.getElementById('inDate').value;
+      const raw = document.getElementById('inChore').value.trim();
+      const p = document.getElementById('inPerson').value;
+      if (!d || !raw) return;
+      const rows = raw.split(';').map(s => s.trim()).filter(Boolean).map(c => ({ d, c, p }));
+      try {
+        const r = await fetch('/api/entries', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entries: rows }),
+        });
+        if (!r.ok) throw new Error('save failed');
+        await load();
+        currentMonth = getMonthKey(d);
+        document.getElementById('inChore').value = '';
+        render();
+      } catch (e) {
+        loadError = 'Could not save chore. Is the server running?';
+        render();
+      }
+    }
+
+    async function delEntry(id) {
+      try {
+        const r = await fetch('/api/entries/' + encodeURIComponent(id), { method: 'DELETE' });
+        if (!r.ok && r.status !== 404) throw new Error('delete failed');
+        await load();
+        render();
+      } catch (e) {
+        loadError = 'Could not delete entry. Is the server running?';
+        render();
+      }
+    }
+
+    document.getElementById('inDate').value = new Date().toISOString().slice(0, 10);
+    load().then(() => {
+      const months = getMonths();
+      if (months.length) currentMonth = months[0];
+      else currentMonth = thisCalendarMonthKey();
+      render();
+    });
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+
+</html>

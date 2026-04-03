@@ -1,0 +1,196 @@
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const express = require('express');
+
+const PORT = Number(process.env.PORT) || 3000;
+const DATA_DIR = path.join(__dirname, 'data');
+const DATA_FILE = path.join(DATA_DIR, 'chores.json');
+
+/** Same shape as the original HTML SEED: one row per log line, chores can contain `;` */
+const RAW_SEED = [
+  { d: '2026-03-03', c: 'Dishes; Wiped Table; Cleaned Fridge', p: 'Vic' },
+  { d: '2026-03-03', c: 'Wiped common surfaces', p: 'Dylan' },
+  { d: '2026-03-05', c: 'Dishes', p: 'Dylan' },
+  { d: '2026-03-05', c: 'Dishes', p: 'Vic' },
+  { d: '2026-03-06', c: 'Garbage out', p: 'Vic' },
+  { d: '2026-03-06', c: 'Dishes', p: 'Dylan' },
+  { d: '2026-03-08', c: 'Dishwasher, Cleaned bathroom', p: 'Rachel' },
+  { d: '2026-03-09', c: 'Cleaned bathtub/grout', p: 'Rachel' },
+  { d: '2026-03-09', c: 'Swept upstairs, stairs, hallway, kitchen; Tidied sussy room', p: 'Christian' },
+  { d: '2026-03-10', c: 'Dishes', p: 'Dylan' },
+  { d: '2026-03-11', c: 'Dishes', p: 'Dylan' },
+  { d: '2026-03-13', c: 'Dishes; Wiped counter, shelf, stove and table; Swept kitchen twice', p: 'Dylan' },
+  { d: '2026-03-14', c: 'Dishwasher', p: 'Rachel' },
+  { d: '2026-03-14', c: 'Dishes + put away', p: 'Vic' },
+  { d: '2026-03-15', c: 'Dishes', p: 'Dylan' },
+  { d: '2026-03-17', c: 'Many dishes', p: 'Vic' },
+  { d: '2026-03-19', c: 'Dishes; Swept hallways, kitchen & stairs; Changed cans & garbage', p: 'Dylan' },
+  { d: '2026-03-19', c: 'Change Cardboard', p: 'Christian' },
+  { d: '2026-03-20', c: 'Dishes + put away', p: 'Dylan' },
+  { d: '2026-03-21', c: 'Swept stairs, hallway, back porch and kitchen; Dishwasher', p: 'Rachel' },
+  { d: '2026-03-23', c: 'Shoveled Front & Back', p: 'Rachel' },
+  { d: '2026-03-23', c: 'Dishes; Put away dishes x2', p: 'Dylan' },
+  { d: '2026-03-27', c: 'Dishes', p: 'Dylan' },
+  { d: '2026-03-27', c: 'Mail to Fred', p: 'Vic' },
+  { d: '2026-03-29', c: 'Bathroom clean; Dishwasher', p: 'Rachel' },
+  { d: '2026-02-01', c: 'Mopped floor, Dishes', p: 'Dylan' },
+  { d: '2026-02-02', c: 'Dishes and Dishwasher in/out', p: 'Dylan' },
+  { d: '2026-02-02', c: 'Clean Bathroom and Dishwasher', p: 'Rachel' },
+  { d: '2026-02-02', c: 'Dishes', p: 'Vic' },
+  { d: '2026-02-03', c: 'Dishes', p: 'Christian' },
+  { d: '2026-02-04', c: 'Dishes', p: 'Vic' },
+  { d: '2026-02-04', c: 'Dishes', p: 'Dylan' },
+  { d: '2026-02-04', c: 'Swept Kitchen & Hallway', p: 'Christian' },
+  { d: '2026-02-05', c: 'Dishes', p: 'Vic' },
+  { d: '2026-02-05', c: 'Garbage out', p: 'Christian' },
+  { d: '2026-02-06', c: 'Dishes', p: 'Dylan' },
+  { d: '2026-02-07', c: 'Swept backdoor porch', p: 'Rachel' },
+  { d: '2026-02-08', c: 'Swept upstairs, stairs, hallway, and Kitchen', p: 'Dylan' },
+  { d: '2026-02-08', c: 'Wiped table, Took garbage down & Dishes', p: 'Dylan' },
+  { d: '2026-02-09', c: 'Dishes & Dishwasher', p: 'Dylan' },
+  { d: '2026-02-10', c: 'Dishes & Dishwasher away', p: 'Vic' },
+  { d: '2026-02-11', c: 'Swept Upstairs, Hallway and Kitchen; Dishes; Dishwasher; Stove Deep-cleaned', p: 'Dylan' },
+  { d: '2026-02-11', c: 'Swept Back Porch & Kitchen', p: 'Rachel' },
+  { d: '2026-02-12', c: 'Shoveled to Clear a Path, Salted', p: 'Christian' },
+  { d: '2026-02-12', c: 'Dishes', p: 'Vic' },
+  { d: '2026-02-15', c: 'Swept Upstairs, Stairs, Hallway and Kitchen; Lysoled floor; Dishwasher', p: 'Christian' },
+  { d: '2026-02-15', c: 'Dishes and Trash to Basement', p: 'Dylan' },
+  { d: '2026-02-16', c: 'Put away Dishes and did Dishes', p: 'Christian' },
+  { d: '2026-02-17', c: 'Wiped common surfaces', p: 'Dylan' },
+  { d: '2026-02-17', c: 'Swept and Mopped Entry Way; Dishes', p: 'Vic' },
+  { d: '2026-02-17', c: 'Bathroom', p: 'Rachel' },
+  { d: '2026-02-18', c: 'Dishes', p: 'Dylan' },
+  { d: '2026-02-18', c: 'Dishwasher', p: 'Rachel' },
+  { d: '2026-02-18', c: 'Dishes', p: 'Christian' },
+  { d: '2026-02-19', c: 'Dishes, Wiped down table, stove; Changed bathroom trash; Swept', p: 'Dylan' },
+  { d: '2026-02-19', c: 'Garbage out', p: 'Christian' },
+  { d: '2026-02-21', c: 'Swept stairs, hallway, living room and back porch', p: 'Rachel' },
+  { d: '2026-02-21', c: 'Wiped Under recyclables bag; Dishes', p: 'Vic' },
+  { d: '2026-02-22', c: 'Dishes', p: 'Dylan' },
+  { d: '2026-02-23', c: 'Dishes away', p: 'Dylan' },
+  { d: '2026-02-23', c: 'Dishes', p: 'Christian' },
+  { d: '2026-02-24', c: 'Dishes', p: 'Dylan' },
+  { d: '2026-02-24', c: 'Shoveled Front and back steps; Dishwasher and put away dishes', p: 'Rachel' },
+  { d: '2026-02-27', c: 'Dishes', p: 'Christian' },
+  { d: '2026-02-27', c: 'Garbage down + bag replaced', p: 'Vic' },
+  { d: '2026-02-28', c: 'Changed bathroom trash; Swept house; Mopped hallways; Dishes; Cleaned table', p: 'Dylan' },
+];
+
+function expandRaw(raw) {
+  const out = [];
+  raw.forEach((e) => {
+    e.c.split(';')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .forEach((task) => {
+        out.push({ d: e.d, c: task, p: e.p });
+      });
+  });
+  return out;
+}
+
+function newId() {
+  return crypto.randomUUID();
+}
+
+async function readStore() {
+  try {
+    const buf = await fs.promises.readFile(DATA_FILE, 'utf8');
+    const data = JSON.parse(buf);
+    if (!Array.isArray(data.entries)) return { entries: [] };
+    return data;
+  } catch (err) {
+    if (err.code === 'ENOENT') return { entries: [] };
+    throw err;
+  }
+}
+
+async function writeStore(data) {
+  await fs.promises.mkdir(DATA_DIR, { recursive: true });
+  const tmp = `${DATA_FILE}.${process.pid}.tmp`;
+  await fs.promises.writeFile(tmp, JSON.stringify(data, null, 2), 'utf8');
+  await fs.promises.rename(tmp, DATA_FILE);
+}
+
+async function ensureSeed() {
+  const store = await readStore();
+  if (store.entries.length > 0) return;
+  const expanded = expandRaw(RAW_SEED);
+  store.entries = expanded.map((e) => ({ id: newId(), d: e.d, c: e.c, p: e.p }));
+  await writeStore(store);
+}
+
+const app = express();
+app.use(express.json({ limit: '256kb' }));
+
+app.get('/api/entries', async (req, res) => {
+  try {
+    await ensureSeed();
+    const { entries } = await readStore();
+    res.json({ entries });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to load entries' });
+  }
+});
+
+app.post('/api/entries', async (req, res) => {
+  try {
+    const body = req.body;
+    const items = Array.isArray(body.entries) ? body.entries : null;
+    if (!items || !items.length) {
+      return res.status(400).json({ error: 'Expected { entries: [{ d, c, p }, ...] }' });
+    }
+    const store = await readStore();
+    const added = [];
+    for (const row of items) {
+      if (!row || typeof row.d !== 'string' || typeof row.c !== 'string' || typeof row.p !== 'string') {
+        return res.status(400).json({ error: 'Each entry needs string fields d, c, p' });
+      }
+      const entry = { id: newId(), d: row.d.trim(), c: row.c.trim(), p: row.p.trim() };
+      if (!entry.d || !entry.c || !entry.p) continue;
+      store.entries.push(entry);
+      added.push(entry);
+    }
+    await writeStore(store);
+    res.status(201).json({ entries: added });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to save entries' });
+  }
+});
+
+app.delete('/api/entries/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const store = await readStore();
+    const idx = store.entries.findIndex((e) => e.id === id);
+    if (idx === -1) return res.status(404).json({ error: 'Not found' });
+    store.entries.splice(idx, 1);
+    await writeStore(store);
+    res.status(204).end();
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to delete entry' });
+  }
+});
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'chore_tracker_interactive-v2.html'));
+});
+
+app.get('/site.webmanifest', (req, res) => {
+  res.type('application/manifest+json');
+  res.sendFile(path.join(__dirname, 'site.webmanifest'));
+});
+
+app.get('/favicon.ico', (req, res) => {
+  res.redirect(301, '/icons/app-icon.svg');
+});
+
+app.use(express.static(__dirname));
+
+app.listen(PORT, () => {
+  console.log(`Chore tracker: http://127.0.0.1:${PORT}/`);
+});
