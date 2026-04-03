@@ -3,10 +3,16 @@
 
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function () {
+      var t = localStorage.getItem('chorelog-theme');
+      if (t !== 'light' && t !== 'dark' && t !== 'system') t = 'system';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="description" content="Track household chores and monthly contributions.">
-  <meta name="theme-color" content="#1a1a18" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#1e1e1c" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" id="metaThemeColor" content="#1a1a18">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -28,6 +34,11 @@
     }
 
     :root {
+      --border-radius-md: 8px;
+      --border-radius-lg: 12px;
+    }
+
+    :root[data-theme="light"] {
       --color-background-primary: #ffffff;
       --color-background-secondary: #f4f3ef;
       --color-background-tertiary: #eceae4;
@@ -36,12 +47,23 @@
       --color-text-tertiary: #888780;
       --color-border-tertiary: rgba(0, 0, 0, 0.12);
       --color-border-secondary: rgba(0, 0, 0, 0.22);
-      --border-radius-md: 8px;
-      --border-radius-lg: 12px;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root[data-theme="system"] {
+        --color-background-primary: #ffffff;
+        --color-background-secondary: #f4f3ef;
+        --color-background-tertiary: #eceae4;
+        --color-text-primary: #1a1a18;
+        --color-text-secondary: #5f5e5a;
+        --color-text-tertiary: #888780;
+        --color-border-tertiary: rgba(0, 0, 0, 0.12);
+        --color-border-secondary: rgba(0, 0, 0, 0.22);
+      }
     }
 
     @media (prefers-color-scheme: dark) {
-      :root {
+      :root[data-theme="system"] {
         --color-background-primary: #1e1e1c;
         --color-background-secondary: #2a2a27;
         --color-background-tertiary: #141412;
@@ -51,6 +73,17 @@
         --color-border-tertiary: rgba(255, 255, 255, 0.10);
         --color-border-secondary: rgba(255, 255, 255, 0.20);
       }
+    }
+
+    :root[data-theme="dark"] {
+      --color-background-primary: #1e1e1c;
+      --color-background-secondary: #2a2a27;
+      --color-background-tertiary: #141412;
+      --color-text-primary: #f0ede6;
+      --color-text-secondary: #b4b2a9;
+      --color-text-tertiary: #888780;
+      --color-border-tertiary: rgba(255, 255, 255, 0.10);
+      --color-border-secondary: rgba(255, 255, 255, 0.20);
     }
 
     body {
@@ -74,6 +107,176 @@
       margin-bottom: 16px;
       flex-wrap: wrap;
       gap: 10px;
+    }
+
+    .top-bar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn-settings {
+      font-size: 13px;
+      padding: 6px 12px;
+      border-radius: var(--border-radius-md);
+      border: 0.5px solid var(--color-border-secondary);
+      background: var(--color-background-primary);
+      color: var(--color-text-secondary);
+      cursor: pointer;
+    }
+
+    .btn-settings:hover {
+      color: var(--color-text-primary);
+      border-color: var(--color-text-tertiary);
+    }
+
+    .settings-dialog {
+      width: min(100%, 420px);
+      max-height: min(90vh, 640px);
+      padding: 0;
+      border: 0.5px solid var(--color-border-secondary);
+      border-radius: var(--border-radius-lg);
+      background: var(--color-background-primary);
+      color: var(--color-text-primary);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+    }
+
+    .settings-dialog::backdrop {
+      background: rgba(0, 0, 0, 0.45);
+    }
+
+    .settings-inner {
+      padding: 1rem 1.1rem 1.1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      max-height: min(86vh, 600px);
+      overflow-y: auto;
+    }
+
+    .settings-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .settings-header h2 {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .settings-close {
+      background: none;
+      border: none;
+      font-size: 22px;
+      line-height: 1;
+      color: var(--color-text-tertiary);
+      cursor: pointer;
+      padding: 4px 8px;
+    }
+
+    .settings-close:hover {
+      color: var(--color-text-primary);
+    }
+
+    .settings-block-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 8px;
+    }
+
+    .theme-options {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .theme-options label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .people-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .people-list li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 10px;
+      background: var(--color-background-secondary);
+      border-radius: var(--border-radius-md);
+      font-size: 14px;
+    }
+
+    .people-list button {
+      font-size: 12px;
+      padding: 4px 8px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--color-text-tertiary);
+      cursor: pointer;
+    }
+
+    .people-list button:hover {
+      color: #E24B4A;
+    }
+
+    .people-list button:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .add-person-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .add-person-row input {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .settings-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .btn-secondary {
+      font-size: 13px;
+      padding: 8px 14px;
+      border-radius: var(--border-radius-md);
+      border: 0.5px solid var(--color-border-secondary);
+      background: var(--color-background-secondary);
+      color: var(--color-text-primary);
+      cursor: pointer;
+    }
+
+    .btn-secondary:hover {
+      opacity: 0.9;
+    }
+
+    .settings-hint {
+      font-size: 12px;
+      color: var(--color-text-tertiary);
+      line-height: 1.4;
     }
 
     .title {
@@ -456,7 +659,10 @@
   <div class="wrap">
     <div class="top-bar">
       <span class="title">Chore tracker</span>
-      <div class="month-tabs" id="monthTabs"></div>
+      <div class="top-bar-actions">
+        <button type="button" class="btn-settings" id="btnSettings" aria-haspopup="dialog">Settings</button>
+        <div class="month-tabs" id="monthTabs"></div>
+      </div>
     </div>
     <p id="loadError" class="empty" style="display:none;margin-bottom:12px;color:#E24B4A;"></p>
 
@@ -476,12 +682,7 @@
         <div class="field"><label>Chore</label><input type="text" id="inChore" placeholder="e.g. Dishes; Swept kitchen">
         </div>
         <div class="field"><label>Person</label>
-          <select id="inPerson">
-            <option value="Dylan">Dylan</option>
-            <option value="Rachel">Rachel</option>
-            <option value="Vic">Vic</option>
-            <option value="Christian">Christian</option>
-          </select>
+          <select id="inPerson"></select>
         </div>
         <button class="btn-add" onclick="addEntry()">+ Add</button>
       </div>
@@ -498,17 +699,164 @@
     </div>
   </div>
 
-  <script>
-    const PEOPLE = ['Dylan', 'Rachel', 'Vic', 'Christian'];
-    const COLORS = {
-      Dylan: { bar: '#378ADD', text: '#E6F1FB' },
-      Rachel: { bar: '#D85A30', text: '#FAECE7' },
-      Vic: { bar: '#7F77DD', text: '#EEEDFE' },
-      Christian: { bar: '#1D9E75', text: '#E1F5EE' },
-    };
+  <dialog class="settings-dialog" id="settingsDialog" aria-labelledby="settingsTitle">
+    <div class="settings-inner">
+      <div class="settings-header">
+        <h2 id="settingsTitle">Settings</h2>
+        <button type="button" class="settings-close" id="settingsClose" aria-label="Close">&times;</button>
+      </div>
 
+      <div>
+        <p class="settings-block-title">Appearance</p>
+        <div class="theme-options" id="themeOptions">
+          <label><input type="radio" name="theme" value="system"> System</label>
+          <label><input type="radio" name="theme" value="light"> Light</label>
+          <label><input type="radio" name="theme" value="dark"> Dark</label>
+        </div>
+      </div>
+
+      <div>
+        <p class="settings-block-title">People</p>
+        <ul class="people-list" id="peopleList"></ul>
+        <div class="add-person-row">
+          <input type="text" id="newPersonName" placeholder="Name" maxlength="80" autocomplete="off">
+          <button type="button" class="btn-secondary" id="btnAddPerson">Add</button>
+        </div>
+      </div>
+
+      <div>
+        <p class="settings-block-title">Data</p>
+        <div class="settings-actions">
+          <button type="button" class="btn-secondary" id="btnExport">Export JSON</button>
+          <label class="btn-secondary" style="cursor:pointer;display:inline-block;">
+            Import JSON
+            <input type="file" id="importFile" accept="application/json,.json" hidden>
+          </label>
+        </div>
+        <p class="settings-hint" style="margin-top:8px;">Import can <strong>replace</strong> everything or <strong>merge</strong> with a prompt. Export includes people and all chore entries.</p>
+      </div>
+    </div>
+  </dialog>
+
+  <script>
+    const DEFAULT_PEOPLE = ['Dylan', 'Rachel', 'Vic', 'Christian'];
+    const PALETTE = [
+      { bar: '#378ADD', text: '#E6F1FB' },
+      { bar: '#D85A30', text: '#FAECE7' },
+      { bar: '#7F77DD', text: '#EEEDFE' },
+      { bar: '#1D9E75', text: '#E1F5EE' },
+      { bar: '#C973D9', text: '#F8EEFB' },
+      { bar: '#D8A530', text: '#FAF4E7' },
+      { bar: '#2DB3A8', text: '#E3F8F6' },
+      { bar: '#B85A6E', text: '#F8EEF0' },
+    ];
+
+    let people = [...DEFAULT_PEOPLE];
     let entries = [];
     let loadError = null;
+
+    function colorFor(name) {
+      const i = people.indexOf(name);
+      if (i === -1) return { bar: '#888', text: '#fff' };
+      return PALETTE[i % PALETTE.length];
+    }
+
+    function syncThemeMeta() {
+      const el = document.getElementById('metaThemeColor');
+      if (!el) return;
+      const mode = document.documentElement.getAttribute('data-theme');
+      let dark = false;
+      if (mode === 'dark') dark = true;
+      else if (mode === 'light') dark = false;
+      else dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      el.content = dark ? '#1e1e1c' : '#1a1a18';
+    }
+
+    function applyTheme(mode) {
+      if (mode !== 'light' && mode !== 'dark' && mode !== 'system') mode = 'system';
+      localStorage.setItem('chorelog-theme', mode);
+      document.documentElement.setAttribute('data-theme', mode);
+      syncThemeMeta();
+      document.querySelectorAll('#themeOptions input[name="theme"]').forEach((el) => {
+        el.checked = el.value === mode;
+      });
+    }
+
+    function syncPersonSelect() {
+      const sel = document.getElementById('inPerson');
+      const cur = sel.value;
+      sel.innerHTML = '';
+      people.forEach((p) => {
+        const o = document.createElement('option');
+        o.value = p;
+        o.textContent = p;
+        sel.appendChild(o);
+      });
+      if ([...sel.options].some((o) => o.value === cur)) sel.value = cur;
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function renderPeopleEditor() {
+      const ul = document.getElementById('peopleList');
+      ul.innerHTML = people.map((p, idx) => `
+        <li>
+          <span>${escapeHtml(p)}</span>
+          <button type="button" data-remove="${idx}" ${people.length <= 1 ? 'disabled' : ''}>Remove</button>
+        </li>
+      `).join('');
+      ul.querySelectorAll('button[data-remove]').forEach(btn => {
+        btn.addEventListener('click', () => removePersonAt(Number(btn.getAttribute('data-remove'))));
+      });
+    }
+
+    async function savePeopleList(next) {
+      const r = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ people: next }),
+      });
+      if (!r.ok) throw new Error('save failed');
+      const data = await r.json();
+      people = Array.isArray(data.people) ? data.people : next;
+      syncPersonSelect();
+      renderPeopleEditor();
+      render();
+    }
+
+    async function addPerson() {
+      const input = document.getElementById('newPersonName');
+      const name = input.value.trim();
+      if (!name) return;
+      if (people.includes(name)) {
+        input.value = '';
+        return;
+      }
+      try {
+        await savePeopleList([...people, name]);
+        input.value = '';
+      } catch (e) {
+        loadError = 'Could not save people list.';
+        render();
+      }
+    }
+
+    async function removePersonAt(index) {
+      if (people.length <= 1) return;
+      const next = people.filter((_, i) => i !== index);
+      try {
+        await savePeopleList(next);
+      } catch (e) {
+        loadError = 'Could not save people list.';
+        render();
+      }
+    }
 
     async function load() {
       loadError = null;
@@ -517,8 +865,12 @@
         if (!r.ok) throw new Error('Bad response');
         const data = await r.json();
         entries = Array.isArray(data.entries) ? data.entries : [];
+        people = Array.isArray(data.people) && data.people.length ? data.people : [...DEFAULT_PEOPLE];
+        syncPersonSelect();
       } catch (e) {
         entries = [];
+        people = [...DEFAULT_PEOPLE];
+        syncPersonSelect();
         loadError = 'Could not load chores from the server. Run `npm start` and open this page from the app URL (not file://).';
       }
     }
@@ -541,8 +893,10 @@
 
     function countsByPerson(monthKey) {
       const c = {};
-      PEOPLE.forEach(p => c[p] = 0);
-      entries.filter(e => getMonthKey(e.d) === monthKey).forEach(e => { if (c[e.p] !== undefined) c[e.p]++; });
+      people.forEach(p => { c[p] = 0; });
+      entries.filter(e => getMonthKey(e.d) === monthKey).forEach(e => {
+        if (c[e.p] !== undefined) c[e.p]++;
+      });
       return c;
     }
 
@@ -565,21 +919,21 @@
 
       const cur = countsByPerson(currentMonth);
       const total = Object.values(cur).reduce((a, b) => a + b, 0);
-      const topPerson = PEOPLE.reduce((a, b) => cur[a] >= cur[b] ? a : b);
+      const topPerson = people.reduce((a, b) => cur[a] >= cur[b] ? a : b);
       const activeDays = new Set(entries.filter(e => getMonthKey(e.d) === currentMonth).map(e => e.d)).size;
 
       document.getElementById('statsGrid').innerHTML = `
     <div class="stat-card"><p class="stat-label">Total tasks</p><p class="stat-val">${total}</p><p class="stat-sub">${getMonthLabel(currentMonth)}</p></div>
     <div class="stat-card"><p class="stat-label">Most active</p><p class="stat-val" style="font-size:15px;">${topPerson}</p><p class="stat-sub">${cur[topPerson]} tasks</p></div>
     <div class="stat-card"><p class="stat-label">Active days</p><p class="stat-val">${activeDays}</p><p class="stat-sub">days with chores</p></div>
-    <div class="stat-card"><p class="stat-label">Members</p><p class="stat-val">${PEOPLE.filter(p => cur[p] > 0).length}</p><p class="stat-sub">contributed</p></div>
+    <div class="stat-card"><p class="stat-label">Members</p><p class="stat-val">${people.filter(p => cur[p] > 0).length}</p><p class="stat-sub">contributed</p></div>
   `;
 
       const max = Math.max(...Object.values(cur), 1);
-      const sorted = [...PEOPLE].sort((a, b) => cur[b] - cur[a]);
+      const sorted = [...people].sort((a, b) => cur[b] - cur[a]);
       document.getElementById('barsArea').innerHTML = sorted.map(p => {
         const pct = Math.round((cur[p] / max) * 100);
-        const col = COLORS[p];
+        const col = colorFor(p);
         return `<div class="person-row">
       <span class="person-label">${p}</span>
       <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col.bar};color:${col.text};">${cur[p] > 2 ? cur[p] + ' tasks' : ''}</div></div>
@@ -594,7 +948,7 @@
         logList.innerHTML = '<p class="empty">No entries yet this month.</p>';
       } else {
         logList.innerHTML = monthEntries.map(e => {
-          const col = COLORS[e.p] || { bar: '#888', text: '#fff' };
+          const col = colorFor(e.p);
           const [, m, d] = e.d.split('-');
           const safeId = String(e.id).replace(/'/g, "\\'");
           return `<div class="log-item">
@@ -611,7 +965,7 @@
       const prev = prevMonth ? countsByPerson(prevMonth) : null;
       const momGrid = document.getElementById('momGrid');
       if (prev) {
-        momGrid.innerHTML = PEOPLE.map(p => {
+        momGrid.innerHTML = people.map(p => {
           const diff = cur[p] - prev[p];
           const pct = prev[p] > 0 ? Math.round(Math.abs(diff) / prev[p] * 100) : null;
           const cls = diff > 0 ? 'up' : diff < 0 ? 'down' : '';
@@ -660,6 +1014,93 @@
         render();
       }
     }
+
+    applyTheme(localStorage.getItem('chorelog-theme') || 'system');
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if (document.documentElement.getAttribute('data-theme') === 'system') syncThemeMeta();
+    });
+
+    document.getElementById('themeOptions').addEventListener('change', (e) => {
+      const t = e.target;
+      if (t && t.name === 'theme' && t.checked) applyTheme(t.value);
+    });
+
+    document.getElementById('btnSettings').addEventListener('click', () => {
+      renderPeopleEditor();
+      const mode = localStorage.getItem('chorelog-theme') || 'system';
+      document.querySelectorAll('#themeOptions input[name="theme"]').forEach((el) => {
+        el.checked = el.value === mode;
+      });
+      document.getElementById('settingsDialog').showModal();
+    });
+
+    document.getElementById('settingsClose').addEventListener('click', () => {
+      document.getElementById('settingsDialog').close();
+    });
+
+    document.getElementById('settingsDialog').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('settingsDialog')) e.target.close();
+    });
+
+    document.getElementById('btnAddPerson').addEventListener('click', () => addPerson());
+    document.getElementById('newPersonName').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addPerson();
+      }
+    });
+
+    document.getElementById('btnExport').addEventListener('click', async () => {
+      try {
+        const r = await fetch('/api/export');
+        if (!r.ok) throw new Error();
+        const blob = await r.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'chorelog-backup.json';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } catch {
+        alert('Export failed.');
+      }
+    });
+
+    document.getElementById('importFile').addEventListener('change', async (e) => {
+      const input = e.target;
+      const f = input.files && input.files[0];
+      input.value = '';
+      if (!f) return;
+      let data;
+      try {
+        data = JSON.parse(await f.text());
+      } catch {
+        alert('Invalid JSON file.');
+        return;
+      }
+      const merge = confirm(
+        'Merge with existing data on the server?\n\n' +
+          'OK = Merge (append imported entries; combine people lists).\n' +
+          'Cancel = Replace all server data with this file.'
+      );
+      try {
+        const r = await fetch('/api/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            people: data.people,
+            entries: data.entries,
+            mode: merge ? 'merge' : 'replace',
+          }),
+        });
+        if (!r.ok) throw new Error();
+        await load();
+        renderPeopleEditor();
+        render();
+      } catch {
+        loadError = 'Import failed.';
+        render();
+      }
+    });
 
     document.getElementById('inDate').value = new Date().toISOString().slice(0, 10);
     load().then(() => {

@@ -7,6 +7,8 @@ const PORT = Number(process.env.PORT) || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'chores.json');
 
+const DEFAULT_PEOPLE = ['Dylan', 'Rachel', 'Vic', 'Christian'];
+
 /** Same shape as the original HTML SEED: one row per log line, chores can contain `;` */
 const RAW_SEED = [
   { d: '2026-03-03', c: 'Dishes; Wiped Table; Cleaned Fridge', p: 'Vic' },
@@ -94,22 +96,42 @@ function newId() {
   return crypto.randomUUID();
 }
 
+function normalizePeople(arr) {
+  if (!Array.isArray(arr)) return [...DEFAULT_PEOPLE];
+  const seen = new Set();
+  const out = [];
+  for (const p of arr) {
+    const s = String(p).trim();
+    if (s && !seen.has(s)) {
+      seen.add(s);
+      out.push(s);
+    }
+  }
+  return out.length ? out : [...DEFAULT_PEOPLE];
+}
+
+function normalizeStore(raw) {
+  const entries = Array.isArray(raw.entries) ? raw.entries : [];
+  const people = normalizePeople(raw.people);
+  return { entries, people };
+}
+
 async function readStore() {
   try {
     const buf = await fs.promises.readFile(DATA_FILE, 'utf8');
     const data = JSON.parse(buf);
-    if (!Array.isArray(data.entries)) return { entries: [] };
-    return data;
+    return normalizeStore(data);
   } catch (err) {
-    if (err.code === 'ENOENT') return { entries: [] };
+    if (err.code === 'ENOENT') return { entries: [], people: [...DEFAULT_PEOPLE] };
     throw err;
   }
 }
 
 async function writeStore(data) {
+  const normalized = normalizeStore(data);
   await fs.promises.mkdir(DATA_DIR, { recursive: true });
   const tmp = `${DATA_FILE}.${process.pid}.tmp`;
-  await fs.promises.writeFile(tmp, JSON.stringify(data, null, 2), 'utf8');
+  await fs.promises.writeFile(tmp, JSON.stringify(normalized, null, 2), 'utf8');
   await fs.promises.rename(tmp, DATA_FILE);
 }
 
@@ -118,20 +140,103 @@ async function ensureSeed() {
   if (store.entries.length > 0) return;
   const expanded = expandRaw(RAW_SEED);
   store.entries = expanded.map((e) => ({ id: newId(), d: e.d, c: e.c, p: e.p }));
+  if (!store.people || store.people.length === 0) store.people = [...DEFAULT_PEOPLE];
   await writeStore(store);
 }
 
 const app = express();
-app.use(express.json({ limit: '256kb' }));
+app.use(express.json({ limit: '5mb' }));
 
 app.get('/api/entries', async (req, res) => {
   try {
     await ensureSeed();
-    const { entries } = await readStore();
-    res.json({ entries });
+    const store = await readStore();
+    res.json({ entries: store.entries, people: store.people });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to load entries' });
+  }
+});
+
+app.put('/api/settings', async (req, res) => {
+  try {
+    const people = normalizePeople(req.body && req.body.people);
+    if (people.length < 1) {
+      return res.status(400).json({ error: 'At least one person is required' });
+    }
+    const store = await readStore();
+    store.people = people;
+    await writeStore(store);
+    res.json({ people: store.people });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to save settings' });
+  }
+});
+
+app.get('/api/export', async (req, res) => {
+  try {
+    await ensureSeed();
+    const store = await readStore();
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      people: store.people,
+      entries: store.entries,
+    };
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="chorelog-backup.json"');
+    res.send(JSON.stringify(payload, null, 2));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to export' });
+  }
+});
+
+app.post('/api/import', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const mode = body.mode === 'merge' ? 'merge' : 'replace';
+    const incomingPeople = normalizePeople(body.people);
+    const incomingEntries = Array.isArray(body.entries) ? body.entries : [];
+
+    if (incomingPeople.length < 1) {
+      return res.status(400).json({ error: 'Import must include at least one person' });
+    }
+
+    const store = await readStore();
+
+    if (mode === 'replace') {
+      const nextEntries = [];
+      for (const row of incomingEntries) {
+        if (!row || typeof row.d !== 'string' || typeof row.c !== 'string' || typeof row.p !== 'string') continue;
+        const d = row.d.trim();
+        const c = row.c.trim();
+        const p = row.p.trim();
+        if (!d || !c || !p) continue;
+        nextEntries.push({ id: newId(), d, c, p });
+      }
+      store.entries = nextEntries;
+      store.people = incomingPeople;
+    } else {
+      const peopleSet = new Set(store.people);
+      incomingPeople.forEach((p) => peopleSet.add(p));
+      store.people = normalizePeople([...peopleSet]);
+      for (const row of incomingEntries) {
+        if (!row || typeof row.d !== 'string' || typeof row.c !== 'string' || typeof row.p !== 'string') continue;
+        const d = row.d.trim();
+        const c = row.c.trim();
+        const p = row.p.trim();
+        if (!d || !c || !p) continue;
+        store.entries.push({ id: newId(), d, c, p });
+      }
+    }
+
+    await writeStore(store);
+    res.json({ entries: store.entries, people: store.people });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to import' });
   }
 });
 
