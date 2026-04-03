@@ -104,14 +104,14 @@ body {
   border-color: var(--color-text-tertiary);
 }
 
+/* Center without transform: transform on <dialog> can interact badly with the top layer + fixed positioning. */
 .settings-dialog {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  inset: 0;
   width: min(420px, calc(100vw - 2rem));
   max-height: min(90vh, 640px);
-  margin: 0;
+  height: fit-content;
+  margin: auto;
   padding: 0;
   border: 0.5px solid var(--color-border-secondary);
   border-radius: var(--border-radius-lg);
