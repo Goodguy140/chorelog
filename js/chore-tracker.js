@@ -16,6 +16,14 @@ let scheduledChores = [];
 let loadError = null;
 let pendingScheduledCompleteId = null;
 
+/** YYYY-MM-DD for the user's local calendar (matches addDays / stored dates, not UTC). */
+function localDateISO(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function addDays(isoDate, n) {
   const [y, m, d] = isoDate.split('-').map(Number);
   const dt = new Date(y, m - 1, d);
@@ -33,7 +41,7 @@ function nextDueDate(s) {
 
 function scheduledStatus(s) {
   const next = nextDueDate(s);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateISO();
   if (next < today) {
     const daysPast = Math.floor((new Date(today + 'T12:00:00') - new Date(next + 'T12:00:00')) / 864e5);
     return { next, label: `${daysPast} day${daysPast === 1 ? '' : 's'} overdue`, cls: 'overdue' };
@@ -192,7 +200,7 @@ function getMonthLabel(k) {
 }
 
 function thisCalendarMonthKey() {
-  return new Date().toISOString().slice(0, 7);
+  return localDateISO().slice(0, 7);
 }
 
 let currentMonth = thisCalendarMonthKey();
@@ -585,7 +593,7 @@ document.getElementById('monthSelect').addEventListener('change', (e) => {
   switchMonth(e.target.value);
 });
 
-document.getElementById('inDate').value = new Date().toISOString().slice(0, 10);
+document.getElementById('inDate').value = localDateISO();
 load().then(() => {
   const months = getMonths();
   if (months.length) currentMonth = months[0];
