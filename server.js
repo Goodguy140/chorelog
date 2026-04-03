@@ -110,10 +110,31 @@ function normalizePeople(arr) {
   return out.length ? out : [...DEFAULT_PEOPLE];
 }
 
+function normalizeScheduledChores(arr) {
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  for (const row of arr) {
+    if (!row || typeof row.title !== 'string') continue;
+    const title = row.title.trim();
+    if (!title) continue;
+    let intervalDays = Number(row.intervalDays);
+    if (!Number.isFinite(intervalDays) || intervalDays < 1) intervalDays = 7;
+    if (intervalDays > 3650) intervalDays = 3650;
+    const id = typeof row.id === 'string' && row.id ? row.id : newId();
+    let createdAt = typeof row.createdAt === 'string' ? row.createdAt.slice(0, 10) : new Date().toISOString().slice(0, 10);
+    let lastCompletedAt = row.lastCompletedAt;
+    if (lastCompletedAt != null && typeof lastCompletedAt === 'string') lastCompletedAt = lastCompletedAt.slice(0, 10);
+    else lastCompletedAt = null;
+    out.push({ id, title, intervalDays, createdAt, lastCompletedAt });
+  }
+  return out;
+}
+
 function normalizeStore(raw) {
   const entries = Array.isArray(raw.entries) ? raw.entries : [];
   const people = normalizePeople(raw.people);
-  return { entries, people };
+  const scheduledChores = normalizeScheduledChores(raw.scheduledChores);
+  return { entries, people, scheduledChores };
 }
 
 async function readStore() {
@@ -122,7 +143,7 @@ async function readStore() {
     const data = JSON.parse(buf);
     return normalizeStore(data);
   } catch (err) {
-    if (err.code === 'ENOENT') return { entries: [], people: [...DEFAULT_PEOPLE] };
+    if (err.code === 'ENOENT') return { entries: [], people: [...DEFAULT_PEOPLE], scheduledChores: [] };
     throw err;
   }
 }
@@ -151,10 +172,111 @@ app.get('/api/entries', async (req, res) => {
   try {
     await ensureSeed();
     const store = await readStore();
-    res.json({ entries: store.entries, people: store.people });
+    res.json({
+      entries: store.entries,
+      people: store.people,
+      scheduledChores: store.scheduledChores || [],
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to load entries' });
+  }
+});
+
+app.post('/api/scheduled-chores', async (req, res) => {
+  try {
+    const title = String(req.body && req.body.title ? req.body.title : '').trim();
+    let intervalDays = Number(req.body && req.body.intervalDays);
+    if (!title) return res.status(400).json({ error: 'title is required' });
+    if (!Number.isFinite(intervalDays) || intervalDays < 1) intervalDays = 7;
+    if (intervalDays > 3650) intervalDays = 3650;
+    const store = await readStore();
+    if (!store.scheduledChores) store.scheduledChores = [];
+    const row = {
+      id: newId(),
+      title,
+      intervalDays,
+      createdAt: new Date().toISOString().slice(0, 10),
+      lastCompletedAt: null,
+    };
+    store.scheduledChores.push(row);
+    await writeStore(store);
+    res.status(201).json({ scheduledChores: store.scheduledChores });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to create scheduled chore' });
+  }
+});
+
+app.put('/api/scheduled-chores/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const store = await readStore();
+    const list = store.scheduledChores || [];
+    const idx = list.findIndex((s) => s.id === id);
+    if (idx === -1) return res.status(404).json({ error: 'Not found' });
+    if (req.body.title != null) {
+      const t = String(req.body.title).trim();
+      if (t) list[idx].title = t;
+    }
+    if (req.body.intervalDays != null) {
+      let n = Number(req.body.intervalDays);
+      if (Number.isFinite(n) && n >= 1 && n <= 3650) list[idx].intervalDays = n;
+    }
+    store.scheduledChores = list;
+    await writeStore(store);
+    res.json({ scheduledChores: store.scheduledChores });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to update scheduled chore' });
+  }
+});
+
+app.delete('/api/scheduled-chores/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const store = await readStore();
+    const list = store.scheduledChores || [];
+    const next = list.filter((s) => s.id !== id);
+    if (next.length === list.length) return res.status(404).json({ error: 'Not found' });
+    store.scheduledChores = next;
+    await writeStore(store);
+    res.status(204).end();
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to delete scheduled chore' });
+  }
+});
+
+app.post('/api/scheduled-chores/:id/complete', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const person = String(req.body && req.body.person ? req.body.person : '').trim();
+    if (!person) return res.status(400).json({ error: 'person is required' });
+    const store = await readStore();
+    if (!store.people.includes(person)) {
+      return res.status(400).json({ error: 'Person must be in your household list' });
+    }
+    const list = store.scheduledChores || [];
+    const idx = list.findIndex((s) => s.id === id);
+    if (idx === -1) return res.status(404).json({ error: 'Not found' });
+    const chore = list[idx];
+    const today = new Date().toISOString().slice(0, 10);
+    chore.lastCompletedAt = today;
+    store.entries.push({
+      id: newId(),
+      d: today,
+      c: chore.title,
+      p: person,
+    });
+    await writeStore(store);
+    res.json({
+      scheduledChores: store.scheduledChores,
+      entries: store.entries,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to complete scheduled chore' });
   }
 });
 
@@ -179,10 +301,11 @@ app.get('/api/export', async (req, res) => {
     await ensureSeed();
     const store = await readStore();
     const payload = {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       people: store.people,
       entries: store.entries,
+      scheduledChores: store.scheduledChores || [],
     };
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', 'attachment; filename="chorelog-backup.json"');
@@ -199,6 +322,7 @@ app.post('/api/import', async (req, res) => {
     const mode = body.mode === 'merge' ? 'merge' : 'replace';
     const incomingPeople = normalizePeople(body.people);
     const incomingEntries = Array.isArray(body.entries) ? body.entries : [];
+    const incomingScheduled = normalizeScheduledChores(Array.isArray(body.scheduledChores) ? body.scheduledChores : []);
 
     if (incomingPeople.length < 1) {
       return res.status(400).json({ error: 'Import must include at least one person' });
@@ -218,6 +342,10 @@ app.post('/api/import', async (req, res) => {
       }
       store.entries = nextEntries;
       store.people = incomingPeople;
+      store.scheduledChores = incomingScheduled.map((s) => ({
+        ...s,
+        id: newId(),
+      }));
     } else {
       const peopleSet = new Set(store.people);
       incomingPeople.forEach((p) => peopleSet.add(p));
@@ -230,10 +358,24 @@ app.post('/api/import', async (req, res) => {
         if (!d || !c || !p) continue;
         store.entries.push({ id: newId(), d, c, p });
       }
+      if (!store.scheduledChores) store.scheduledChores = [];
+      for (const s of incomingScheduled) {
+        store.scheduledChores.push({
+          id: newId(),
+          title: s.title,
+          intervalDays: s.intervalDays,
+          createdAt: s.createdAt,
+          lastCompletedAt: s.lastCompletedAt,
+        });
+      }
     }
 
     await writeStore(store);
-    res.json({ entries: store.entries, people: store.people });
+    res.json({
+      entries: store.entries,
+      people: store.people,
+      scheduledChores: store.scheduledChores || [],
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to import' });

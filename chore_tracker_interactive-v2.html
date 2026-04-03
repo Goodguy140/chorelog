@@ -32,6 +32,7 @@
     <div class="top-bar">
       <span class="title">Chore tracker</span>
       <div class="top-bar-actions">
+        <button type="button" class="btn-settings" id="btnScheduled" aria-haspopup="dialog">Scheduled</button>
         <button type="button" class="btn-settings" id="btnSettings" aria-haspopup="dialog">Settings</button>
         <div class="month-tabs" id="monthTabs"></div>
       </div>
@@ -43,6 +44,12 @@
     <div class="section">
       <p class="section-title">Contributions this month</p>
       <div id="barsArea"></div>
+    </div>
+
+    <div class="section" id="scheduledSection" style="display:none;">
+      <p class="section-title">Scheduled chores</p>
+      <p class="section-sub">Recurring tasks and when they are due next. Mark done here to reset the timer.</p>
+      <div class="scheduled-dashboard" id="scheduledDashboard"></div>
     </div>
 
     <div class="section">
@@ -105,7 +112,53 @@
             <input type="file" id="importFile" accept="application/json,.json" hidden>
           </label>
         </div>
-        <p class="settings-hint" style="margin-top:8px;">Import can <strong>replace</strong> everything or <strong>merge</strong> with a prompt. Export includes people and all chore entries.</p>
+        <p class="settings-hint" style="margin-top:8px;">Import can <strong>replace</strong> everything or <strong>merge</strong> with a prompt. Export includes people, log entries, and scheduled chores.</p>
+      </div>
+
+      <div>
+        <p class="settings-block-title">Scheduled chores</p>
+        <button type="button" class="btn-secondary" id="btnOpenScheduledFromSettings">Manage scheduled chores</button>
+        <p class="settings-hint" style="margin-top:8px;">Recurring tasks (weekly, every 2 weeks, etc.). Due dates reset only when you mark them done.</p>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="settings-dialog" id="scheduledDialog" aria-labelledby="scheduledDialogTitle">
+    <div class="settings-inner">
+      <div class="settings-header">
+        <h2 id="scheduledDialogTitle">Scheduled chores</h2>
+        <button type="button" class="settings-close" id="scheduledDialogClose" aria-label="Close">&times;</button>
+      </div>
+      <p class="settings-hint">Next due is computed from the last time you marked done, or from the created date if never done.</p>
+      <form class="scheduled-add-form" id="addScheduledForm">
+        <input type="text" name="title" id="scheduledNewTitle" placeholder="Chore name" maxlength="120" required autocomplete="off">
+        <select name="intervalDays" id="scheduledNewInterval" aria-label="Interval">
+          <option value="1">Every day</option>
+          <option value="7" selected>Every week</option>
+          <option value="14">Every 2 weeks</option>
+          <option value="30">Every month (~30 days)</option>
+          <option value="60">Every 2 months</option>
+          <option value="90">Every 3 months</option>
+        </select>
+        <button type="submit" class="btn-secondary">Add</button>
+      </form>
+      <ul class="scheduled-manage-list" id="scheduledManageList"></ul>
+    </div>
+  </dialog>
+
+  <dialog class="settings-dialog" id="scheduledDoneDialog" aria-labelledby="scheduledDoneHeading">
+    <div class="settings-inner">
+      <div class="settings-header">
+        <h2 id="scheduledDoneHeading">Who completed this?</h2>
+        <button type="button" class="settings-close" id="scheduledDoneDialogClose" aria-label="Close">&times;</button>
+      </div>
+      <p class="settings-hint">Adds one entry to today’s chore log with the scheduled task name, then resets the timer.</p>
+      <p class="scheduled-done-chore-title" id="scheduledDoneChoreTitle"></p>
+      <label class="scheduled-done-label" for="scheduledDonePerson">Person</label>
+      <select id="scheduledDonePerson" class="scheduled-done-select" aria-label="Who completed the chore"></select>
+      <div class="scheduled-done-actions">
+        <button type="button" class="btn-secondary" id="scheduledDoneCancel">Cancel</button>
+        <button type="button" class="btn-secondary scheduled-done-confirm" id="scheduledDoneConfirm">Add to log &amp; reset timer</button>
       </div>
     </div>
   </dialog>

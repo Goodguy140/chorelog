@@ -104,14 +104,14 @@ body {
   border-color: var(--color-text-tertiary);
 }
 
-/* Center without transform: transform on <dialog> can interact badly with the top layer + fixed positioning. */
 .settings-dialog {
   position: fixed;
-  inset: 0;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   width: min(420px, calc(100vw - 2rem));
   max-height: min(90vh, 640px);
-  height: fit-content;
-  margin: auto;
+  margin: 0;
   padding: 0;
   border: 0.5px solid var(--color-border-secondary);
   border-radius: var(--border-radius-lg);
@@ -329,6 +329,199 @@ body {
   font-weight: 500;
   color: var(--color-text-primary);
   margin-bottom: 14px;
+}
+
+.section-sub {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: -8px 0 14px;
+  line-height: 1.45;
+}
+
+.scheduled-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.scheduled-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--color-background-secondary);
+  border-radius: var(--border-radius-md);
+  border: 0.5px solid var(--color-border-tertiary);
+}
+
+.scheduled-card-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  flex: 1;
+  min-width: 0;
+}
+
+.scheduled-card-meta {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.scheduled-status {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.scheduled-status.overdue {
+  background: rgba(226, 75, 74, 0.15);
+  color: #c43a3a;
+}
+
+.scheduled-status.today {
+  background: rgba(29, 158, 117, 0.18);
+  color: #1d9e75;
+}
+
+.scheduled-status.soon {
+  background: rgba(216, 160, 48, 0.2);
+  color: #a86f12;
+}
+
+.scheduled-status.later {
+  background: var(--color-background-tertiary);
+  color: var(--color-text-secondary);
+}
+
+.scheduled-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.scheduled-card-actions button {
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: var(--border-radius-md);
+  border: 0.5px solid var(--color-border-secondary);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.scheduled-card-actions button.scheduled-btn-done {
+  background: var(--color-text-primary);
+  color: var(--color-background-primary);
+  border-color: var(--color-text-primary);
+}
+
+.scheduled-add-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.scheduled-add-form input[type="text"] {
+  flex: 1;
+  min-width: 140px;
+  padding: 8px 10px;
+  font-size: 14px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+}
+
+.scheduled-add-form select {
+  padding: 8px 10px;
+  font-size: 13px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  min-width: 160px;
+}
+
+.scheduled-manage-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scheduled-manage-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--color-background-secondary);
+  border-radius: var(--border-radius-md);
+  font-size: 14px;
+}
+
+.scheduled-manage-list .scheduled-manage-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.scheduled-manage-list button {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 0.5px solid var(--color-border-secondary);
+  background: var(--color-background-primary);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+}
+
+.scheduled-manage-list button.scheduled-btn-danger:hover {
+  color: #E24B4A;
+}
+
+.scheduled-done-chore-title {
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0 0 12px;
+  color: var(--color-text-primary);
+}
+
+.scheduled-done-label {
+  display: block;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+
+.scheduled-done-select {
+  width: 100%;
+  max-width: 100%;
+  padding: 8px 10px;
+  font-size: 14px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  margin-bottom: 16px;
+}
+
+.scheduled-done-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.scheduled-done-confirm {
+  font-weight: 500;
 }
 
 .person-row {

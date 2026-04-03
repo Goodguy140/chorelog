@@ -12,7 +12,56 @@ const PALETTE = [
 
 let people = [...DEFAULT_PEOPLE];
 let entries = [];
+let scheduledChores = [];
 let loadError = null;
+let pendingScheduledCompleteId = null;
+
+function addDays(isoDate, n) {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + n);
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+  return `${dt.getFullYear()}-${mm}-${dd}`;
+}
+
+/** Next due date: lastCompleted + interval, or created + interval if never completed. */
+function nextDueDate(s) {
+  const anchor = s.lastCompletedAt || s.createdAt;
+  return addDays(anchor, s.intervalDays);
+}
+
+function scheduledStatus(s) {
+  const next = nextDueDate(s);
+  const today = new Date().toISOString().slice(0, 10);
+  if (next < today) {
+    const daysPast = Math.floor((new Date(today + 'T12:00:00') - new Date(next + 'T12:00:00')) / 864e5);
+    return { next, label: `${daysPast} day${daysPast === 1 ? '' : 's'} overdue`, cls: 'overdue' };
+  }
+  if (next === today) {
+    return { next, label: 'Due today', cls: 'today' };
+  }
+  const daysUntil = Math.floor((new Date(next + 'T12:00:00') - new Date(today + 'T12:00:00')) / 864e5);
+  if (daysUntil <= 3) {
+    return { next, label: `Due in ${daysUntil} day${daysUntil === 1 ? '' : 's'}`, cls: 'soon' };
+  }
+  return {
+    next,
+    label: `Due ${new Date(next + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`,
+    cls: 'later',
+  };
+}
+
+function intervalLabel(days) {
+  const d = Number(days);
+  if (d === 1) return 'daily';
+  if (d === 7) return 'weekly';
+  if (d === 14) return 'every 2 weeks';
+  if (d === 30) return '~monthly';
+  if (d === 60) return '~every 2 months';
+  if (d === 90) return '~every 3 months';
+  return `every ${d} days`;
+}
 
 function colorFor(name) {
   const i = people.indexOf(name);
@@ -125,10 +174,12 @@ async function load() {
     const data = await r.json();
     entries = Array.isArray(data.entries) ? data.entries : [];
     people = Array.isArray(data.people) && data.people.length ? data.people : [...DEFAULT_PEOPLE];
+    scheduledChores = Array.isArray(data.scheduledChores) ? data.scheduledChores : [];
     syncPersonSelect();
   } catch (e) {
     entries = [];
     people = [...DEFAULT_PEOPLE];
+    scheduledChores = [];
     syncPersonSelect();
     loadError = 'Could not load chores from the server. Run `npm start` and open this page from the app URL (not file://).';
   }
@@ -234,6 +285,30 @@ function render() {
     }).join('');
   } else {
     momGrid.innerHTML = '<p style="font-size:13px;color:var(--color-text-tertiary);grid-column:1/-1;">No previous month to compare.</p>';
+  }
+
+  const section = document.getElementById('scheduledSection');
+  const dash = document.getElementById('scheduledDashboard');
+  if (!scheduledChores.length) {
+    section.style.display = 'none';
+  } else {
+    section.style.display = 'block';
+    dash.innerHTML = scheduledChores
+      .map((s) => {
+        const st = scheduledStatus(s);
+        const safeId = String(s.id).replace(/'/g, "\\'");
+        return `<div class="scheduled-card">
+  <div>
+    <div class="scheduled-card-title">${escapeHtml(s.title)}</div>
+    <div class="scheduled-card-meta">${intervalLabel(s.intervalDays)} · Next due: ${st.next}</div>
+  </div>
+  <span class="scheduled-status ${st.cls}">${st.label}</span>
+  <div class="scheduled-card-actions">
+    <button type="button" class="scheduled-btn-done" onclick="markScheduledDone('${safeId}')">Mark done</button>
+  </div>
+</div>`;
+      })
+      .join('');
   }
 }
 
@@ -348,6 +423,7 @@ document.getElementById('importFile').addEventListener('change', async (e) => {
       body: JSON.stringify({
         people: data.people,
         entries: data.entries,
+        scheduledChores: data.scheduledChores,
         mode: merge ? 'merge' : 'replace',
       }),
     });
@@ -355,9 +431,150 @@ document.getElementById('importFile').addEventListener('change', async (e) => {
     await load();
     renderPeopleEditor();
     render();
+    renderScheduledManageList();
   } catch {
     loadError = 'Import failed.';
     render();
+  }
+});
+
+function renderScheduledManageList() {
+  const ul = document.getElementById('scheduledManageList');
+  if (!ul) return;
+  if (!scheduledChores.length) {
+    ul.innerHTML = '<li style="color:var(--color-text-tertiary);font-size:13px;">No scheduled chores yet.</li>';
+    return;
+  }
+  ul.innerHTML = scheduledChores
+    .map((s) => {
+      const st = scheduledStatus(s);
+      const safeId = String(s.id).replace(/'/g, "\\'");
+      return `<li>
+  <span>${escapeHtml(s.title)} · ${intervalLabel(s.intervalDays)} · <span class="scheduled-status ${st.cls}" style="display:inline;padding:2px 8px;">${st.label}</span></span>
+  <div class="scheduled-manage-actions">
+    <button type="button" onclick="markScheduledDone('${safeId}')">Mark done</button>
+    <button type="button" class="scheduled-btn-danger" onclick="deleteScheduledChore('${safeId}')">Remove</button>
+  </div>
+</li>`;
+    })
+    .join('');
+}
+
+function fillScheduledDonePersonSelect() {
+  const sel = document.getElementById('scheduledDonePerson');
+  const cur = sel.value;
+  sel.innerHTML = '';
+  people.forEach((p) => {
+    const o = document.createElement('option');
+    o.value = p;
+    o.textContent = p;
+    sel.appendChild(o);
+  });
+  if ([...sel.options].some((o) => o.value === cur)) sel.value = cur;
+}
+
+function openScheduledCompleteDialog(id) {
+  const s = scheduledChores.find((x) => x.id === id);
+  if (!s) return;
+  pendingScheduledCompleteId = id;
+  document.getElementById('scheduledDoneChoreTitle').textContent = s.title;
+  fillScheduledDonePersonSelect();
+  document.getElementById('scheduledDoneDialog').showModal();
+}
+
+async function confirmScheduledComplete() {
+  const id = pendingScheduledCompleteId;
+  const person = document.getElementById('scheduledDonePerson').value.trim();
+  if (!id || !person) return;
+  try {
+    const r = await fetch(`/api/scheduled-chores/${encodeURIComponent(id)}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ person }),
+    });
+    if (!r.ok) throw new Error();
+    document.getElementById('scheduledDoneDialog').close();
+    await load();
+    render();
+    renderScheduledManageList();
+  } catch {
+    loadError = 'Could not complete scheduled chore.';
+    render();
+  }
+}
+
+function markScheduledDone(id) {
+  openScheduledCompleteDialog(id);
+}
+
+async function deleteScheduledChore(id) {
+  if (!confirm('Remove this scheduled chore?')) return;
+  try {
+    const r = await fetch(`/api/scheduled-chores/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (!r.ok && r.status !== 204) throw new Error();
+    await load();
+    render();
+    renderScheduledManageList();
+  } catch {
+    loadError = 'Could not delete scheduled chore.';
+    render();
+  }
+}
+
+window.markScheduledDone = markScheduledDone;
+window.deleteScheduledChore = deleteScheduledChore;
+
+function openScheduledDialog() {
+  renderScheduledManageList();
+  document.getElementById('scheduledDialog').showModal();
+}
+
+document.getElementById('btnScheduled').addEventListener('click', openScheduledDialog);
+document.getElementById('btnOpenScheduledFromSettings').addEventListener('click', () => {
+  document.getElementById('settingsDialog').close();
+  openScheduledDialog();
+});
+document.getElementById('scheduledDialogClose').addEventListener('click', () => {
+  document.getElementById('scheduledDialog').close();
+});
+document.getElementById('scheduledDialog').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('scheduledDialog')) e.target.close();
+});
+
+document.getElementById('scheduledDoneDialogClose').addEventListener('click', () => {
+  document.getElementById('scheduledDoneDialog').close();
+});
+document.getElementById('scheduledDoneCancel').addEventListener('click', () => {
+  document.getElementById('scheduledDoneDialog').close();
+});
+document.getElementById('scheduledDoneConfirm').addEventListener('click', () => {
+  confirmScheduledComplete();
+});
+document.getElementById('scheduledDoneDialog').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('scheduledDoneDialog')) e.target.close();
+});
+document.getElementById('scheduledDoneDialog').addEventListener('close', () => {
+  pendingScheduledCompleteId = null;
+});
+
+document.getElementById('addScheduledForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const title = document.getElementById('scheduledNewTitle').value.trim();
+  const intervalDays = Number(document.getElementById('scheduledNewInterval').value);
+  if (!title) return;
+  try {
+    const r = await fetch('/api/scheduled-chores', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, intervalDays }),
+    });
+    if (!r.ok) throw new Error();
+    await load();
+    document.getElementById('scheduledNewTitle').value = '';
+    render();
+    renderScheduledManageList();
+  } catch {
+    alert('Could not add scheduled chore.');
   }
 });
 
