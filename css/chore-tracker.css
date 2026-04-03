@@ -74,19 +74,29 @@ body {
 }
 
 .top-bar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px 12px;
   margin-bottom: 16px;
-  flex-wrap: wrap;
-  gap: 10px;
 }
 
 .top-bar-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, min(200px, 28vw));
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.top-bar-actions .btn-settings {
+  white-space: nowrap;
+}
+
+.top-bar-actions .month-select {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
 }
 
 .btn-settings {
@@ -261,28 +271,18 @@ body {
   font-size: 18px;
   font-weight: 500;
   color: var(--color-text-primary);
+  min-width: 0;
 }
 
-.month-tabs {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.tab {
-  font-size: 12px;
-  padding: 5px 12px;
+.month-select {
+  font-size: 13px;
+  padding: 6px 28px 6px 10px;
   border-radius: var(--border-radius-md);
   border: 0.5px solid var(--color-border-secondary);
-  background: transparent;
-  color: var(--color-text-secondary);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
   cursor: pointer;
-}
-
-.tab.active {
-  background: var(--color-text-primary);
-  color: var(--color-background-primary);
-  border-color: var(--color-text-primary);
+  line-height: 1.3;
 }
 
 .stat-grid {
@@ -793,6 +793,15 @@ select {
 }
 
 @media(max-width:560px) {
+  .top-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .top-bar-actions {
+    grid-template-columns: auto auto minmax(0, 1fr);
+    width: 100%;
+  }
+
   .stat-grid {
     grid-template-columns: repeat(2, 1fr);
   }

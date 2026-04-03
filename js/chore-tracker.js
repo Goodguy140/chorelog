@@ -221,11 +221,14 @@ function render() {
 
   const months = getMonths();
   if (!months.includes(currentMonth) && months.length) currentMonth = months[0];
+  const monthOptions = months.length ? months : [currentMonth];
 
-  const tabs = document.getElementById('monthTabs');
-  tabs.innerHTML = months.map(m =>
-    `<button class="tab${m === currentMonth ? ' active' : ''}" onclick="switchMonth('${m}')">${getMonthLabel(m)}</button>`
-  ).join('');
+  const monthSelect = document.getElementById('monthSelect');
+  monthSelect.innerHTML = monthOptions
+    .map((m) => `<option value="${m}">${getMonthLabel(m)}</option>`)
+    .join('');
+  if (monthOptions.includes(currentMonth)) monthSelect.value = currentMonth;
+  else if (monthOptions.length) monthSelect.value = monthOptions[0];
 
   const cur = countsByPerson(currentMonth);
   const total = Object.values(cur).reduce((a, b) => a + b, 0);
@@ -576,6 +579,10 @@ document.getElementById('addScheduledForm').addEventListener('submit', async (e)
   } catch {
     alert('Could not add scheduled chore.');
   }
+});
+
+document.getElementById('monthSelect').addEventListener('change', (e) => {
+  switchMonth(e.target.value);
 });
 
 document.getElementById('inDate').value = new Date().toISOString().slice(0, 10);
