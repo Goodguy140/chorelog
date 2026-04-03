@@ -105,8 +105,13 @@ body {
 }
 
 .settings-dialog {
-  width: min(100%, 420px);
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100vw - 2rem));
   max-height: min(90vh, 640px);
+  margin: 0;
   padding: 0;
   border: 0.5px solid var(--color-border-secondary);
   border-radius: var(--border-radius-lg);
