@@ -501,7 +501,7 @@ async function confirmScheduledComplete() {
     const r = await fetch(`/api/scheduled-chores/${encodeURIComponent(id)}/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ person }),
+      body: JSON.stringify({ person, completedDate: localDateISO() }),
     });
     if (!r.ok) throw new Error();
     document.getElementById('scheduledDoneDialog').close();
@@ -577,7 +577,7 @@ document.getElementById('addScheduledForm').addEventListener('submit', async (e)
     const r = await fetch('/api/scheduled-chores', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, intervalDays }),
+      body: JSON.stringify({ title, intervalDays, createdAt: localDateISO() }),
     });
     if (!r.ok) throw new Error();
     await load();

@@ -20,7 +20,7 @@ Use **`npm run dev`** to run the server with **`node --watch`** so it restarts w
 ## Features
 
 - **Server-side storage** — Chores, people, and scheduled recurring tasks live in `data/chores.json` (created on first run; includes optional seed data when empty).
-- **REST API** — `GET/POST /api/entries`, `DELETE /api/entries/:id`, `PUT /api/settings` (people), scheduled-chore routes (`POST /api/scheduled-chores`, `PUT/DELETE /api/scheduled-chores/:id`, `POST .../complete` with `{ person }` to log and reset), `GET /api/export`, `POST /api/import`.
+- **REST API** — `GET/POST /api/entries`, `DELETE /api/entries/:id`, `PUT /api/settings` (people), scheduled-chore routes (`POST /api/scheduled-chores` with optional `createdAt`, `PUT/DELETE /api/scheduled-chores/:id`, `POST .../complete` with `{ person, completedDate }` for the user’s calendar day), `GET /api/export`, `POST /api/import`.
 - **Scheduled chores** — Recurring items (e.g. weekly, every 2 weeks) with a dashboard showing next due and overdue state. The interval resets only when you **Mark done** (not from ordinary log entries).
 - **Settings** — Theme (system / light / dark), manage people, export or import JSON backups, shortcut to manage scheduled chores.
 - **PWA** — Web app manifest, icons, and a minimal service worker for installability on supported browsers (use HTTPS in production).

@@ -96,6 +96,26 @@ function newId() {
   return crypto.randomUUID();
 }
 
+/** Calendar YYYY-MM-DD in the Node process timezone (not UTC). */
+function localCalendarDateISO() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Validates YYYY-MM-DD; rejects invalid calendar dates. */
+function parseCalendarDateParam(raw) {
+  if (raw == null) return null;
+  const s = String(raw).trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const [y, m, d] = s.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+  return s;
+}
+
 function normalizePeople(arr) {
   if (!Array.isArray(arr)) return [...DEFAULT_PEOPLE];
   const seen = new Set();
@@ -121,7 +141,8 @@ function normalizeScheduledChores(arr) {
     if (!Number.isFinite(intervalDays) || intervalDays < 1) intervalDays = 7;
     if (intervalDays > 3650) intervalDays = 3650;
     const id = typeof row.id === 'string' && row.id ? row.id : newId();
-    let createdAt = typeof row.createdAt === 'string' ? row.createdAt.slice(0, 10) : new Date().toISOString().slice(0, 10);
+    let createdAtRaw = typeof row.createdAt === 'string' ? row.createdAt.slice(0, 10) : localCalendarDateISO();
+    let createdAt = parseCalendarDateParam(createdAtRaw) ?? localCalendarDateISO();
     let lastCompletedAt = row.lastCompletedAt;
     if (lastCompletedAt != null && typeof lastCompletedAt === 'string') lastCompletedAt = lastCompletedAt.slice(0, 10);
     else lastCompletedAt = null;
@@ -192,11 +213,13 @@ app.post('/api/scheduled-chores', async (req, res) => {
     if (intervalDays > 3650) intervalDays = 3650;
     const store = await readStore();
     if (!store.scheduledChores) store.scheduledChores = [];
+    const createdAt =
+      parseCalendarDateParam(req.body && req.body.createdAt) ?? localCalendarDateISO();
     const row = {
       id: newId(),
       title,
       intervalDays,
-      createdAt: new Date().toISOString().slice(0, 10),
+      createdAt,
       lastCompletedAt: null,
     };
     store.scheduledChores.push(row);
@@ -261,11 +284,14 @@ app.post('/api/scheduled-chores/:id/complete', async (req, res) => {
     const idx = list.findIndex((s) => s.id === id);
     if (idx === -1) return res.status(404).json({ error: 'Not found' });
     const chore = list[idx];
-    const today = new Date().toISOString().slice(0, 10);
-    chore.lastCompletedAt = today;
+    const completedDate = parseCalendarDateParam(req.body && req.body.completedDate);
+    if (!completedDate) {
+      return res.status(400).json({ error: 'completedDate is required (YYYY-MM-DD calendar date)' });
+    }
+    chore.lastCompletedAt = completedDate;
     store.entries.push({
       id: newId(),
-      d: today,
+      d: completedDate,
       c: chore.title,
       p: person,
     });
