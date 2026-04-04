@@ -71,6 +71,67 @@ function intervalLabel(days) {
   return `every ${d} days`;
 }
 
+function taskCountsByDay(monthKey) {
+  const map = {};
+  for (const e of entries) {
+    if (getMonthKey(e.d) !== monthKey) continue;
+    map[e.d] = (map[e.d] || 0) + 1;
+  }
+  return map;
+}
+
+/** Intensity 0 = none; 1–4 scaled vs busiest day in this month. */
+function heatIntensity(n, max) {
+  if (n <= 0 || max <= 0) return 0;
+  return Math.min(4, Math.max(1, Math.ceil((4 * n) / max)));
+}
+
+function renderTaskHeatmap(monthKey) {
+  const map = taskCountsByDay(monthKey);
+  const vals = Object.values(map);
+  const max = vals.length ? Math.max(...vals) : 0;
+  const [y, mo] = monthKey.split('-').map(Number);
+  const dim = new Date(y, mo, 0).getDate();
+  const firstDow = new Date(y, mo - 1, 1).getDay();
+  const wdLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const parts = [];
+  parts.push('<div class="heatmap-inner">');
+  parts.push('<div class="heatmap-weekdays">');
+  wdLabels.forEach((w) => {
+    parts.push(`<span class="heatmap-wd">${w}</span>`);
+  });
+  parts.push('</div><div class="heatmap-grid">');
+  for (let i = 0; i < firstDow; i++) {
+    parts.push('<span class="heatmap-cell heatmap-pad"></span>');
+  }
+  for (let day = 1; day <= dim; day++) {
+    const mm = String(mo).padStart(2, '0');
+    const dd = String(day).padStart(2, '0');
+    const dateStr = `${y}-${mm}-${dd}`;
+    const n = map[dateStr] || 0;
+    const lev = heatIntensity(n, max);
+    const label = n === 0 ? `${dateStr}: no tasks` : `${dateStr}: ${n} task${n === 1 ? '' : 's'}`;
+    parts.push(`<span class="heatmap-cell heat-${lev}" role="img" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"></span>`);
+  }
+  const used = firstDow + dim;
+  const trailing = (7 - (used % 7)) % 7;
+  for (let i = 0; i < trailing; i++) {
+    parts.push('<span class="heatmap-cell heatmap-pad"></span>');
+  }
+  parts.push('</div>');
+  parts.push('<div class="heatmap-footer"><span class="heatmap-scale">');
+  parts.push('<span>Less</span>');
+  for (let h = 0; h <= 4; h++) {
+    parts.push(`<span class="heatmap-cell heat-${h}" aria-hidden="true"></span>`);
+  }
+  parts.push('<span>More</span></span>');
+  if (max > 0) {
+    parts.push(`<span>Busiest day: ${max} task${max === 1 ? '' : 's'}</span>`);
+  }
+  parts.push('</div></div>');
+  return parts.join('');
+}
+
 function colorFor(name) {
   const i = people.indexOf(name);
   if (i === -1) return { bar: '#888', text: '#fff' };
@@ -256,11 +317,15 @@ function render() {
     const pct = Math.round((cur[p] / max) * 100);
     const col = colorFor(p);
     return `<div class="person-row">
-  <span class="person-label">${p}</span>
+  <div class="person-row-top">
+    <span class="person-label">${p}</span>
+    <span class="count-num">${cur[p]}</span>
+  </div>
   <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col.bar};color:${col.text};">${cur[p] > 2 ? cur[p] + ' tasks' : ''}</div></div>
-  <span class="count-num">${cur[p]}</span>
 </div>`;
   }).join('');
+
+  document.getElementById('taskHeatmap').innerHTML = renderTaskHeatmap(currentMonth);
 
   document.getElementById('logMonthLabel').textContent = getMonthLabel(currentMonth);
   const monthEntries = entries.filter(e => getMonthKey(e.d) === currentMonth).sort((a, b) => b.d.localeCompare(a.d));

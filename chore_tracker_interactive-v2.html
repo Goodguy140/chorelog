@@ -41,9 +41,16 @@
 
     <div class="stat-grid" id="statsGrid"></div>
 
-    <div class="section">
-      <p class="section-title">Contributions this month</p>
-      <div id="barsArea"></div>
+    <div class="section-pair">
+      <div class="section section-pair__item">
+        <p class="section-title">Contributions this month</p>
+        <div id="barsArea"></div>
+      </div>
+      <div class="section section-pair__item">
+        <p class="section-title">Daily activity</p>
+        <p class="section-sub">Tasks logged per day in the selected month (darker = more tasks).</p>
+        <div class="heatmap-wrap" id="taskHeatmap" aria-label="Tasks per day heatmap"></div>
+      </div>
     </div>
 
     <div class="section" id="scheduledSection" style="display:none;">
