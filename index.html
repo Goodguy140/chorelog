@@ -82,7 +82,10 @@
         <div class="field field-date"><label for="inDate">Date</label>
           <div class="date-input-shell"><input type="date" id="inDate" autocomplete="off"></div>
         </div>
-        <div class="field"><label>Chore</label><input type="text" id="inChore" placeholder="e.g. Dishes; Swept kitchen">
+        <div class="field field-chore"><label for="inChore">Chore</label>
+          <input type="text" id="inChore" list="chorePresetsDatalist" placeholder="Search or pick a chore" maxlength="500" autocomplete="off">
+          <datalist id="chorePresetsDatalist"></datalist>
+          <p class="field-hint">Separate with <kbd>;</kbd> to log multiple presets in one go.</p>
         </div>
         <div class="field"><label>Person</label>
           <select id="inPerson"></select>
@@ -129,6 +132,23 @@
         <div class="add-person-row">
           <input type="text" id="newPersonName" placeholder="Name" maxlength="80" autocomplete="off">
           <button type="button" class="btn-secondary" id="btnAddPerson">Add</button>
+        </div>
+      </div>
+
+      <div>
+        <p class="settings-block-title">Chore presets</p>
+        <p class="settings-hint">Title, points, and color for each selectable chore.</p>
+        <ul class="chore-presets-editor" id="chorePresetsList"></ul>
+        <button type="button" class="btn-secondary" id="btnAddChorePreset">Add chore</button>
+      </div>
+
+      <div>
+        <p class="settings-block-title">Quick log</p>
+        <p class="settings-hint">Buttons under “Log a chore” — order matches the list below.</p>
+        <ul class="quick-chores-editor" id="quickChoresList"></ul>
+        <div class="add-quick-chore-row">
+          <select id="quickChorePresetSelect" aria-label="Add preset to quick bar"></select>
+          <button type="button" class="btn-secondary" id="btnAddQuickChore">Add</button>
         </div>
       </div>
 
@@ -195,7 +215,8 @@
         </div>
         <div class="edit-entry-field">
           <label for="editEntryChore">Chore</label>
-          <input type="text" id="editEntryChore" maxlength="500" required autocomplete="off">
+          <input type="text" id="editEntryChore" list="editChoreDatalist" maxlength="500" required autocomplete="off">
+          <datalist id="editChoreDatalist"></datalist>
         </div>
         <div class="edit-entry-field">
           <label for="editEntryPerson">Person</label>
@@ -247,7 +268,7 @@
   </div>
   </div>
 
-  <script src="/js/chore-tracker.js" defer></script>
+  <script type="module" src="/js/chore-tracker.js"></script>
 </body>
 
 </html>

@@ -4,577 +4,865 @@
       "id": "58cc6410-4c94-4968-a59e-c107e5115169",
       "d": "2026-03-03",
       "c": "Dishes",
-      "p": "Vic"
+      "p": "Vic",
+      "choreId": null,
+      "createdAt": "2026-03-03T12:00:00.000Z",
+      "updatedAt": "2026-03-03T12:00:00.000Z"
     },
     {
       "id": "f1302e1c-9a3b-4741-9fdd-6c58ba01d51a",
       "d": "2026-03-03",
       "c": "Wiped Table",
-      "p": "Vic"
+      "p": "Vic",
+      "choreId": null,
+      "createdAt": "2026-03-03T12:00:00.000Z",
+      "updatedAt": "2026-03-03T12:00:00.000Z"
     },
     {
       "id": "8b6a439d-1656-4e9a-baed-ebfe61cc7d17",
       "d": "2026-03-03",
       "c": "Cleaned Fridge",
-      "p": "Vic"
+      "p": "Vic",
+      "choreId": null,
+      "createdAt": "2026-03-03T12:00:00.000Z",
+      "updatedAt": "2026-03-03T12:00:00.000Z"
     },
     {
       "id": "172b54db-6ba0-45e7-a409-6beeba160f0f",
       "d": "2026-03-03",
       "c": "Wiped common surfaces",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-03-03T12:00:00.000Z",
+      "updatedAt": "2026-03-03T12:00:00.000Z"
     },
     {
       "id": "4d055006-f831-452b-9edf-24d9c04fe414",
       "d": "2026-03-05",
       "c": "Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-03-05T12:00:00.000Z",
+      "updatedAt": "2026-03-05T12:00:00.000Z"
     },
     {
       "id": "1dd5bcfc-fb36-43bb-92ee-f9759eb2cd5d",
       "d": "2026-03-05",
       "c": "Dishes",
-      "p": "Vic"
+      "p": "Vic",
+      "choreId": null,
+      "createdAt": "2026-03-05T12:00:00.000Z",
+      "updatedAt": "2026-03-05T12:00:00.000Z"
     },
     {
       "id": "4b03478a-03cc-463d-8989-8e3784d0270e",
       "d": "2026-03-06",
       "c": "Garbage out",
-      "p": "Vic"
+      "p": "Vic",
+      "choreId": null,
+      "createdAt": "2026-03-06T12:00:00.000Z",
+      "updatedAt": "2026-03-06T12:00:00.000Z"
     },
     {
       "id": "c9aaa520-1234-412e-a480-c57971db6c67",
       "d": "2026-03-06",
       "c": "Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-03-06T12:00:00.000Z",
+      "updatedAt": "2026-03-06T12:00:00.000Z"
     },
     {
       "id": "b30c9d2c-11c9-42d5-80c0-5a1f8da2b731",
       "d": "2026-03-08",
       "c": "Dishwasher, Cleaned bathroom",
-      "p": "Rachel"
+      "p": "Rachel",
+      "choreId": null,
+      "createdAt": "2026-03-08T12:00:00.000Z",
+      "updatedAt": "2026-03-08T12:00:00.000Z"
     },
     {
       "id": "61c4096a-b134-4ad8-b950-a4ca4283d8cf",
       "d": "2026-03-09",
       "c": "Cleaned bathtub/grout",
-      "p": "Rachel"
+      "p": "Rachel",
+      "choreId": null,
+      "createdAt": "2026-03-09T12:00:00.000Z",
+      "updatedAt": "2026-03-09T12:00:00.000Z"
     },
     {
       "id": "928734d3-de8d-4629-aad8-c58d481d3d4a",
       "d": "2026-03-09",
       "c": "Swept upstairs, stairs, hallway, kitchen",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-03-09T12:00:00.000Z",
+      "updatedAt": "2026-03-09T12:00:00.000Z"
     },
     {
       "id": "216fd7ec-5e62-4f8f-a62d-c97c737e87ec",
       "d": "2026-03-09",
       "c": "Tidied sussy room",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-03-09T12:00:00.000Z",
+      "updatedAt": "2026-03-09T12:00:00.000Z"
     },
     {
       "id": "4ea40af9-1aed-4d58-9313-51b1feec7dcf",
       "d": "2026-03-10",
       "c": "Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-03-10T12:00:00.000Z",
+      "updatedAt": "2026-03-10T12:00:00.000Z"
     },
     {
       "id": "ba120319-5c91-4768-a27b-1df3637a8c95",
       "d": "2026-03-11",
       "c": "Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-03-11T12:00:00.000Z",
+      "updatedAt": "2026-03-11T12:00:00.000Z"
     },
     {
       "id": "2a401853-74d0-4b28-8713-caf3ea7cddf2",
       "d": "2026-03-13",
       "c": "Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-03-13T12:00:00.000Z",
+      "updatedAt": "2026-03-13T12:00:00.000Z"
     },
     {
       "id": "40fe3b2f-ef83-4f69-8114-21c41d8dfe8e",
       "d": "2026-03-13",
       "c": "Wiped counter, shelf, stove and table",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-03-13T12:00:00.000Z",
+      "updatedAt": "2026-03-13T12:00:00.000Z"
     },
     {
       "id": "ff91c636-de96-4445-8e27-7baac16deca4",
       "d": "2026-03-13",
       "c": "Swept kitchen twice",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-03-13T12:00:00.000Z",
+      "updatedAt": "2026-03-13T12:00:00.000Z"
     },
     {
       "id": "7ed4d4a2-4966-4a2c-8c4f-7ceb7b17e1a8",
       "d": "2026-03-14",
       "c": "Dishwasher",
-      "p": "Rachel"
+      "p": "Rachel",
+      "choreId": null,
+      "createdAt": "2026-03-14T12:00:00.000Z",
+      "updatedAt": "2026-03-14T12:00:00.000Z"
     },
     {
       "id": "89db552c-546c-4832-930c-26eb64347026",
       "d": "2026-03-14",
       "c": "Dishes + put away",
-      "p": "Vic"
+      "p": "Vic",
+      "choreId": null,
+      "createdAt": "2026-03-14T12:00:00.000Z",
+      "updatedAt": "2026-03-14T12:00:00.000Z"
     },
     {
       "id": "a1a82255-0f79-49ca-b827-721015210b3b",
       "d": "2026-03-15",
       "c": "Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-03-15T12:00:00.000Z",
+      "updatedAt": "2026-03-15T12:00:00.000Z"
     },
     {
       "id": "2acb88ea-14c0-4b40-9e53-9f369fb90111",
       "d": "2026-03-17",
       "c": "Many dishes",
-      "p": "Vic"
+      "p": "Vic",
+      "choreId": null,
+      "createdAt": "2026-03-17T12:00:00.000Z",
+      "updatedAt": "2026-03-17T12:00:00.000Z"
     },
     {
       "id": "0df09d2e-8554-4dd4-bc74-91a8008d844b",
       "d": "2026-03-19",
       "c": "Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-03-19T12:00:00.000Z",
+      "updatedAt": "2026-03-19T12:00:00.000Z"
     },
     {
       "id": "dc225e01-1ab2-4c65-8d90-bf2ba68491ee",
       "d": "2026-03-19",
       "c": "Swept hallways, kitchen & stairs",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-03-19T12:00:00.000Z",
+      "updatedAt": "2026-03-19T12:00:00.000Z"
     },
     {
       "id": "b02660a9-2058-4272-80c6-268105e9e1ab",
       "d": "2026-03-19",
       "c": "Changed cans & garbage",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-03-19T12:00:00.000Z",
+      "updatedAt": "2026-03-19T12:00:00.000Z"
     },
     {
       "id": "0a92ac3b-cd8c-4216-bb49-0f0988afedb8",
       "d": "2026-03-19",
       "c": "Change Cardboard",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-03-19T12:00:00.000Z",
+      "updatedAt": "2026-03-19T12:00:00.000Z"
     },
     {
       "id": "f081d18a-416e-4d7a-ad89-9c95244ce36a",
       "d": "2026-03-20",
       "c": "Dishes + put away",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-03-20T12:00:00.000Z",
+      "updatedAt": "2026-03-20T12:00:00.000Z"
     },
     {
       "id": "0a28e78d-5998-42eb-957e-eddfc768dc9e",
       "d": "2026-03-21",
       "c": "Swept stairs, hallway, back porch and kitchen",
-      "p": "Rachel"
+      "p": "Rachel",
+      "choreId": null,
+      "createdAt": "2026-03-21T12:00:00.000Z",
+      "updatedAt": "2026-03-21T12:00:00.000Z"
     },
     {
       "id": "d5196a8e-49bc-479e-99cd-29e1ff9f2d29",
       "d": "2026-03-21",
       "c": "Dishwasher",
-      "p": "Rachel"
+      "p": "Rachel",
+      "choreId": null,
+      "createdAt": "2026-03-21T12:00:00.000Z",
+      "updatedAt": "2026-03-21T12:00:00.000Z"
     },
     {
       "id": "0d918037-e4fc-4d30-bb52-f5d63cfa20cc",
       "d": "2026-03-23",
       "c": "Shoveled Front & Back",
-      "p": "Rachel"
+      "p": "Rachel",
+      "choreId": null,
+      "createdAt": "2026-03-23T12:00:00.000Z",
+      "updatedAt": "2026-03-23T12:00:00.000Z"
     },
     {
       "id": "884c3514-fd28-4a1f-8195-0f847e500b5c",
       "d": "2026-03-23",
       "c": "Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-03-23T12:00:00.000Z",
+      "updatedAt": "2026-03-23T12:00:00.000Z"
     },
     {
       "id": "55b40335-0fd2-4f8e-a0ce-0bb34675360e",
       "d": "2026-03-23",
       "c": "Put away dishes x2",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-03-23T12:00:00.000Z",
+      "updatedAt": "2026-03-23T12:00:00.000Z"
     },
     {
       "id": "20b2e0bf-8abc-4946-aaf7-ebc40e873303",
       "d": "2026-03-27",
       "c": "Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-03-27T12:00:00.000Z",
+      "updatedAt": "2026-03-27T12:00:00.000Z"
     },
     {
       "id": "10291969-cc93-4795-9b3d-e1d3aa59256f",
       "d": "2026-03-27",
       "c": "Mail to Fred",
-      "p": "Vic"
+      "p": "Vic",
+      "choreId": null,
+      "createdAt": "2026-03-27T12:00:00.000Z",
+      "updatedAt": "2026-03-27T12:00:00.000Z"
     },
     {
       "id": "f9087b15-db48-4b75-936d-88435b926770",
       "d": "2026-03-29",
       "c": "Bathroom clean",
-      "p": "Rachel"
+      "p": "Rachel",
+      "choreId": null,
+      "createdAt": "2026-03-29T12:00:00.000Z",
+      "updatedAt": "2026-03-29T12:00:00.000Z"
     },
     {
       "id": "dd353092-ad06-4de2-b468-54b015174c6c",
       "d": "2026-03-29",
       "c": "Dishwasher",
-      "p": "Rachel"
+      "p": "Rachel",
+      "choreId": null,
+      "createdAt": "2026-03-29T12:00:00.000Z",
+      "updatedAt": "2026-03-29T12:00:00.000Z"
     },
     {
       "id": "3af6c04b-556d-4e4e-971a-4008e1e6e709",
       "d": "2026-02-01",
       "c": "Mopped floor, Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-01T12:00:00.000Z",
+      "updatedAt": "2026-02-01T12:00:00.000Z"
     },
     {
       "id": "f5a7857a-474d-433f-9afb-474afcc014ea",
       "d": "2026-02-02",
       "c": "Dishes and Dishwasher in/out",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-02T12:00:00.000Z",
+      "updatedAt": "2026-02-02T12:00:00.000Z"
     },
     {
       "id": "7eefb3d5-6965-4bbe-a827-5d6a853bda7e",
       "d": "2026-02-02",
       "c": "Clean Bathroom and Dishwasher",
-      "p": "Rachel"
+      "p": "Rachel",
+      "choreId": null,
+      "createdAt": "2026-02-02T12:00:00.000Z",
+      "updatedAt": "2026-02-02T12:00:00.000Z"
     },
     {
       "id": "5d0800d2-9cea-4dff-b460-764afb01b672",
       "d": "2026-02-02",
       "c": "Dishes",
-      "p": "Vic"
+      "p": "Vic",
+      "choreId": null,
+      "createdAt": "2026-02-02T12:00:00.000Z",
+      "updatedAt": "2026-02-02T12:00:00.000Z"
     },
     {
       "id": "81c59298-baa9-4702-9d93-89179a86be2b",
       "d": "2026-02-03",
       "c": "Dishes",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-02-03T12:00:00.000Z",
+      "updatedAt": "2026-02-03T12:00:00.000Z"
     },
     {
       "id": "4001a6b4-7526-4d70-98e9-bcc2c0a7a0de",
       "d": "2026-02-04",
       "c": "Dishes",
-      "p": "Vic"
+      "p": "Vic",
+      "choreId": null,
+      "createdAt": "2026-02-04T12:00:00.000Z",
+      "updatedAt": "2026-02-04T12:00:00.000Z"
     },
     {
       "id": "d58bcac5-fa3a-4b2a-89b7-45b50339840d",
       "d": "2026-02-04",
       "c": "Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-04T12:00:00.000Z",
+      "updatedAt": "2026-02-04T12:00:00.000Z"
     },
     {
       "id": "602b81ca-0d5c-4b87-ae98-c57dd962ed09",
       "d": "2026-02-04",
       "c": "Swept Kitchen & Hallway",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-02-04T12:00:00.000Z",
+      "updatedAt": "2026-02-04T12:00:00.000Z"
     },
     {
       "id": "82220051-b90f-4fb2-8dc8-bf13ceadb612",
       "d": "2026-02-05",
       "c": "Dishes",
-      "p": "Vic"
+      "p": "Vic",
+      "choreId": null,
+      "createdAt": "2026-02-05T12:00:00.000Z",
+      "updatedAt": "2026-02-05T12:00:00.000Z"
     },
     {
       "id": "7d2576ec-15fb-4f75-93b9-6bdc7b8ed0ce",
       "d": "2026-02-05",
       "c": "Garbage out",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-02-05T12:00:00.000Z",
+      "updatedAt": "2026-02-05T12:00:00.000Z"
     },
     {
       "id": "9fa83d79-779c-4d49-a38e-0c0d77902dfc",
       "d": "2026-02-06",
       "c": "Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-06T12:00:00.000Z",
+      "updatedAt": "2026-02-06T12:00:00.000Z"
     },
     {
       "id": "6372872b-bb5e-4aba-9420-526b69b72b04",
       "d": "2026-02-07",
       "c": "Swept backdoor porch",
-      "p": "Rachel"
+      "p": "Rachel",
+      "choreId": null,
+      "createdAt": "2026-02-07T12:00:00.000Z",
+      "updatedAt": "2026-02-07T12:00:00.000Z"
     },
     {
       "id": "47ca5b63-f36e-45ce-8d89-943470ccd51a",
       "d": "2026-02-08",
       "c": "Swept upstairs, stairs, hallway, and Kitchen",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-08T12:00:00.000Z",
+      "updatedAt": "2026-02-08T12:00:00.000Z"
     },
     {
       "id": "c512d144-c9cc-4b82-b51d-a77bb59e4de8",
       "d": "2026-02-08",
       "c": "Wiped table, Took garbage down & Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-08T12:00:00.000Z",
+      "updatedAt": "2026-02-08T12:00:00.000Z"
     },
     {
       "id": "c561c4ff-ab48-487a-a2bd-f74a645d2cde",
       "d": "2026-02-09",
       "c": "Dishes & Dishwasher",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-09T12:00:00.000Z",
+      "updatedAt": "2026-02-09T12:00:00.000Z"
     },
     {
       "id": "ddac481a-4f5a-48a3-97c2-6959dbcc3568",
       "d": "2026-02-10",
       "c": "Dishes & Dishwasher away",
-      "p": "Vic"
+      "p": "Vic",
+      "choreId": null,
+      "createdAt": "2026-02-10T12:00:00.000Z",
+      "updatedAt": "2026-02-10T12:00:00.000Z"
     },
     {
       "id": "347248f0-d3e2-4db7-a192-26a08b730415",
       "d": "2026-02-11",
       "c": "Swept Upstairs, Hallway and Kitchen",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-11T12:00:00.000Z",
+      "updatedAt": "2026-02-11T12:00:00.000Z"
     },
     {
       "id": "16547da1-ecb8-4865-82d0-4ca8337b4cd7",
       "d": "2026-02-11",
       "c": "Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-11T12:00:00.000Z",
+      "updatedAt": "2026-02-11T12:00:00.000Z"
     },
     {
       "id": "f829d11f-52ca-4ce1-92ec-66bea1982059",
       "d": "2026-02-11",
       "c": "Dishwasher",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-11T12:00:00.000Z",
+      "updatedAt": "2026-02-11T12:00:00.000Z"
     },
     {
       "id": "ab2aa224-61e2-4bf9-8643-a87b6cfdc453",
       "d": "2026-02-11",
       "c": "Stove Deep-cleaned",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-11T12:00:00.000Z",
+      "updatedAt": "2026-02-11T12:00:00.000Z"
     },
     {
       "id": "02372172-d6c0-4a7e-a429-e3079d656373",
       "d": "2026-02-11",
       "c": "Swept Back Porch & Kitchen",
-      "p": "Rachel"
+      "p": "Rachel",
+      "choreId": null,
+      "createdAt": "2026-02-11T12:00:00.000Z",
+      "updatedAt": "2026-02-11T12:00:00.000Z"
     },
     {
       "id": "a5a3fd5a-9111-4306-81ec-a75e372e26c3",
       "d": "2026-02-12",
       "c": "Shoveled to Clear a Path, Salted",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-02-12T12:00:00.000Z",
+      "updatedAt": "2026-02-12T12:00:00.000Z"
     },
     {
       "id": "909cd8fa-ae74-4165-ae3f-6d5a8c29ae16",
       "d": "2026-02-12",
       "c": "Dishes",
-      "p": "Vic"
+      "p": "Vic",
+      "choreId": null,
+      "createdAt": "2026-02-12T12:00:00.000Z",
+      "updatedAt": "2026-02-12T12:00:00.000Z"
     },
     {
       "id": "f09ef151-9e55-43db-a27d-a749452efc0b",
       "d": "2026-02-15",
       "c": "Swept Upstairs, Stairs, Hallway and Kitchen",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-02-15T12:00:00.000Z",
+      "updatedAt": "2026-02-15T12:00:00.000Z"
     },
     {
       "id": "7ca8bbd3-21a1-4ea7-b4b6-713585476bba",
       "d": "2026-02-15",
       "c": "Lysoled floor",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-02-15T12:00:00.000Z",
+      "updatedAt": "2026-02-15T12:00:00.000Z"
     },
     {
       "id": "f4c5a6bb-aabf-464b-8e8d-5ce1868eff7a",
       "d": "2026-02-15",
       "c": "Dishwasher",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-02-15T12:00:00.000Z",
+      "updatedAt": "2026-02-15T12:00:00.000Z"
     },
     {
       "id": "741514a5-de8d-4756-9e9e-641b00250901",
       "d": "2026-02-15",
       "c": "Dishes and Trash to Basement",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-15T12:00:00.000Z",
+      "updatedAt": "2026-02-15T12:00:00.000Z"
     },
     {
       "id": "6cbd740e-2334-497a-8e45-31e3539909dd",
       "d": "2026-02-16",
       "c": "Put away Dishes and did Dishes",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-02-16T12:00:00.000Z",
+      "updatedAt": "2026-02-16T12:00:00.000Z"
     },
     {
       "id": "8ee5694d-d6ae-4b47-8b52-04ab0ef9f811",
       "d": "2026-02-17",
       "c": "Wiped common surfaces",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-17T12:00:00.000Z",
+      "updatedAt": "2026-02-17T12:00:00.000Z"
     },
     {
       "id": "5b80e3aa-894e-4909-99fe-580814bb69b2",
       "d": "2026-02-17",
       "c": "Swept and Mopped Entry Way",
-      "p": "Vic"
+      "p": "Vic",
+      "choreId": null,
+      "createdAt": "2026-02-17T12:00:00.000Z",
+      "updatedAt": "2026-02-17T12:00:00.000Z"
     },
     {
       "id": "18193a72-a6e6-45f1-b327-2839dd6b5993",
       "d": "2026-02-17",
       "c": "Dishes",
-      "p": "Vic"
+      "p": "Vic",
+      "choreId": null,
+      "createdAt": "2026-02-17T12:00:00.000Z",
+      "updatedAt": "2026-02-17T12:00:00.000Z"
     },
     {
       "id": "6043a006-e1e2-44b6-8092-1a81848ee9d5",
       "d": "2026-02-17",
       "c": "Bathroom",
-      "p": "Rachel"
+      "p": "Rachel",
+      "choreId": null,
+      "createdAt": "2026-02-17T12:00:00.000Z",
+      "updatedAt": "2026-02-17T12:00:00.000Z"
     },
     {
       "id": "a161ec5d-e5e3-4c61-ac98-32cd87d1ffaf",
       "d": "2026-02-18",
       "c": "Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-18T12:00:00.000Z",
+      "updatedAt": "2026-02-18T12:00:00.000Z"
     },
     {
       "id": "bb205109-da87-4d2b-8eb0-89b3da9a622c",
       "d": "2026-02-18",
       "c": "Dishwasher",
-      "p": "Rachel"
+      "p": "Rachel",
+      "choreId": null,
+      "createdAt": "2026-02-18T12:00:00.000Z",
+      "updatedAt": "2026-02-18T12:00:00.000Z"
     },
     {
       "id": "b0c81c1b-26db-4a9d-b28c-4e8f1bc5b7c6",
       "d": "2026-02-18",
       "c": "Dishes",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-02-18T12:00:00.000Z",
+      "updatedAt": "2026-02-18T12:00:00.000Z"
     },
     {
       "id": "250d3849-e739-4155-a2c4-e3c21d7bb9b7",
       "d": "2026-02-19",
       "c": "Dishes, Wiped down table, stove",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-19T12:00:00.000Z",
+      "updatedAt": "2026-02-19T12:00:00.000Z"
     },
     {
       "id": "009934c2-2788-443a-a5a5-5b88f3b506aa",
       "d": "2026-02-19",
       "c": "Changed bathroom trash",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-19T12:00:00.000Z",
+      "updatedAt": "2026-02-19T12:00:00.000Z"
     },
     {
       "id": "dd86f3a1-c75b-4f92-b0cf-4d520236d2d2",
       "d": "2026-02-19",
       "c": "Swept",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-19T12:00:00.000Z",
+      "updatedAt": "2026-02-19T12:00:00.000Z"
     },
     {
       "id": "06ff71a2-1408-4e55-9ab4-8b869fcd5afa",
       "d": "2026-02-19",
       "c": "Garbage out",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-02-19T12:00:00.000Z",
+      "updatedAt": "2026-02-19T12:00:00.000Z"
     },
     {
       "id": "adccecac-2240-481d-9d62-c65b352596f3",
       "d": "2026-02-21",
       "c": "Swept stairs, hallway, living room and back porch",
-      "p": "Rachel"
+      "p": "Rachel",
+      "choreId": null,
+      "createdAt": "2026-02-21T12:00:00.000Z",
+      "updatedAt": "2026-02-21T12:00:00.000Z"
     },
     {
       "id": "9afcef49-366c-4a3e-8dfa-bd4f572c797e",
       "d": "2026-02-21",
       "c": "Wiped Under recyclables bag",
-      "p": "Vic"
+      "p": "Vic",
+      "choreId": null,
+      "createdAt": "2026-02-21T12:00:00.000Z",
+      "updatedAt": "2026-02-21T12:00:00.000Z"
     },
     {
       "id": "bb1302eb-0ade-4b4e-9c9d-89eaf42a1156",
       "d": "2026-02-21",
       "c": "Dishes",
-      "p": "Vic"
+      "p": "Vic",
+      "choreId": null,
+      "createdAt": "2026-02-21T12:00:00.000Z",
+      "updatedAt": "2026-02-21T12:00:00.000Z"
     },
     {
       "id": "bfae458e-8d61-4881-9302-0526c4c3f47c",
       "d": "2026-02-22",
       "c": "Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-22T12:00:00.000Z",
+      "updatedAt": "2026-02-22T12:00:00.000Z"
     },
     {
       "id": "3cbc7432-393a-4506-b58c-2a87dbf8dec3",
       "d": "2026-02-23",
       "c": "Dishes away",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-23T12:00:00.000Z",
+      "updatedAt": "2026-02-23T12:00:00.000Z"
     },
     {
       "id": "f58aa098-b0f7-442e-9d93-08cb4f124e57",
       "d": "2026-02-23",
       "c": "Dishes",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-02-23T12:00:00.000Z",
+      "updatedAt": "2026-02-23T12:00:00.000Z"
     },
     {
       "id": "3bbd4a6a-8c2a-4b36-a059-68dd5f18ada7",
       "d": "2026-02-24",
       "c": "Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-24T12:00:00.000Z",
+      "updatedAt": "2026-02-24T12:00:00.000Z"
     },
     {
       "id": "8c7fe838-4dd1-43b1-ab01-06b3128286ce",
       "d": "2026-02-24",
       "c": "Shoveled Front and back steps",
-      "p": "Rachel"
+      "p": "Rachel",
+      "choreId": null,
+      "createdAt": "2026-02-24T12:00:00.000Z",
+      "updatedAt": "2026-02-24T12:00:00.000Z"
     },
     {
       "id": "b04730ef-17f8-409d-b6f9-c2b97ee2b594",
       "d": "2026-02-24",
       "c": "Dishwasher and put away dishes",
-      "p": "Rachel"
+      "p": "Rachel",
+      "choreId": null,
+      "createdAt": "2026-02-24T12:00:00.000Z",
+      "updatedAt": "2026-02-24T12:00:00.000Z"
     },
     {
       "id": "2349f732-0c20-4f74-b4e2-66a96350f0ec",
       "d": "2026-02-27",
       "c": "Dishes",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-02-27T12:00:00.000Z",
+      "updatedAt": "2026-02-27T12:00:00.000Z"
     },
     {
       "id": "c4f84db1-f591-4c78-b535-c8b00b0bed0e",
       "d": "2026-02-27",
       "c": "Garbage down + bag replaced",
-      "p": "Vic"
+      "p": "Vic",
+      "choreId": null,
+      "createdAt": "2026-02-27T12:00:00.000Z",
+      "updatedAt": "2026-02-27T12:00:00.000Z"
     },
     {
       "id": "fe431fcd-47a0-439d-9957-09969a909eb1",
       "d": "2026-02-28",
       "c": "Changed bathroom trash",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-28T12:00:00.000Z",
+      "updatedAt": "2026-02-28T12:00:00.000Z"
     },
     {
       "id": "cd9393fd-cb9c-4057-bd40-9d83ac64b886",
       "d": "2026-02-28",
       "c": "Swept house",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-28T12:00:00.000Z",
+      "updatedAt": "2026-02-28T12:00:00.000Z"
     },
     {
       "id": "8326cc16-5ee0-4562-9782-d0f5225eeb7b",
       "d": "2026-02-28",
       "c": "Mopped hallways",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-28T12:00:00.000Z",
+      "updatedAt": "2026-02-28T12:00:00.000Z"
     },
     {
       "id": "6e578734-1405-4267-8ace-efeeebdae1cf",
       "d": "2026-02-28",
       "c": "Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-28T12:00:00.000Z",
+      "updatedAt": "2026-02-28T12:00:00.000Z"
     },
     {
       "id": "69064693-d219-4880-9ce8-57b68bdce9cf",
       "d": "2026-02-28",
       "c": "Cleaned table",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-02-28T12:00:00.000Z",
+      "updatedAt": "2026-02-28T12:00:00.000Z"
     },
     {
       "id": "5ad11197-de77-4e62-8a58-5ce33546bd0f",
       "d": "2026-04-03",
       "c": "Swept upstairs, stairs, hallway, kitchen & back porch",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-04-03T12:00:00.000Z",
+      "updatedAt": "2026-04-03T12:00:00.000Z"
     },
     {
       "id": "da9bd6ed-eab7-498a-8fea-0dca0d6483d9",
       "d": "2026-04-03",
       "c": "Wiped kitchen table",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-04-03T12:00:00.000Z",
+      "updatedAt": "2026-04-03T12:00:00.000Z"
     },
     {
       "id": "9fcf4cc8-afdb-4cf4-9889-f89bd3feee15",
       "d": "2026-04-03",
       "c": "Replaced garbage & can bag",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-04-03T12:00:00.000Z",
+      "updatedAt": "2026-04-03T12:00:00.000Z"
     },
     {
       "id": "e84f09dc-4930-4721-b36c-2e1644d8f726",
       "d": "2026-04-03",
       "c": "Dishes",
-      "p": "Christian"
+      "p": "Christian",
+      "choreId": null,
+      "createdAt": "2026-04-03T12:00:00.000Z",
+      "updatedAt": "2026-04-03T12:00:00.000Z"
     },
     {
       "id": "2b14ebd7-ef97-4798-951d-460bad8d2c67",
       "d": "2026-04-02",
       "c": "Dishes",
-      "p": "Dylan"
+      "p": "Dylan",
+      "choreId": null,
+      "createdAt": "2026-04-02T12:00:00.000Z",
+      "updatedAt": "2026-04-02T12:00:00.000Z"
     },
     {
       "id": "de2b856e-9bb0-4e1d-bb6f-d42937cb25f8",
       "d": "2026-04-04",
       "c": "Garbage Day",
-      "p": "Rachel"
+      "p": "Rachel",
+      "choreId": null,
+      "createdAt": "2026-04-04T12:00:00.000Z",
+      "updatedAt": "2026-04-04T12:00:00.000Z"
     }
   ],
   "people": [
@@ -588,8 +876,56 @@
       "id": "f539e3be-ac06-4982-9fee-0e203f9deda9",
       "title": "Wipe common surfaces",
       "intervalDays": 30,
-      "createdAt": "2026-04-03",
-      "lastCompletedAt": null
+      "startsOn": "2026-04-03",
+      "lastCompletedAt": null,
+      "createdAt": "2026-04-03T12:00:00.000Z",
+      "updatedAt": "2026-04-03T12:00:00.000Z"
     }
+  ],
+  "chorePresets": [
+    {
+      "id": "85868379-4bfd-4dd3-94c5-1325490f9f3d",
+      "title": "Dishes",
+      "points": 2,
+      "color": "#378add"
+    },
+    {
+      "id": "8e719c68-d5ad-464c-9414-8711972ce813",
+      "title": "Garbage out",
+      "points": 3,
+      "color": "#d85a30"
+    },
+    {
+      "id": "911ecbd5-15ed-4418-a277-b5176b643f3d",
+      "title": "Dishwasher",
+      "points": 1,
+      "color": "#7f77dd"
+    },
+    {
+      "id": "73988b6f-896d-4f0d-8de3-d079ac61223f",
+      "title": "Wiped common surfaces",
+      "points": 1,
+      "color": "#1d9e75"
+    },
+    {
+      "id": "7e56900e-2751-4f21-afce-64a404be4a60",
+      "title": "Swept house",
+      "points": 3,
+      "color": "#c973d9"
+    },
+    {
+      "id": "57cb8e24-6803-4170-85fc-11f7abaa02fc",
+      "title": "Bathroom",
+      "points": 3,
+      "color": "#d8a530"
+    }
+  ],
+  "quickChoreIds": [
+    "85868379-4bfd-4dd3-94c5-1325490f9f3d",
+    "8e719c68-d5ad-464c-9414-8711972ce813",
+    "911ecbd5-15ed-4418-a277-b5176b643f3d",
+    "73988b6f-896d-4f0d-8de3-d079ac61223f",
+    "7e56900e-2751-4f21-afce-64a404be4a60",
+    "57cb8e24-6803-4170-85fc-11f7abaa02fc"
   ]
 }

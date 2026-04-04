@@ -116,6 +116,94 @@ function parseCalendarDateParam(raw) {
   return s;
 }
 
+function nowISO() {
+  return new Date().toISOString();
+}
+
+/** Local calendar YYYY-MM-DD from an ISO datetime string (process timezone). */
+function calendarDateFromISO(iso) {
+  if (typeof iso !== 'string' || !iso.includes('T')) return localCalendarDateISO();
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return localCalendarDateISO();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function normalizeEntry(row) {
+  if (!row || typeof row.d !== 'string' || typeof row.p !== 'string') return null;
+  const id = typeof row.id === 'string' && row.id ? row.id : newId();
+  const d = row.d.trim();
+  const p = row.p.trim();
+  let c = typeof row.c === 'string' ? row.c.trim() : '';
+  let choreId = null;
+  if (row.choreId != null && typeof row.choreId === 'string') {
+    const t = row.choreId.trim();
+    if (t) choreId = t;
+  }
+  if (!d || !p) return null;
+  if (!c && !choreId) return null;
+  const fallbackIso = `${d}T12:00:00.000Z`;
+  let createdAt = typeof row.createdAt === 'string' ? row.createdAt : fallbackIso;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(createdAt)) createdAt = `${createdAt}T12:00:00.000Z`;
+  let updatedAt = typeof row.updatedAt === 'string' ? row.updatedAt : createdAt;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(updatedAt)) updatedAt = `${updatedAt}T12:00:00.000Z`;
+  return { id, d, c, p, choreId, createdAt, updatedAt };
+}
+
+function normalizeChorePreset(row) {
+  if (!row || typeof row.title !== 'string') return null;
+  const title = row.title.trim();
+  if (!title) return null;
+  const id = typeof row.id === 'string' && row.id ? row.id : newId();
+  let points = Number(row.points);
+  if (!Number.isFinite(points)) points = 1;
+  if (points < 0) points = 0;
+  if (points > 10000) points = 10000;
+  let color = typeof row.color === 'string' ? row.color.trim() : '#378ADD';
+  if (!/^#[0-9A-Fa-f]{6}$/.test(color)) color = '#378ADD';
+  return { id, title, points, color };
+}
+
+function normalizeChorePresets(arr) {
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  for (const row of arr) {
+    const p = normalizeChorePreset(row);
+    if (p) out.push(p);
+  }
+  return out;
+}
+
+function normalizeQuickChoreIds(ids, presets) {
+  const valid = new Set(presets.map((x) => x.id));
+  if (!Array.isArray(ids)) return [];
+  const out = [];
+  for (const id of ids) {
+    if (typeof id !== 'string' || !valid.has(id)) continue;
+    out.push(id);
+  }
+  return out.slice(0, 24);
+}
+
+function defaultChorePresets() {
+  const defs = [
+    ['Dishes', 1, '#378ADD'],
+    ['Garbage out', 1, '#D85A30'],
+    ['Dishwasher', 1, '#7F77DD'],
+    ['Wiped common surfaces', 1, '#1D9E75'],
+    ['Swept kitchen', 1, '#C973D9'],
+    ['Bathroom', 1, '#D8A530'],
+  ];
+  return defs.map(([title, points, color]) => ({
+    id: newId(),
+    title,
+    points,
+    color,
+  }));
+}
+
 function normalizePeople(arr) {
   if (!Array.isArray(arr)) return [...DEFAULT_PEOPLE];
   const seen = new Set();
@@ -141,21 +229,70 @@ function normalizeScheduledChores(arr) {
     if (!Number.isFinite(intervalDays) || intervalDays < 1) intervalDays = 7;
     if (intervalDays > 3650) intervalDays = 3650;
     const id = typeof row.id === 'string' && row.id ? row.id : newId();
-    let createdAtRaw = typeof row.createdAt === 'string' ? row.createdAt.slice(0, 10) : localCalendarDateISO();
-    let createdAt = parseCalendarDateParam(createdAtRaw) ?? localCalendarDateISO();
+
+    let startsOn = null;
+    if (typeof row.startsOn === 'string') {
+      startsOn = parseCalendarDateParam(row.startsOn);
+    }
+    const legacy = row.createdAt;
+    if (!startsOn && typeof legacy === 'string') {
+      const t = legacy.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
+        startsOn = parseCalendarDateParam(t);
+      } else if (t.includes('T')) {
+        startsOn = calendarDateFromISO(t);
+      }
+    }
+    if (!startsOn) startsOn = localCalendarDateISO();
+
+    let createdAt = typeof row.createdAt === 'string' && row.createdAt.includes('T') ? row.createdAt : null;
+    let updatedAt = typeof row.updatedAt === 'string' && row.updatedAt.includes('T') ? row.updatedAt : null;
+    if (!createdAt) {
+      createdAt = `${startsOn}T12:00:00.000Z`;
+    }
+    if (!updatedAt) {
+      updatedAt = createdAt;
+    }
+
     let lastCompletedAt = row.lastCompletedAt;
     if (lastCompletedAt != null && typeof lastCompletedAt === 'string') lastCompletedAt = lastCompletedAt.slice(0, 10);
     else lastCompletedAt = null;
-    out.push({ id, title, intervalDays, createdAt, lastCompletedAt });
+
+    out.push({
+      id,
+      title,
+      intervalDays,
+      startsOn,
+      lastCompletedAt,
+      createdAt,
+      updatedAt,
+    });
   }
   return out;
 }
 
 function normalizeStore(raw) {
-  const entries = Array.isArray(raw.entries) ? raw.entries : [];
+  const rawEntries = Array.isArray(raw.entries) ? raw.entries : [];
   const people = normalizePeople(raw.people);
   const scheduledChores = normalizeScheduledChores(raw.scheduledChores);
-  return { entries, people, scheduledChores };
+  let chorePresets = normalizeChorePresets(raw.chorePresets);
+  let quickChoreIds = normalizeQuickChoreIds(raw.quickChoreIds, chorePresets);
+  if (!chorePresets.length) {
+    chorePresets = defaultChorePresets();
+    quickChoreIds = chorePresets.slice(0, 6).map((x) => x.id);
+  } else if (!quickChoreIds.length) {
+    quickChoreIds = chorePresets.slice(0, Math.min(6, chorePresets.length)).map((x) => x.id);
+  }
+  const presetMap = new Map(chorePresets.map((p) => [p.id, p]));
+  let entries = rawEntries.map(normalizeEntry).filter(Boolean);
+  entries = entries.map((e) => {
+    if (!e.c && e.choreId && presetMap.has(e.choreId)) {
+      return { ...e, c: presetMap.get(e.choreId).title };
+    }
+    return e;
+  });
+  entries = entries.filter((e) => e.c && e.d && e.p);
+  return { entries, people, scheduledChores, chorePresets, quickChoreIds };
 }
 
 async function readStore() {
@@ -164,7 +301,15 @@ async function readStore() {
     const data = JSON.parse(buf);
     return normalizeStore(data);
   } catch (err) {
-    if (err.code === 'ENOENT') return { entries: [], people: [...DEFAULT_PEOPLE], scheduledChores: [] };
+    if (err.code === 'ENOENT') {
+      return normalizeStore({
+        entries: [],
+        people: [...DEFAULT_PEOPLE],
+        scheduledChores: [],
+        chorePresets: [],
+        quickChoreIds: [],
+      });
+    }
     throw err;
   }
 }
@@ -181,7 +326,9 @@ async function ensureSeed() {
   const store = await readStore();
   if (store.entries.length > 0) return;
   const expanded = expandRaw(RAW_SEED);
-  store.entries = expanded.map((e) => ({ id: newId(), d: e.d, c: e.c, p: e.p }));
+  store.entries = expanded
+    .map((e) => normalizeEntry({ id: newId(), d: e.d, c: e.c, p: e.p }))
+    .filter(Boolean);
   if (!store.people || store.people.length === 0) store.people = [...DEFAULT_PEOPLE];
   await writeStore(store);
 }
@@ -287,6 +434,8 @@ app.get('/api/entries', async (req, res) => {
       entries: store.entries,
       people: store.people,
       scheduledChores: store.scheduledChores || [],
+      chorePresets: store.chorePresets || [],
+      quickChoreIds: store.quickChoreIds || [],
     });
   } catch (e) {
     console.error(e);
@@ -303,14 +452,19 @@ app.post('/api/scheduled-chores', async (req, res) => {
     if (intervalDays > 3650) intervalDays = 3650;
     const store = await readStore();
     if (!store.scheduledChores) store.scheduledChores = [];
-    const createdAt =
-      parseCalendarDateParam(req.body && req.body.createdAt) ?? localCalendarDateISO();
+    const startsOn =
+      parseCalendarDateParam(req.body && req.body.startsOn) ??
+      parseCalendarDateParam(req.body && req.body.createdAt) ??
+      localCalendarDateISO();
+    const ts = nowISO();
     const row = {
       id: newId(),
       title,
       intervalDays,
-      createdAt,
+      startsOn,
       lastCompletedAt: null,
+      createdAt: ts,
+      updatedAt: ts,
     };
     store.scheduledChores.push(row);
     await writeStore(store);
@@ -336,6 +490,7 @@ app.put('/api/scheduled-chores/:id', async (req, res) => {
       let n = Number(req.body.intervalDays);
       if (Number.isFinite(n) && n >= 1 && n <= 3650) list[idx].intervalDays = n;
     }
+    list[idx].updatedAt = nowISO();
     store.scheduledChores = list;
     await writeStore(store);
     res.json({ scheduledChores: store.scheduledChores });
@@ -379,11 +534,17 @@ app.post('/api/scheduled-chores/:id/complete', async (req, res) => {
       return res.status(400).json({ error: 'completedDate is required (YYYY-MM-DD calendar date)' });
     }
     chore.lastCompletedAt = completedDate;
+    chore.updatedAt = nowISO();
+    const entryTs = nowISO();
+    const matchPreset = (store.chorePresets || []).find((x) => x.title === chore.title);
     store.entries.push({
       id: newId(),
       d: completedDate,
       c: chore.title,
       p: person,
+      choreId: matchPreset ? matchPreset.id : null,
+      createdAt: entryTs,
+      updatedAt: entryTs,
     });
     await writeStore(store);
     res.json({
@@ -398,14 +559,32 @@ app.post('/api/scheduled-chores/:id/complete', async (req, res) => {
 
 app.put('/api/settings', async (req, res) => {
   try {
-    const people = normalizePeople(req.body && req.body.people);
-    if (people.length < 1) {
-      return res.status(400).json({ error: 'At least one person is required' });
-    }
+    const body = req.body || {};
     const store = await readStore();
-    store.people = people;
+    if (body.people != null) {
+      const people = normalizePeople(body.people);
+      if (people.length < 1) {
+        return res.status(400).json({ error: 'At least one person is required' });
+      }
+      store.people = people;
+    }
+    if (body.chorePresets != null) {
+      const next = normalizeChorePresets(body.chorePresets);
+      if (!next.length) {
+        return res.status(400).json({ error: 'At least one chore preset is required' });
+      }
+      store.chorePresets = next;
+      store.quickChoreIds = normalizeQuickChoreIds(store.quickChoreIds, store.chorePresets);
+    }
+    if (body.quickChoreIds != null) {
+      store.quickChoreIds = normalizeQuickChoreIds(body.quickChoreIds, store.chorePresets || []);
+    }
     await writeStore(store);
-    res.json({ people: store.people });
+    res.json({
+      people: store.people,
+      chorePresets: store.chorePresets,
+      quickChoreIds: store.quickChoreIds,
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to save settings' });
@@ -417,11 +596,13 @@ app.get('/api/export', async (req, res) => {
     await ensureSeed();
     const store = await readStore();
     const payload = {
-      version: 2,
+      version: 4,
       exportedAt: new Date().toISOString(),
       people: store.people,
       entries: store.entries,
       scheduledChores: store.scheduledChores || [],
+      chorePresets: store.chorePresets || [],
+      quickChoreIds: store.quickChoreIds || [],
     };
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', 'attachment; filename="chorelog-backup.json"');
@@ -439,6 +620,7 @@ app.post('/api/import', async (req, res) => {
     const incomingPeople = normalizePeople(body.people);
     const incomingEntries = Array.isArray(body.entries) ? body.entries : [];
     const incomingScheduled = normalizeScheduledChores(Array.isArray(body.scheduledChores) ? body.scheduledChores : []);
+    const incomingPresets = normalizeChorePresets(Array.isArray(body.chorePresets) ? body.chorePresets : []);
 
     if (incomingPeople.length < 1) {
       return res.status(400).json({ error: 'Import must include at least one person' });
@@ -449,12 +631,23 @@ app.post('/api/import', async (req, res) => {
     if (mode === 'replace') {
       const nextEntries = [];
       for (const row of incomingEntries) {
-        if (!row || typeof row.d !== 'string' || typeof row.c !== 'string' || typeof row.p !== 'string') continue;
+        if (!row || typeof row.d !== 'string' || typeof row.p !== 'string') continue;
         const d = row.d.trim();
-        const c = row.c.trim();
         const p = row.p.trim();
-        if (!d || !c || !p) continue;
-        nextEntries.push({ id: newId(), d, c, p });
+        const c = typeof row.c === 'string' ? row.c.trim() : '';
+        const choreId = row.choreId != null && typeof row.choreId === 'string' ? row.choreId.trim() : '';
+        if (!d || !p) continue;
+        if (!c && !choreId) continue;
+        const e = normalizeEntry({
+          id: newId(),
+          d,
+          c,
+          p,
+          choreId: choreId || null,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        });
+        if (e) nextEntries.push(e);
       }
       store.entries = nextEntries;
       store.people = incomingPeople;
@@ -462,27 +655,42 @@ app.post('/api/import', async (req, res) => {
         ...s,
         id: newId(),
       }));
+      if (incomingPresets.length) {
+        store.chorePresets = incomingPresets.map((p) => normalizeChorePreset(p)).filter(Boolean);
+        store.quickChoreIds = normalizeQuickChoreIds(
+          Array.isArray(body.quickChoreIds) ? body.quickChoreIds : [],
+          store.chorePresets,
+        );
+      } else {
+        store.chorePresets = defaultChorePresets();
+        store.quickChoreIds = store.chorePresets.slice(0, 6).map((x) => x.id);
+      }
     } else {
       const peopleSet = new Set(store.people);
       incomingPeople.forEach((p) => peopleSet.add(p));
       store.people = normalizePeople([...peopleSet]);
       for (const row of incomingEntries) {
-        if (!row || typeof row.d !== 'string' || typeof row.c !== 'string' || typeof row.p !== 'string') continue;
+        if (!row || typeof row.d !== 'string' || typeof row.p !== 'string') continue;
         const d = row.d.trim();
-        const c = row.c.trim();
         const p = row.p.trim();
-        if (!d || !c || !p) continue;
-        store.entries.push({ id: newId(), d, c, p });
+        const c = typeof row.c === 'string' ? row.c.trim() : '';
+        const choreId = row.choreId != null && typeof row.choreId === 'string' ? row.choreId.trim() : '';
+        if (!d || !p) continue;
+        if (!c && !choreId) continue;
+        const e = normalizeEntry({
+          id: newId(),
+          d,
+          c,
+          p,
+          choreId: choreId || null,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        });
+        if (e) store.entries.push(e);
       }
       if (!store.scheduledChores) store.scheduledChores = [];
       for (const s of incomingScheduled) {
-        store.scheduledChores.push({
-          id: newId(),
-          title: s.title,
-          intervalDays: s.intervalDays,
-          createdAt: s.createdAt,
-          lastCompletedAt: s.lastCompletedAt,
-        });
+        store.scheduledChores.push({ ...s, id: newId() });
       }
     }
 
@@ -491,6 +699,8 @@ app.post('/api/import', async (req, res) => {
       entries: store.entries,
       people: store.people,
       scheduledChores: store.scheduledChores || [],
+      chorePresets: store.chorePresets || [],
+      quickChoreIds: store.quickChoreIds || [],
     });
   } catch (e) {
     console.error(e);
@@ -503,16 +713,41 @@ app.post('/api/entries', async (req, res) => {
     const body = req.body;
     const items = Array.isArray(body.entries) ? body.entries : null;
     if (!items || !items.length) {
-      return res.status(400).json({ error: 'Expected { entries: [{ d, c, p }, ...] }' });
+      return res.status(400).json({ error: 'Expected { entries: [{ d, p, choreId? }, ...] }' });
     }
     const store = await readStore();
+    const presets = store.chorePresets || [];
     const added = [];
     for (const row of items) {
-      if (!row || typeof row.d !== 'string' || typeof row.c !== 'string' || typeof row.p !== 'string') {
-        return res.status(400).json({ error: 'Each entry needs string fields d, c, p' });
+      if (!row || typeof row.d !== 'string' || typeof row.p !== 'string') {
+        return res.status(400).json({ error: 'Each entry needs d and p' });
       }
-      const entry = { id: newId(), d: row.d.trim(), c: row.c.trim(), p: row.p.trim() };
-      if (!entry.d || !entry.c || !entry.p) continue;
+      const d = row.d.trim();
+      const p = row.p.trim();
+      if (!d || !p) continue;
+      let c = '';
+      let choreId = null;
+      const cid = typeof row.choreId === 'string' ? row.choreId.trim() : '';
+      if (cid) {
+        const preset = presets.find((x) => x.id === cid);
+        if (!preset) return res.status(400).json({ error: 'Unknown choreId' });
+        c = preset.title;
+        choreId = cid;
+      } else {
+        if (typeof row.c !== 'string') return res.status(400).json({ error: 'Each entry needs choreId or c' });
+        c = row.c.trim();
+        if (!c) continue;
+      }
+      const ts = nowISO();
+      const entry = {
+        id: newId(),
+        d,
+        c,
+        p,
+        choreId,
+        createdAt: ts,
+        updatedAt: ts,
+      };
       store.entries.push(entry);
       added.push(entry);
     }
@@ -528,18 +763,32 @@ app.put('/api/entries/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const d = parseCalendarDateParam(req.body && req.body.d);
-    const c = String(req.body && req.body.c != null ? req.body.c : '').trim();
     const p = String(req.body && req.body.p != null ? req.body.p : '').trim();
-    if (!d || !c || !p) {
-      return res.status(400).json({ error: 'Valid d (YYYY-MM-DD), c, and p are required' });
+    if (!d || !p) {
+      return res.status(400).json({ error: 'Valid d (YYYY-MM-DD) and p are required' });
     }
     const store = await readStore();
     if (!store.people.includes(p)) {
       return res.status(400).json({ error: 'Person must be in your household list' });
     }
+    const presets = store.chorePresets || [];
+    let c = '';
+    let choreId = null;
+    const cid = typeof req.body.choreId === 'string' ? req.body.choreId.trim() : '';
+    if (cid) {
+      const preset = presets.find((x) => x.id === cid);
+      if (!preset) return res.status(400).json({ error: 'Unknown choreId' });
+      c = preset.title;
+      choreId = cid;
+    } else {
+      c = String(req.body && req.body.c != null ? req.body.c : '').trim();
+      if (!c) return res.status(400).json({ error: 'choreId or c is required' });
+    }
     const idx = store.entries.findIndex((e) => e.id === id);
     if (idx === -1) return res.status(404).json({ error: 'Not found' });
-    store.entries[idx] = { id, d, c, p };
+    const prev = store.entries[idx];
+    const createdAt = typeof prev.createdAt === 'string' ? prev.createdAt : nowISO();
+    store.entries[idx] = { id, d, c, p, choreId, createdAt, updatedAt: nowISO() };
     await writeStore(store);
     res.json({ entry: store.entries[idx] });
   } catch (e) {
