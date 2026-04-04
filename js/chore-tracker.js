@@ -26,6 +26,7 @@ let entries = [];
 let scheduledChores = [];
 let loadError = null;
 let pendingScheduledCompleteId = null;
+let pendingEditEntryId = null;
 
 /** YYYY-MM-DD for the user's local calendar (matches addDays / stored dates, not UTC). */
 function localDateISO(d = new Date()) {
@@ -348,11 +349,16 @@ function render() {
       const col = colorFor(e.p);
       const [, m, d] = e.d.split('-');
       const safeId = String(e.id).replace(/'/g, "\\'");
-      return `<div class="log-item">
-    <span class="log-date">${m}/${d}</span>
-    <span class="log-chore">${e.c}</span>
-    <span class="log-person" style="background:${col.bar};color:${col.text};">${e.p}</span>
-    <button class="btn-del" onclick="delEntry('${safeId}')">×</button>
+      return `<div class="log-item" data-entry-id="${escapeHtml(e.id)}">
+    <div class="log-item-main">
+      <span class="log-date">${m}/${d}</span>
+      <span class="log-chore">${escapeHtml(e.c)}</span>
+    </div>
+    <span class="log-person" style="background:${col.bar};color:${col.text};">${escapeHtml(e.p)}</span>
+    <span class="log-item-actions">
+      <button type="button" class="btn-edit" onclick="openEditEntry('${safeId}')" aria-label="Edit entry">Edit</button>
+      <button type="button" class="btn-del" onclick="delEntry('${safeId}')" aria-label="Delete entry">×</button>
+    </span>
   </div>`;
     }).join('');
   }
@@ -454,6 +460,30 @@ async function addEntry() {
   }
 }
 
+function fillEditEntryPersonSelect() {
+  const sel = document.getElementById('editEntryPerson');
+  const cur = sel.value;
+  sel.innerHTML = '';
+  people.forEach((p) => {
+    const o = document.createElement('option');
+    o.value = p;
+    o.textContent = p;
+    sel.appendChild(o);
+  });
+  if ([...sel.options].some((o) => o.value === cur)) sel.value = cur;
+}
+
+function openEditEntry(id) {
+  const e = entries.find((x) => x.id === id);
+  if (!e) return;
+  pendingEditEntryId = id;
+  document.getElementById('editEntryDate').value = e.d;
+  document.getElementById('editEntryChore').value = e.c;
+  fillEditEntryPersonSelect();
+  document.getElementById('editEntryPerson').value = e.p;
+  document.getElementById('editEntryDialog').showModal();
+}
+
 async function delEntry(id) {
   try {
     const r = await fetch('/api/entries/' + encodeURIComponent(id), { method: 'DELETE' });
@@ -465,6 +495,8 @@ async function delEntry(id) {
     render();
   }
 }
+
+window.openEditEntry = openEditEntry;
 
 applyTheme(localStorage.getItem('chorelog-theme') || 'system');
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
@@ -674,6 +706,44 @@ document.getElementById('scheduledDoneDialog').addEventListener('close', () => {
   pendingScheduledCompleteId = null;
 });
 
+document.getElementById('editEntryForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = pendingEditEntryId;
+  if (!id) return;
+  const d = document.getElementById('editEntryDate').value;
+  const c = document.getElementById('editEntryChore').value.trim();
+  const p = document.getElementById('editEntryPerson').value;
+  if (!d || !c || !p) return;
+  try {
+    const r = await fetch(`/api/entries/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ d, c, p }),
+    });
+    if (!r.ok) throw new Error();
+    document.getElementById('editEntryDialog').close();
+    pendingEditEntryId = null;
+    await load();
+    currentMonth = getMonthKey(d);
+    render();
+  } catch {
+    loadError = 'Could not update entry.';
+    render();
+  }
+});
+document.getElementById('editEntryDialogClose').addEventListener('click', () => {
+  document.getElementById('editEntryDialog').close();
+});
+document.getElementById('editEntryCancel').addEventListener('click', () => {
+  document.getElementById('editEntryDialog').close();
+});
+document.getElementById('editEntryDialog').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('editEntryDialog')) e.target.close();
+});
+document.getElementById('editEntryDialog').addEventListener('close', () => {
+  pendingEditEntryId = null;
+});
+
 document.getElementById('addScheduledForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const title = document.getElementById('scheduledNewTitle').value.trim();
@@ -700,6 +770,16 @@ document.getElementById('monthSelect').addEventListener('change', (e) => {
 });
 
 initQuickChores();
+
+/** Narrow layout: tap row to edit; Edit button hidden in CSS. Wide: use Edit button. */
+document.getElementById('logList').addEventListener('click', (ev) => {
+  if (ev.target.closest('.btn-del') || ev.target.closest('.btn-edit')) return;
+  if (!window.matchMedia('(max-width: 560px)').matches) return;
+  const row = ev.target.closest('.log-item');
+  if (!row) return;
+  const id = row.getAttribute('data-entry-id');
+  if (id) openEditEntry(id);
+});
 
 document.getElementById('inDate').value = localDateISO();
 load().then(() => {

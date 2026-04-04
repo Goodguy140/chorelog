@@ -158,6 +158,33 @@
     </div>
   </dialog>
 
+  <dialog class="settings-dialog" id="editEntryDialog" aria-labelledby="editEntryTitle">
+    <div class="settings-inner">
+      <div class="settings-header">
+        <h2 id="editEntryTitle">Edit entry</h2>
+        <button type="button" class="settings-close" id="editEntryDialogClose" aria-label="Close">&times;</button>
+      </div>
+      <form id="editEntryForm" class="edit-entry-form">
+        <div class="edit-entry-field">
+          <label for="editEntryDate">Date</label>
+          <div class="date-input-shell"><input type="date" id="editEntryDate" required autocomplete="off"></div>
+        </div>
+        <div class="edit-entry-field">
+          <label for="editEntryChore">Chore</label>
+          <input type="text" id="editEntryChore" maxlength="500" required autocomplete="off">
+        </div>
+        <div class="edit-entry-field">
+          <label for="editEntryPerson">Person</label>
+          <select id="editEntryPerson" aria-label="Person"></select>
+        </div>
+        <div class="edit-entry-actions">
+          <button type="button" class="btn-secondary" id="editEntryCancel">Cancel</button>
+          <button type="submit" class="btn-secondary">Save</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
   <dialog class="settings-dialog" id="scheduledDoneDialog" aria-labelledby="scheduledDoneHeading">
     <div class="settings-inner">
       <div class="settings-header">

@@ -434,6 +434,30 @@ app.post('/api/entries', async (req, res) => {
   }
 });
 
+app.put('/api/entries/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const d = parseCalendarDateParam(req.body && req.body.d);
+    const c = String(req.body && req.body.c != null ? req.body.c : '').trim();
+    const p = String(req.body && req.body.p != null ? req.body.p : '').trim();
+    if (!d || !c || !p) {
+      return res.status(400).json({ error: 'Valid d (YYYY-MM-DD), c, and p are required' });
+    }
+    const store = await readStore();
+    if (!store.people.includes(p)) {
+      return res.status(400).json({ error: 'Person must be in your household list' });
+    }
+    const idx = store.entries.findIndex((e) => e.id === id);
+    if (idx === -1) return res.status(404).json({ error: 'Not found' });
+    store.entries[idx] = { id, d, c, p };
+    await writeStore(store);
+    res.json({ entry: store.entries[idx] });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to update entry' });
+  }
+});
+
 app.delete('/api/entries/:id', async (req, res) => {
   try {
     const { id } = req.params;
