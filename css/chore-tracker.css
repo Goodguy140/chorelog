@@ -73,6 +73,42 @@ body {
   margin: 0 auto;
 }
 
+.toast {
+  position: fixed;
+  z-index: 10000;
+  left: 50%;
+  bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(420px, calc(100vw - 2rem));
+  padding: 10px 14px;
+  border-radius: var(--border-radius-md);
+  border: 0.5px solid var(--color-border-secondary);
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.14);
+}
+
+.toast-msg {
+  font-size: 13px;
+  line-height: 1.35;
+  flex: 1;
+  min-width: 0;
+}
+
+.toast .toast-undo {
+  padding: 6px 12px;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+/* Author `display: flex` would otherwise beat the UA [hidden] rule. */
+.toast[hidden] {
+  display: none !important;
+}
+
 .top-bar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -675,6 +711,24 @@ body {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 4px;
+}
+
+.delete-entry-preview {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin-bottom: 6px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.delete-entry-confirm {
+  color: #E24B4A;
+  font-weight: 500;
+}
+
+.delete-entry-confirm:hover {
+  opacity: 0.9;
 }
 
 .person-row {

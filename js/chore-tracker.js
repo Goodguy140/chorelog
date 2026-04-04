@@ -27,6 +27,7 @@ let scheduledChores = [];
 let loadError = null;
 let pendingScheduledCompleteId = null;
 let pendingEditEntryId = null;
+let pendingDeleteEntryId = null;
 
 /** YYYY-MM-DD for the user's local calendar (matches addDays / stored dates, not UTC). */
 function localDateISO(d = new Date()) {
@@ -465,6 +466,62 @@ function initQuickChores() {
 
 window.quickLogChore = quickLogChore;
 
+let pendingUndoEntryIds = [];
+let addToastHideTimer = null;
+
+function clearAddToastTimer() {
+  if (addToastHideTimer) {
+    clearTimeout(addToastHideTimer);
+    addToastHideTimer = null;
+  }
+}
+
+function hideAddToast() {
+  const el = document.getElementById('addToast');
+  if (el) {
+    el.hidden = true;
+    el.setAttribute('aria-hidden', 'true');
+  }
+  pendingUndoEntryIds = [];
+}
+
+function showAddToast(addedEntries) {
+  if (!addedEntries.length) return;
+  clearAddToastTimer();
+  pendingUndoEntryIds = addedEntries.map((e) => e.id);
+  const toast = document.getElementById('addToast');
+  const msg = document.getElementById('addToastMsg');
+  if (!toast || !msg) return;
+  const n = addedEntries.length;
+  msg.textContent = n === 1 ? 'Chore logged.' : `${n} chores logged.`;
+  toast.hidden = false;
+  toast.removeAttribute('aria-hidden');
+  addToastHideTimer = setTimeout(() => {
+    hideAddToast();
+  }, 6500);
+}
+
+async function undoLastAdd() {
+  const ids = pendingUndoEntryIds.slice();
+  if (!ids.length) return;
+  clearAddToastTimer();
+  hideAddToast();
+  try {
+    await Promise.all(
+      ids.map((id) =>
+        fetch(`/api/entries/${encodeURIComponent(id)}`, { method: 'DELETE' }).then((r) => {
+          if (!r.ok && r.status !== 404) throw new Error();
+        }),
+      ),
+    );
+    await load();
+    render();
+  } catch (e) {
+    loadError = 'Could not undo.';
+    render();
+  }
+}
+
 async function addEntry() {
   const d = document.getElementById('inDate').value;
   const raw = document.getElementById('inChore').value.trim();
@@ -478,10 +535,13 @@ async function addEntry() {
       body: JSON.stringify({ entries: rows }),
     });
     if (!r.ok) throw new Error('save failed');
+    const data = await r.json();
+    const addedEntries = Array.isArray(data.entries) ? data.entries : [];
     await load();
     currentMonth = getMonthKey(d);
     document.getElementById('inChore').value = '';
     render();
+    showAddToast(addedEntries);
   } catch (e) {
     loadError = 'Could not save chore. Is the server running?';
     render();
@@ -512,7 +572,19 @@ function openEditEntry(id) {
   document.getElementById('editEntryDialog').showModal();
 }
 
-async function delEntry(id) {
+function delEntry(id) {
+  const e = entries.find((x) => x.id === id);
+  if (!e) return;
+  pendingDeleteEntryId = id;
+  const prev = document.getElementById('deleteEntryPreview');
+  if (prev) prev.textContent = `${e.d} · ${e.c} · ${e.p}`;
+  document.getElementById('deleteEntryDialog').showModal();
+}
+
+async function confirmDeleteEntry() {
+  const id = pendingDeleteEntryId;
+  if (!id) return;
+  document.getElementById('deleteEntryDialog').close();
   try {
     const r = await fetch('/api/entries/' + encodeURIComponent(id), { method: 'DELETE' });
     if (!r.ok && r.status !== 404) throw new Error('delete failed');
@@ -772,6 +844,22 @@ document.getElementById('editEntryDialog').addEventListener('close', () => {
   pendingEditEntryId = null;
 });
 
+document.getElementById('deleteEntryDialogClose').addEventListener('click', () => {
+  document.getElementById('deleteEntryDialog').close();
+});
+document.getElementById('deleteEntryCancel').addEventListener('click', () => {
+  document.getElementById('deleteEntryDialog').close();
+});
+document.getElementById('deleteEntryConfirm').addEventListener('click', () => {
+  confirmDeleteEntry();
+});
+document.getElementById('deleteEntryDialog').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('deleteEntryDialog')) e.target.close();
+});
+document.getElementById('deleteEntryDialog').addEventListener('close', () => {
+  pendingDeleteEntryId = null;
+});
+
 document.getElementById('addScheduledForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const title = document.getElementById('scheduledNewTitle').value.trim();
@@ -798,6 +886,10 @@ document.getElementById('monthSelect').addEventListener('change', (e) => {
 });
 
 initQuickChores();
+
+document.getElementById('addToastUndo').addEventListener('click', () => {
+  undoLastAdd();
+});
 
 /** Narrow layout: tap row to edit; Edit button hidden in CSS. Wide: use Edit button. */
 document.getElementById('logList').addEventListener('click', (ev) => {

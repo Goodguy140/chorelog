@@ -185,6 +185,21 @@
     </div>
   </dialog>
 
+  <dialog class="settings-dialog" id="deleteEntryDialog" aria-labelledby="deleteEntryTitle">
+    <div class="settings-inner">
+      <div class="settings-header">
+        <h2 id="deleteEntryTitle">Delete this entry?</h2>
+        <button type="button" class="settings-close" id="deleteEntryDialogClose" aria-label="Close">&times;</button>
+      </div>
+      <p class="delete-entry-preview" id="deleteEntryPreview"></p>
+      <p class="settings-hint">This removes it from your log.</p>
+      <div class="edit-entry-actions">
+        <button type="button" class="btn-secondary" id="deleteEntryCancel">Cancel</button>
+        <button type="button" class="btn-secondary delete-entry-confirm" id="deleteEntryConfirm">Delete</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog class="settings-dialog" id="scheduledDoneDialog" aria-labelledby="scheduledDoneHeading">
     <div class="settings-inner">
       <div class="settings-header">
@@ -201,6 +216,11 @@
       </div>
     </div>
   </dialog>
+
+  <div id="addToast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden>
+    <span class="toast-msg" id="addToastMsg"></span>
+    <button type="button" class="btn-secondary toast-undo" id="addToastUndo">Undo</button>
+  </div>
 
   <script src="/js/chore-tracker.js" defer></script>
 </body>
