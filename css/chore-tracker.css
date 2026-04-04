@@ -993,9 +993,15 @@ select {
     grid-template-columns: repeat(2, 1fr);
   }
 
+  /* Log form: a bit more horizontal room; single column = full-width fields. */
+  .section--log-chore {
+    padding: 1rem 0.875rem;
+  }
+
   .add-form {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    justify-items: stretch;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    align-items: stretch;
   }
 
   .add-form .field {
@@ -1003,16 +1009,53 @@ select {
     flex-direction: column;
     align-items: stretch;
     max-width: 100%;
+    min-width: 0;
+  }
+
+  .add-form input[type=text],
+  .add-form select {
+    height: 40px;
+    min-height: 40px;
+    padding: 0 10px;
+    font-size: 16px;
   }
 
   .add-form .date-input-shell {
-    flex: 1 1 auto;
+    min-height: 40px;
+    flex: none;
     min-width: 0;
+  }
+
+  .add-form .date-input-shell input[type=date] {
+    height: 40px;
+    min-height: 40px;
+    padding: 0 10px;
+    font-size: 16px;
+    line-height: 40px;
   }
 
   .add-form .date-input-shell input[type=date]::-webkit-datetime-edit,
   .add-form .date-input-shell input[type=date]::-webkit-datetime-edit-fields-wrapper {
     max-width: 100%;
+  }
+
+  .add-form .btn-add {
+    height: 36px;
+    min-height: 36px;
+    padding: 0 12px;
+    font-size: 14px;
+    justify-self: start;
+    width: auto;
+  }
+
+  .quick-chore-btn {
+    min-height: 0;
+    padding: 5px 10px;
+    font: 400 13px/1.25 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  .quick-chores-buttons {
+    gap: 6px;
   }
 
   .mom-grid {
