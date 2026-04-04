@@ -806,6 +806,52 @@ select {
   opacity: 0.85;
 }
 
+.quick-chores {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 0.5px solid var(--color-border-tertiary);
+}
+
+/* Match .field label — uppercase + tracking looked like a different font in Firefox. */
+.quick-chores-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: normal;
+  color: var(--color-text-secondary);
+  margin-bottom: 8px;
+}
+
+.quick-chores-hint {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  margin-top: 10px;
+  line-height: 1.4;
+}
+
+.quick-chores-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.quick-chore-btn {
+  /* Explicit stack: Firefox otherwise keeps <button>’s UA font. */
+  font: 400 13px/1.2 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  padding: 7px 12px;
+  border-radius: var(--border-radius-md);
+  border: 0.5px solid var(--color-border-secondary);
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.quick-chore-btn:hover {
+  border-color: var(--color-text-tertiary);
+  background: var(--color-background-tertiary);
+}
+
 .log-list {
   max-height: 220px;
   overflow-y: auto;
@@ -916,6 +962,12 @@ select {
     min-height: 44px;
     padding: 0 16px;
     font-size: 16px;
+  }
+
+  .quick-chore-btn {
+    min-height: 44px;
+    padding: 10px 14px;
+    font: 400 16px/1.25 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
 }
 

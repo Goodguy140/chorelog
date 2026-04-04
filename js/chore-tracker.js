@@ -1,4 +1,15 @@
 const DEFAULT_PEOPLE = ['Dylan', 'Rachel', 'Vic', 'Christian'];
+
+/** One-tap presets for the log form (edit to match your household). */
+const QUICK_CHORES = [
+  'Dishes',
+  'Garbage out',
+  'Dishwasher',
+  'Wiped common surfaces',
+  'Swept kitchen',
+  'Bathroom',
+];
+
 const PALETTE = [
   { bar: '#378ADD', text: '#E6F1FB' },
   { bar: '#D85A30', text: '#FAECE7' },
@@ -390,6 +401,36 @@ function render() {
 
 function switchMonth(m) { currentMonth = m; render(); }
 
+async function quickLogChore(text) {
+  const t = String(text || '').trim();
+  if (!t) return;
+  document.getElementById('inChore').value = t;
+  await addEntry();
+}
+
+function initQuickChores() {
+  const wrap = document.getElementById('quickChoreButtons');
+  if (!wrap) return;
+  wrap.innerHTML = QUICK_CHORES.map((label) => {
+    const safe = escapeHtml(label);
+    const enc = encodeURIComponent(label);
+    return `<button type="button" class="quick-chore-btn" data-chore="${enc}" title="Log using date and person above" aria-label="Quick log: ${safe}">${safe}</button>`;
+  }).join('');
+  wrap.addEventListener('click', (e) => {
+    const btn = e.target.closest('.quick-chore-btn');
+    if (!btn) return;
+    const enc = btn.getAttribute('data-chore');
+    if (enc == null) return;
+    try {
+      quickLogChore(decodeURIComponent(enc));
+    } catch {
+      quickLogChore(enc);
+    }
+  });
+}
+
+window.quickLogChore = quickLogChore;
+
 async function addEntry() {
   const d = document.getElementById('inDate').value;
   const raw = document.getElementById('inChore').value.trim();
@@ -657,6 +698,8 @@ document.getElementById('addScheduledForm').addEventListener('submit', async (e)
 document.getElementById('monthSelect').addEventListener('change', (e) => {
   switchMonth(e.target.value);
 });
+
+initQuickChores();
 
 document.getElementById('inDate').value = localDateISO();
 load().then(() => {
