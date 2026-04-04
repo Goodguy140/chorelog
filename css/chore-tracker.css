@@ -287,9 +287,16 @@ body {
 
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 10px;
   margin-bottom: 16px;
+}
+
+.stat-val .stat-unit {
+  font-size: 0.65em;
+  font-weight: 500;
+  margin-left: 1px;
+  opacity: 0.9;
 }
 
 .stat-card {

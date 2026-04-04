@@ -291,6 +291,26 @@ function countsByPerson(monthKey) {
   return c;
 }
 
+/**
+ * 100% = tasks split evenly across everyone; 0% = one person did all tasks this month.
+ * Uses (1 − maxShare) / (1 − 1/n) with maxShare = largest person's count / total.
+ */
+function balanceScorePercent(cur, peopleList) {
+  const n = peopleList.length;
+  if (n <= 1) return { pct: 100, empty: false };
+  let total = 0;
+  let maxCount = 0;
+  for (const p of peopleList) {
+    const c = cur[p] || 0;
+    total += c;
+    if (c > maxCount) maxCount = c;
+  }
+  if (total === 0) return { pct: null, empty: true };
+  const maxShare = maxCount / total;
+  const score = ((1 - maxShare) / (1 - 1 / n)) * 100;
+  return { pct: Math.max(0, Math.min(100, Math.round(score))), empty: false };
+}
+
 function render() {
   const errEl = document.getElementById('loadError');
   if (loadError) {
@@ -315,12 +335,20 @@ function render() {
   const total = Object.values(cur).reduce((a, b) => a + b, 0);
   const topPerson = people.reduce((a, b) => cur[a] >= cur[b] ? a : b);
   const activeDays = new Set(entries.filter(e => getMonthKey(e.d) === currentMonth).map(e => e.d)).size;
+  const balance = balanceScorePercent(cur, people);
+  const balanceVal = balance.empty
+    ? '—'
+    : `${balance.pct}<span class="stat-unit">%</span>`;
+  const balanceSub = balance.empty
+    ? 'log tasks to score'
+    : '100% = fully balanced';
 
   document.getElementById('statsGrid').innerHTML = `
 <div class="stat-card"><p class="stat-label">Total tasks</p><p class="stat-val">${total}</p><p class="stat-sub">${getMonthLabel(currentMonth)}</p></div>
 <div class="stat-card"><p class="stat-label">Most active</p><p class="stat-val" style="font-size:15px;">${topPerson}</p><p class="stat-sub">${cur[topPerson]} tasks</p></div>
 <div class="stat-card"><p class="stat-label">Active days</p><p class="stat-val">${activeDays}</p><p class="stat-sub">days with chores</p></div>
 <div class="stat-card"><p class="stat-label">Members</p><p class="stat-val">${people.filter(p => cur[p] > 0).length}</p><p class="stat-sub">contributed</p></div>
+<div class="stat-card stat-card--balance" title="100% = fully balanced (same share for everyone); 0% = one person did everything."><p class="stat-label">Balance</p><p class="stat-val">${balanceVal}</p><p class="stat-sub">${balanceSub}</p></div>
   `;
 
   const max = Math.max(...Object.values(cur), 1);
