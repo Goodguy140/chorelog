@@ -30,7 +30,7 @@ Use **`npm run dev`** to run the server with **`node --watch`** so it restarts w
 | Path | Purpose |
 |------|---------|
 | `server.js` | Express app: API routes, static files, `GET /` → main HTML |
-| `chore_tracker_interactive-v2.html` | App shell (links to CSS/JS) |
+| `index.html` | App shell (links to CSS/JS) |
 | `css/chore-tracker.css` | Styles |
 | `js/chore-tracker.js` | Client UI and API calls |
 | `data/chores.json` | Persisted `entries`, `people`, and `scheduledChores` (local / backup as needed) |

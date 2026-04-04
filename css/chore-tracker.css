@@ -1226,3 +1226,72 @@ select {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* Author `display: flex` overrides UA [hidden]; force hide when JS sets hidden=true */
+.login-screen[hidden] {
+  display: none !important;
+}
+
+.app-shell[hidden] {
+  display: none !important;
+}
+
+.login-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 1.5rem;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 360px;
+  padding: 1.75rem;
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+}
+
+.login-title {
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+  text-align: center;
+}
+
+.login-field {
+  margin-bottom: 1rem;
+}
+
+.login-field label {
+  display: block;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+
+.login-field input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 16px;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-border-secondary);
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+}
+
+.login-submit {
+  width: 100%;
+  margin-top: 0.5rem;
+  justify-content: center;
+}
+
+.login-error {
+  color: #e24b4a;
+  font-size: 14px;
+  margin-bottom: 12px;
+  text-align: center;
+}

@@ -23,11 +23,28 @@
   <link rel="icon" href="/icons/app-icon.svg" type="image/svg+xml" sizes="any">
   <link rel="shortcut icon" href="/icons/app-icon.svg" type="image/svg+xml">
   <link rel="manifest" href="/site.webmanifest">
-  <link rel="apple-touch-icon" href="/icons/app-icon.svg">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" sizes="180x180">
   <link rel="stylesheet" href="/css/chore-tracker.css">
 </head>
 
 <body>
+  <div id="loginScreen" class="login-screen">
+    <form id="loginForm" class="login-card">
+      <h1 class="login-title">Chore tracker</h1>
+      <p id="loginError" class="login-error" role="alert" hidden></p>
+      <div class="login-field">
+        <label for="loginUser">Username</label>
+        <input type="text" id="loginUser" name="username" autocomplete="username" required>
+      </div>
+      <div class="login-field">
+        <label for="loginPass">Password</label>
+        <input type="password" id="loginPass" name="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn-add login-submit">Sign in</button>
+    </form>
+  </div>
+
+  <div id="appShell" class="app-shell" hidden>
   <div class="wrap">
     <div class="top-bar">
       <span class="title">Chore tracker</span>
@@ -112,6 +129,13 @@
         <div class="add-person-row">
           <input type="text" id="newPersonName" placeholder="Name" maxlength="80" autocomplete="off">
           <button type="button" class="btn-secondary" id="btnAddPerson">Add</button>
+        </div>
+      </div>
+
+      <div>
+        <p class="settings-block-title">Account</p>
+        <div class="settings-actions">
+          <button type="button" class="btn-secondary" id="btnLogout">Log out</button>
         </div>
       </div>
 
@@ -220,6 +244,7 @@
   <div id="addToast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden>
     <span class="toast-msg" id="addToastMsg"></span>
     <button type="button" class="btn-secondary toast-undo" id="addToastUndo">Undo</button>
+  </div>
   </div>
 
   <script src="/js/chore-tracker.js" defer></script>

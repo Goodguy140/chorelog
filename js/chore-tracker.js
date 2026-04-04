@@ -1,5 +1,21 @@
 const DEFAULT_PEOPLE = ['Dylan', 'Rachel', 'Vic', 'Christian'];
 
+async function apiFetch(url, opts = {}) {
+  const { skipSessionRedirect, ...fetchOpts } = opts;
+  const r = await fetch(url, { credentials: 'include', ...fetchOpts });
+  const shell = document.getElementById('appShell');
+  if (
+    !skipSessionRedirect &&
+    r.status === 401 &&
+    shell &&
+    !shell.hidden
+  ) {
+    document.getElementById('loginScreen').hidden = false;
+    shell.hidden = true;
+  }
+  return r;
+}
+
 /** One-tap presets for the log form (edit to match your household). */
 const QUICK_CHORES = [
   'Dishes',
@@ -207,7 +223,7 @@ function renderPeopleEditor() {
 }
 
 async function savePeopleList(next) {
-  const r = await fetch('/api/settings', {
+  const r = await apiFetch('/api/settings', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ people: next }),
@@ -251,7 +267,13 @@ async function removePersonAt(index) {
 async function load() {
   loadError = null;
   try {
-    const r = await fetch('/api/entries');
+    /** Cookie from POST /api/login may not be attached to an immediate GET; retry once before session-expired UX. */
+    let r = await apiFetch('/api/entries', { skipSessionRedirect: true });
+    if (r.status === 401) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      r = await apiFetch('/api/entries');
+    }
+    if (r.status === 401) return;
     if (!r.ok) throw new Error('Bad response');
     const data = await r.json();
     entries = Array.isArray(data.entries) ? data.entries : [];
@@ -509,7 +531,7 @@ async function undoLastAdd() {
   try {
     await Promise.all(
       ids.map((id) =>
-        fetch(`/api/entries/${encodeURIComponent(id)}`, { method: 'DELETE' }).then((r) => {
+        apiFetch(`/api/entries/${encodeURIComponent(id)}`, { method: 'DELETE' }).then((r) => {
           if (!r.ok && r.status !== 404) throw new Error();
         }),
       ),
@@ -529,7 +551,7 @@ async function addEntry() {
   if (!d || !raw) return;
   const rows = raw.split(';').map(s => s.trim()).filter(Boolean).map(c => ({ d, c, p }));
   try {
-    const r = await fetch('/api/entries', {
+    const r = await apiFetch('/api/entries', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ entries: rows }),
@@ -586,7 +608,7 @@ async function confirmDeleteEntry() {
   if (!id) return;
   document.getElementById('deleteEntryDialog').close();
   try {
-    const r = await fetch('/api/entries/' + encodeURIComponent(id), { method: 'DELETE' });
+    const r = await apiFetch('/api/entries/' + encodeURIComponent(id), { method: 'DELETE' });
     if (!r.ok && r.status !== 404) throw new Error('delete failed');
     await load();
     render();
@@ -635,7 +657,7 @@ document.getElementById('newPersonName').addEventListener('keydown', (e) => {
 
 document.getElementById('btnExport').addEventListener('click', async () => {
   try {
-    const r = await fetch('/api/export');
+    const r = await apiFetch('/api/export');
     if (!r.ok) throw new Error();
     const blob = await r.blob();
     const a = document.createElement('a');
@@ -666,7 +688,7 @@ document.getElementById('importFile').addEventListener('change', async (e) => {
       'Cancel = Replace all server data with this file.'
   );
   try {
-    const r = await fetch('/api/import', {
+    const r = await apiFetch('/api/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -736,7 +758,7 @@ async function confirmScheduledComplete() {
   const person = document.getElementById('scheduledDonePerson').value.trim();
   if (!id || !person) return;
   try {
-    const r = await fetch(`/api/scheduled-chores/${encodeURIComponent(id)}/complete`, {
+    const r = await apiFetch(`/api/scheduled-chores/${encodeURIComponent(id)}/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ person, completedDate: localDateISO() }),
@@ -759,7 +781,7 @@ function markScheduledDone(id) {
 async function deleteScheduledChore(id) {
   if (!confirm('Remove this scheduled chore?')) return;
   try {
-    const r = await fetch(`/api/scheduled-chores/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const r = await apiFetch(`/api/scheduled-chores/${encodeURIComponent(id)}`, { method: 'DELETE' });
     if (!r.ok && r.status !== 204) throw new Error();
     await load();
     render();
@@ -815,7 +837,7 @@ document.getElementById('editEntryForm').addEventListener('submit', async (e) =>
   const p = document.getElementById('editEntryPerson').value;
   if (!d || !c || !p) return;
   try {
-    const r = await fetch(`/api/entries/${encodeURIComponent(id)}`, {
+    const r = await apiFetch(`/api/entries/${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ d, c, p }),
@@ -866,7 +888,7 @@ document.getElementById('addScheduledForm').addEventListener('submit', async (e)
   const intervalDays = Number(document.getElementById('scheduledNewInterval').value);
   if (!title) return;
   try {
-    const r = await fetch('/api/scheduled-chores', {
+    const r = await apiFetch('/api/scheduled-chores', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, intervalDays, createdAt: localDateISO() }),
@@ -901,13 +923,74 @@ document.getElementById('logList').addEventListener('click', (ev) => {
   if (id) openEditEntry(id);
 });
 
-document.getElementById('inDate').value = localDateISO();
-load().then(() => {
-  const months = getMonths();
-  if (months.length) currentMonth = months[0];
-  else currentMonth = thisCalendarMonthKey();
-  render();
+function startApp() {
+  document.getElementById('inDate').value = localDateISO();
+  return load().then(() => {
+    const months = getMonths();
+    if (months.length) currentMonth = months[0];
+    else currentMonth = thisCalendarMonthKey();
+    render();
+  });
+}
+
+async function bootstrap() {
+  try {
+    const r = await apiFetch('/api/auth');
+    if (!r.ok) throw new Error('not authed');
+    document.getElementById('loginScreen').hidden = true;
+    document.getElementById('appShell').hidden = false;
+    await startApp();
+  } catch {
+    document.getElementById('loginScreen').hidden = false;
+    document.getElementById('appShell').hidden = true;
+  }
+}
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errEl = document.getElementById('loginError');
+  errEl.hidden = true;
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  try {
+    const r = await apiFetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!r.ok) {
+      let msg = 'Sign in failed.';
+      try {
+        const j = await r.json();
+        if (j && j.error) msg = j.error;
+      } catch {
+        /* ignore */
+      }
+      errEl.textContent = msg;
+      errEl.hidden = false;
+      return;
+    }
+    document.getElementById('loginScreen').hidden = true;
+    document.getElementById('appShell').hidden = false;
+    await startApp();
+  } catch {
+    errEl.textContent = 'Could not reach server.';
+    errEl.hidden = false;
+  }
 });
+
+document.getElementById('btnLogout').addEventListener('click', async () => {
+  try {
+    await apiFetch('/api/logout', { method: 'POST' });
+  } catch {
+    /* still show login */
+  }
+  document.getElementById('settingsDialog').close();
+  document.getElementById('loginScreen').hidden = false;
+  document.getElementById('appShell').hidden = true;
+});
+
+bootstrap();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

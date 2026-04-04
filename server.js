@@ -189,6 +189,96 @@ async function ensureSeed() {
 const app = express();
 app.use(express.json({ limit: '5mb' }));
 
+const AUTH_COOKIE = 'chorelog_auth';
+const COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+function getSessionSecret() {
+  return process.env.CHORELOG_SECRET || 'chorelog-dev-secret-change-me';
+}
+
+function parseCookieHeader(cookieHeader, name) {
+  if (!cookieHeader) return null;
+  const parts = cookieHeader.split(';');
+  for (const part of parts) {
+    const idx = part.indexOf('=');
+    if (idx === -1) continue;
+    const k = part.slice(0, idx).trim();
+    if (k !== name) continue;
+    return decodeURIComponent(part.slice(idx + 1).trim());
+  }
+  return null;
+}
+
+function createAuthToken() {
+  const payload = { v: 1, exp: Date.now() + COOKIE_MAX_AGE_MS };
+  const data = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+  const sig = crypto.createHmac('sha256', getSessionSecret()).update(data).digest('base64url');
+  return `${data}.${sig}`;
+}
+
+function verifyAuthCookie(cookieHeader) {
+  const token = parseCookieHeader(cookieHeader, AUTH_COOKIE);
+  if (!token) return null;
+  const dot = token.lastIndexOf('.');
+  if (dot === -1) return null;
+  const data = token.slice(0, dot);
+  const sig = token.slice(dot + 1);
+  const expected = crypto.createHmac('sha256', getSessionSecret()).update(data).digest('base64url');
+  const a = Buffer.from(sig, 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  let payload;
+  try {
+    payload = JSON.parse(Buffer.from(data, 'base64url').toString('utf8'));
+  } catch {
+    return null;
+  }
+  if (!payload || typeof payload.exp !== 'number' || payload.exp < Date.now()) return null;
+  return payload;
+}
+
+function requireApiAuth(req, res, next) {
+  if (!req.path.startsWith('/api')) return next();
+  if (req.method === 'GET' && req.path === '/api/auth') return next();
+  if (req.method === 'POST' && req.path === '/api/login') return next();
+  if (req.method === 'POST' && req.path === '/api/logout') return next();
+  if (!verifyAuthCookie(req.headers.cookie)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+}
+
+app.use(requireApiAuth);
+
+app.get('/api/auth', (req, res) => {
+  if (!verifyAuthCookie(req.headers.cookie)) {
+    return res.status(401).json({ authenticated: false });
+  }
+  res.json({ authenticated: true });
+});
+
+app.post('/api/login', (req, res) => {
+  const u = String(req.body && req.body.username != null ? req.body.username : '').trim();
+  const p = String(req.body && req.body.password != null ? req.body.password : '');
+  const okUser = process.env.CHORELOG_USER || 'house';
+  const okPass = process.env.CHORELOG_PASSWORD || 'monkey';
+  if (u !== okUser || p !== okPass) {
+    return res.status(401).json({ error: 'Invalid username or password' });
+  }
+  const token = createAuthToken();
+  const maxAgeSec = Math.floor(COOKIE_MAX_AGE_MS / 1000);
+  res.setHeader(
+    'Set-Cookie',
+    `${AUTH_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAgeSec}; HttpOnly; SameSite=Lax`,
+  );
+  res.json({ ok: true });
+});
+
+app.post('/api/logout', (req, res) => {
+  res.setHeader('Set-Cookie', `${AUTH_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`);
+  res.status(204).end();
+});
+
 app.get('/api/entries', async (req, res) => {
   try {
     await ensureSeed();
@@ -474,7 +564,7 @@ app.delete('/api/entries/:id', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'chore_tracker_interactive-v2.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.get('/site.webmanifest', (req, res) => {
