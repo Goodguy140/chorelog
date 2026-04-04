@@ -532,9 +532,11 @@ body {
   border-radius: 6px;
 }
 
+/* Past the due date (see scheduledStatus overdue): strong red pill */
 .scheduled-status.overdue {
-  background: rgba(226, 75, 74, 0.15);
-  color: #c43a3a;
+  background: rgba(226, 75, 74, 0.28);
+  color: #E24B4A;
+  border: 0.5px solid rgba(226, 75, 74, 0.55);
 }
 
 .scheduled-status.today {
