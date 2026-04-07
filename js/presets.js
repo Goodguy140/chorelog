@@ -5,10 +5,8 @@ import { render } from './render-registry.js';
 
 export function syncChoreDatalists() {
   const opts = app.chorePresets.map((p) => `<option value="${escapeAttr(p.title)}"></option>`).join('');
-  const dl = document.getElementById('chorePresetsDatalist');
-  const dl2 = document.getElementById('editChoreDatalist');
+  const dl = document.getElementById('editChoreDatalist');
   if (dl) dl.innerHTML = opts;
-  if (dl2) dl2.innerHTML = opts;
 }
 
 export function presetById(id) {

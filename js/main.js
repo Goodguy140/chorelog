@@ -15,6 +15,7 @@ import { app, DEFAULT_PEOPLE } from './state.js';
 import { getMonthKey, localDateISO, thisCalendarMonthKey } from './utils/date.js';
 import { escapeHtml } from './utils/html.js';
 import { intervalLabel, scheduledStatus } from './scheduled-logic.js';
+import { initChoreInputSuggest } from './chore-input-suggest.js';
 
 function syncThemeMeta() {
   const el = document.getElementById('metaThemeColor');
@@ -682,6 +683,7 @@ document.getElementById('btnAddQuickChore').addEventListener('click', async () =
 });
 
 initQuickChores();
+initChoreInputSuggest();
 
 document.getElementById('addToastUndo').addEventListener('click', () => {
   undoLastAdd();

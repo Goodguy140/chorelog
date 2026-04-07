@@ -83,8 +83,10 @@
           <div class="date-input-shell"><input type="date" id="inDate" autocomplete="off"></div>
         </div>
         <div class="field field-chore"><label for="inChore">Chore</label>
-          <input type="text" id="inChore" list="chorePresetsDatalist" placeholder="Search or pick a chore" maxlength="500" autocomplete="off">
-          <datalist id="chorePresetsDatalist"></datalist>
+          <div class="chore-input-wrap">
+            <input type="text" id="inChore" placeholder="Search or pick a chore" maxlength="500" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-controls="choreSuggestList">
+            <ul id="choreSuggestList" class="chore-suggest-list" hidden role="listbox" aria-label="Matching chore presets"></ul>
+          </div>
           <p class="field-hint">Separate with <kbd>;</kbd> to log multiple presets in one go.</p>
         </div>
         <div class="field"><label>Person</label>

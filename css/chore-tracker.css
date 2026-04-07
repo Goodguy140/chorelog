@@ -1318,6 +1318,40 @@ select {
   background: var(--color-background-tertiary);
 }
 
+.chore-input-wrap {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.chore-suggest-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin: 4px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  max-height: min(240px, 40vh);
+  overflow-y: auto;
+  z-index: 50;
+  border-radius: var(--border-radius-md);
+  border: 0.5px solid var(--color-border-secondary);
+  background: var(--color-background-primary);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.chore-suggest-item {
+  padding: 8px 10px 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.chore-suggest-item.is-active,
+.chore-suggest-item:hover {
+  background: var(--color-background-tertiary);
+}
+
 .chore-presets-editor,
 .quick-chores-editor {
   list-style: none;
