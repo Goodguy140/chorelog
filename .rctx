@@ -18,7 +18,7 @@
 | Presets, points, quick bar | `js/presets.js` |
 | Shared state | `js/state.js` |
 | Styles (split by feature) | `css/chore-tracker-*.css` |
-| Docker (prod image, compose, GitHub clone / auto-pull) | `Dockerfile`, `docker-compose.yml`, `Dockerfile.gitclone`, `Dockerfile.autopull`, `docker-compose.autopull.yml`, `docker/entrypoint-sync.sh` |
+| Docker (prod image, compose, GitHub clone / auto-pull) | `Dockerfile`, `docker-compose.yml`, `Dockerfile.gitclone`, `Dockerfile.autopull`, `docker-compose.autopull.yml`, `docker/entrypoint-sync.sh`, `.github/workflows/docker-image.yml` |
 
 ---
 
