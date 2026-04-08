@@ -812,6 +812,10 @@ body {
   min-width: 0;
 }
 
+.add-form .field-locations {
+  grid-column: 1 / span 3;
+}
+
 .add-form input[type=text],
 .add-form .date-input-shell,
 .add-form select {
@@ -1107,6 +1111,16 @@ select {
 
 /* Phones / narrow layout: identical box model for every control (iOS date was taller due to extra padding) */
 @media (max-width: 896px) {
+  .add-form {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .add-form .field-locations {
+    grid-column: auto;
+  }
+
   .add-form .date-input-shell {
     min-height: 44px;
   }
@@ -1133,6 +1147,8 @@ select {
     min-height: 44px;
     padding: 0 16px;
     font-size: 16px;
+    margin-top: 0;
+    justify-self: start;
   }
 
   .quick-chore-btn {
@@ -1361,14 +1377,15 @@ select {
 
 .chore-preset-row {
   display: grid;
-  grid-template-columns: 1fr 72px 44px auto;
+  grid-template-columns: 1fr 72px 112px 44px auto;
   gap: 8px;
   align-items: center;
   margin-bottom: 8px;
 }
 
 .chore-preset-row input[type="text"],
-.chore-preset-row input[type="number"] {
+.chore-preset-row input[type="number"],
+.chore-preset-row select {
   width: 100%;
   min-width: 0;
   padding: 8px 10px;
@@ -1390,13 +1407,18 @@ select {
 
 @media (max-width: 560px) {
   .chore-preset-row {
-    grid-template-columns: 1fr 64px 40px;
+    grid-template-columns: 1fr 64px 96px 40px;
   }
 
   .chore-preset-remove {
     grid-column: 1 / -1;
     justify-self: start;
   }
+}
+
+#inLocations {
+  min-height: 88px;
+  height: auto;
 }
 
 .quick-chore-editor-row {

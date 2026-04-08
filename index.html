@@ -92,6 +92,10 @@
         <div class="field"><label>Person</label>
           <select id="inPerson"></select>
         </div>
+        <div class="field field-locations"><label for="inLocations">Locations</label>
+          <select id="inLocations" multiple size="4" aria-label="Locations for location-based chores"></select>
+          <p class="field-hint">Applied only to chores using per-location points.</p>
+        </div>
         <button class="btn-add" onclick="addEntry()">+ Add</button>
       </div>
       <div class="quick-chores">
@@ -134,6 +138,15 @@
         <div class="add-person-row">
           <input type="text" id="newPersonName" placeholder="Name" maxlength="80" autocomplete="off">
           <button type="button" class="btn-secondary" id="btnAddPerson">Add</button>
+        </div>
+      </div>
+
+      <div>
+        <p class="settings-block-title">Locations</p>
+        <ul class="people-list" id="locationsList"></ul>
+        <div class="add-person-row">
+          <input type="text" id="newLocationName" placeholder="Location name" maxlength="80" autocomplete="off">
+          <button type="button" class="btn-secondary" id="btnAddLocation">Add</button>
         </div>
       </div>
 

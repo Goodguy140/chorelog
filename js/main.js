@@ -51,6 +51,20 @@ function syncPersonSelect() {
   if ([...sel.options].some((o) => o.value === cur)) sel.value = cur;
 }
 
+function syncLocationSelect() {
+  const sel = document.getElementById('inLocations');
+  if (!sel) return;
+  const selected = new Set([...sel.selectedOptions].map((o) => o.value));
+  sel.innerHTML = '';
+  app.locations.forEach((name) => {
+    const o = document.createElement('option');
+    o.value = name;
+    o.textContent = name;
+    if (selected.has(name)) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
 function renderPeopleEditor() {
   const ul = document.getElementById('peopleList');
   ul.innerHTML = app.people
@@ -68,6 +82,24 @@ function renderPeopleEditor() {
   });
 }
 
+function renderLocationsEditor() {
+  const ul = document.getElementById('locationsList');
+  if (!ul) return;
+  ul.innerHTML = app.locations
+    .map(
+      (name, idx) => `
+    <li>
+      <span>${escapeHtml(name)}</span>
+      <button type="button" data-remove-location="${idx}" ${app.locations.length <= 1 ? 'disabled' : ''}>Remove</button>
+    </li>
+  `,
+    )
+    .join('');
+  ul.querySelectorAll('button[data-remove-location]').forEach((btn) => {
+    btn.addEventListener('click', () => removeLocationAt(Number(btn.getAttribute('data-remove-location'))));
+  });
+}
+
 async function savePeopleList(next) {
   const r = await apiFetch('/api/settings', {
     method: 'PUT',
@@ -77,11 +109,33 @@ async function savePeopleList(next) {
   if (!r.ok) throw new Error('save failed');
   const data = await r.json();
   app.people = Array.isArray(data.people) ? data.people : next;
+  if (Array.isArray(data.locations)) app.locations = data.locations;
   if (Array.isArray(data.chorePresets)) app.chorePresets = data.chorePresets;
   if (Array.isArray(data.quickChoreIds)) app.quickChoreIds = data.quickChoreIds;
   syncPersonSelect();
+  syncLocationSelect();
   syncChoreDatalists();
   renderPeopleEditor();
+  renderLocationsEditor();
+  renderChorePresetsEditor();
+  renderQuickChoresEditor();
+  renderQuickChores();
+  render();
+}
+
+async function saveLocationsList(next) {
+  const r = await apiFetch('/api/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ locations: next }),
+  });
+  if (!r.ok) throw new Error('save failed');
+  const data = await r.json();
+  app.locations = Array.isArray(data.locations) ? data.locations : next;
+  if (Array.isArray(data.chorePresets)) app.chorePresets = data.chorePresets;
+  if (Array.isArray(data.quickChoreIds)) app.quickChoreIds = data.quickChoreIds;
+  syncLocationSelect();
+  renderLocationsEditor();
   renderChorePresetsEditor();
   renderQuickChoresEditor();
   renderQuickChores();
@@ -116,6 +170,34 @@ async function removePersonAt(index) {
   }
 }
 
+async function addLocation() {
+  const input = document.getElementById('newLocationName');
+  const name = input.value.trim();
+  if (!name) return;
+  if (app.locations.includes(name)) {
+    input.value = '';
+    return;
+  }
+  try {
+    await saveLocationsList([...app.locations, name]);
+    input.value = '';
+  } catch {
+    app.loadError = 'Could not save locations.';
+    render();
+  }
+}
+
+async function removeLocationAt(index) {
+  if (app.locations.length <= 1) return;
+  const next = app.locations.filter((_, i) => i !== index);
+  try {
+    await saveLocationsList(next);
+  } catch {
+    app.loadError = 'Could not save locations.';
+    render();
+  }
+}
+
 async function load() {
   app.loadError = null;
   try {
@@ -130,10 +212,12 @@ async function load() {
     const data = await r.json();
     app.entries = Array.isArray(data.entries) ? data.entries : [];
     app.people = Array.isArray(data.people) && data.people.length ? data.people : [...DEFAULT_PEOPLE];
+    app.locations = Array.isArray(data.locations) && data.locations.length ? data.locations : [...app.locations];
     app.chorePresets = Array.isArray(data.chorePresets) ? data.chorePresets : [];
     app.quickChoreIds = Array.isArray(data.quickChoreIds) ? data.quickChoreIds : [];
     app.scheduledChores = Array.isArray(data.scheduledChores) ? data.scheduledChores : [];
     syncPersonSelect();
+    syncLocationSelect();
     syncChoreDatalists();
   } catch (e) {
     app.entries = [];
@@ -142,6 +226,7 @@ async function load() {
     app.quickChoreIds = [];
     app.scheduledChores = [];
     syncPersonSelect();
+    syncLocationSelect();
     syncChoreDatalists();
     app.loadError =
       'Could not load chores from the server. Run `npm start` and open this page from the app URL (not file://).';
@@ -205,6 +290,7 @@ async function addEntry() {
   const d = document.getElementById('inDate').value;
   const raw = document.getElementById('inChore').value.trim();
   const p = document.getElementById('inPerson').value;
+  const selectedLocations = [...document.querySelectorAll('#inLocations option:checked')].map((o) => o.value);
   if (!d || !raw) return;
   const resolved = resolveChorePayloadRows(raw);
   if (!resolved.ok) {
@@ -212,7 +298,20 @@ async function addEntry() {
     render();
     return;
   }
-  const rows = resolved.rows.map((row) => ({ d, p, choreId: row.choreId }));
+  const rows = [];
+  for (const row of resolved.rows) {
+    const preset = presetById(row.choreId);
+    if (preset && preset.scoringMode === 'per_location') {
+      if (!selectedLocations.length) {
+        app.loadError = `Select at least one location for "${preset.title}".`;
+        render();
+        return;
+      }
+      rows.push({ d, p, choreId: row.choreId, locationIds: selectedLocations });
+    } else {
+      rows.push({ d, p, choreId: row.choreId, locationIds: [] });
+    }
+  }
   try {
     const r = await apiFetch('/api/entries', {
       method: 'POST',
@@ -225,6 +324,9 @@ async function addEntry() {
     await load();
     app.currentMonth = getMonthKey(d);
     document.getElementById('inChore').value = '';
+    [...document.querySelectorAll('#inLocations option')].forEach((o) => {
+      o.selected = false;
+    });
     render();
     showAddToast(addedEntries);
   } catch (e) {
@@ -425,6 +527,7 @@ document.getElementById('themeOptions').addEventListener('change', (e) => {
 
 document.getElementById('btnSettings').addEventListener('click', () => {
   renderPeopleEditor();
+  renderLocationsEditor();
   renderChorePresetsEditor();
   renderQuickChoresEditor();
   const mode = localStorage.getItem('chorelog-theme') || 'system';
@@ -447,6 +550,13 @@ document.getElementById('newPersonName').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     addPerson();
+  }
+});
+document.getElementById('btnAddLocation').addEventListener('click', () => addLocation());
+document.getElementById('newLocationName').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    addLocation();
   }
 });
 
@@ -488,6 +598,7 @@ document.getElementById('importFile').addEventListener('change', async (e) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         people: data.people,
+        locations: data.locations,
         entries: data.entries,
         scheduledChores: data.scheduledChores,
         chorePresets: data.chorePresets,
@@ -545,7 +656,10 @@ document.getElementById('editEntryForm').addEventListener('submit', async (e) =>
   const p = document.getElementById('editEntryPerson').value;
   if (!d || !title || !p) return;
   const preset = app.chorePresets.find((x) => x.title.toLowerCase() === title.toLowerCase());
-  const body = preset ? { d, p, choreId: preset.id } : { d, c: title, p };
+  const prev = app.entries.find((x) => x.id === id);
+  const body = preset
+    ? { d, p, choreId: preset.id, locationIds: preset.scoringMode === 'per_location' ? (prev?.locationIds || []) : [] }
+    : { d, c: title, p, locationIds: [] };
   try {
     const r = await apiFetch(`/api/entries/${encodeURIComponent(id)}`, {
       method: 'PUT',
@@ -638,7 +752,7 @@ document.getElementById('chorePresetsList').addEventListener('click', async (e) 
 
 document.getElementById('btnAddChorePreset').addEventListener('click', async () => {
   const id = crypto.randomUUID();
-  app.chorePresets.push({ id, title: 'New chore', points: 1, color: '#378ADD' });
+  app.chorePresets.push({ id, title: 'New chore', points: 1, color: '#378ADD', scoringMode: 'flat' });
   renderChorePresetsEditor();
   await saveChorePresetsAndQuick();
 });

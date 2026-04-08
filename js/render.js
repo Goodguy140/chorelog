@@ -180,11 +180,15 @@ function fullRender() {
         const pr = e.choreId ? presetById(e.choreId) : null;
         const barStyle = pr ? `border-left:4px solid ${escapeAttr(pr.color)};padding-left:8px` : '';
         const ptsHtml = pts != null ? `<span class="log-chore-points">+${pts} pts</span>` : '';
+        const locHtml = Array.isArray(e.locationIds) && e.locationIds.length
+          ? `<span class="log-chore-points">${escapeHtml(e.locationIds.join(', '))}</span>`
+          : '';
         return `<div class="log-item" data-entry-id="${escapeHtml(e.id)}">
     <div class="log-item-main" style="${barStyle}">
       <span class="log-date">${m}/${d}</span>
       <span class="log-chore">${escapeHtml(e.c)}</span>
       ${ptsHtml}
+      ${locHtml}
     </div>
     <span class="log-person" style="background:${col.bar};color:${col.text};">${escapeHtml(e.p)}</span>
     <span class="log-item-actions">

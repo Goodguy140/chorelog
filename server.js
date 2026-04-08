@@ -8,6 +8,7 @@ const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'chores.json');
 
 const DEFAULT_PEOPLE = ['Dylan', 'Rachel', 'Vic', 'Christian'];
+const DEFAULT_LOCATIONS = ['Upstairs', 'Stairs', 'Hallway', 'Kitchen', 'Living room', 'Front porch', 'Back porch'];
 
 /** Same shape as the original HTML SEED: one row per log line, chores can contain `;` */
 const RAW_SEED = [
@@ -138,9 +139,16 @@ function normalizeEntry(row) {
   const p = row.p.trim();
   let c = typeof row.c === 'string' ? row.c.trim() : '';
   let choreId = null;
+  let locationIds = [];
   if (row.choreId != null && typeof row.choreId === 'string') {
     const t = row.choreId.trim();
     if (t) choreId = t;
+  }
+  if (Array.isArray(row.locationIds)) {
+    locationIds = row.locationIds
+      .filter((x) => typeof x === 'string')
+      .map((x) => x.trim())
+      .filter(Boolean);
   }
   if (!d || !p) return null;
   if (!c && !choreId) return null;
@@ -149,7 +157,7 @@ function normalizeEntry(row) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(createdAt)) createdAt = `${createdAt}T12:00:00.000Z`;
   let updatedAt = typeof row.updatedAt === 'string' ? row.updatedAt : createdAt;
   if (/^\d{4}-\d{2}-\d{2}$/.test(updatedAt)) updatedAt = `${updatedAt}T12:00:00.000Z`;
-  return { id, d, c, p, choreId, createdAt, updatedAt };
+  return { id, d, c, p, choreId, locationIds, createdAt, updatedAt };
 }
 
 function normalizeChorePreset(row) {
@@ -163,7 +171,8 @@ function normalizeChorePreset(row) {
   if (points > 10000) points = 10000;
   let color = typeof row.color === 'string' ? row.color.trim() : '#378ADD';
   if (!/^#[0-9A-Fa-f]{6}$/.test(color)) color = '#378ADD';
-  return { id, title, points, color };
+  const scoringMode = row.scoringMode === 'per_location' ? 'per_location' : 'flat';
+  return { id, title, points, color, scoringMode };
 }
 
 function normalizeChorePresets(arr) {
@@ -185,6 +194,19 @@ function normalizeQuickChoreIds(ids, presets) {
     out.push(id);
   }
   return out.slice(0, 24);
+}
+
+function normalizeLocations(arr) {
+  if (!Array.isArray(arr)) return [...DEFAULT_LOCATIONS];
+  const seen = new Set();
+  const out = [];
+  for (const raw of arr) {
+    const s = String(raw).trim();
+    if (!s || seen.has(s)) continue;
+    seen.add(s);
+    out.push(s);
+  }
+  return out.length ? out : [...DEFAULT_LOCATIONS];
 }
 
 function defaultChorePresets() {
@@ -274,6 +296,7 @@ function normalizeScheduledChores(arr) {
 function normalizeStore(raw) {
   const rawEntries = Array.isArray(raw.entries) ? raw.entries : [];
   const people = normalizePeople(raw.people);
+  const locations = normalizeLocations(raw.locations);
   const scheduledChores = normalizeScheduledChores(raw.scheduledChores);
   let chorePresets = normalizeChorePresets(raw.chorePresets);
   let quickChoreIds = normalizeQuickChoreIds(raw.quickChoreIds, chorePresets);
@@ -289,10 +312,11 @@ function normalizeStore(raw) {
     if (!e.c && e.choreId && presetMap.has(e.choreId)) {
       return { ...e, c: presetMap.get(e.choreId).title };
     }
-    return e;
+    const validLocationIds = (e.locationIds || []).filter((x) => locations.includes(x));
+    return { ...e, locationIds: validLocationIds };
   });
   entries = entries.filter((e) => e.c && e.d && e.p);
-  return { entries, people, scheduledChores, chorePresets, quickChoreIds };
+  return { entries, people, locations, scheduledChores, chorePresets, quickChoreIds };
 }
 
 async function readStore() {
@@ -305,6 +329,7 @@ async function readStore() {
       return normalizeStore({
         entries: [],
         people: [...DEFAULT_PEOPLE],
+        locations: [...DEFAULT_LOCATIONS],
         scheduledChores: [],
         chorePresets: [],
         quickChoreIds: [],
@@ -433,6 +458,7 @@ app.get('/api/entries', async (req, res) => {
     res.json({
       entries: store.entries,
       people: store.people,
+      locations: store.locations,
       scheduledChores: store.scheduledChores || [],
       chorePresets: store.chorePresets || [],
       quickChoreIds: store.quickChoreIds || [],
@@ -543,6 +569,7 @@ app.post('/api/scheduled-chores/:id/complete', async (req, res) => {
       c: chore.title,
       p: person,
       choreId: matchPreset ? matchPreset.id : null,
+      locationIds: [],
       createdAt: entryTs,
       updatedAt: entryTs,
     });
@@ -568,6 +595,17 @@ app.put('/api/settings', async (req, res) => {
       }
       store.people = people;
     }
+    if (body.locations != null) {
+      const locations = normalizeLocations(body.locations);
+      if (locations.length < 1) {
+        return res.status(400).json({ error: 'At least one location is required' });
+      }
+      store.locations = locations;
+      store.entries = (store.entries || []).map((e) => ({
+        ...e,
+        locationIds: (e.locationIds || []).filter((x) => locations.includes(x)),
+      }));
+    }
     if (body.chorePresets != null) {
       const next = normalizeChorePresets(body.chorePresets);
       if (!next.length) {
@@ -582,6 +620,7 @@ app.put('/api/settings', async (req, res) => {
     await writeStore(store);
     res.json({
       people: store.people,
+      locations: store.locations,
       chorePresets: store.chorePresets,
       quickChoreIds: store.quickChoreIds,
     });
@@ -599,6 +638,7 @@ app.get('/api/export', async (req, res) => {
       version: 4,
       exportedAt: new Date().toISOString(),
       people: store.people,
+      locations: store.locations || [],
       entries: store.entries,
       scheduledChores: store.scheduledChores || [],
       chorePresets: store.chorePresets || [],
@@ -618,6 +658,7 @@ app.post('/api/import', async (req, res) => {
     const body = req.body || {};
     const mode = body.mode === 'merge' ? 'merge' : 'replace';
     const incomingPeople = normalizePeople(body.people);
+    const incomingLocations = Array.isArray(body.locations) ? normalizeLocations(body.locations) : [];
     const incomingEntries = Array.isArray(body.entries) ? body.entries : [];
     const incomingScheduled = normalizeScheduledChores(Array.isArray(body.scheduledChores) ? body.scheduledChores : []);
     const incomingPresets = normalizeChorePresets(Array.isArray(body.chorePresets) ? body.chorePresets : []);
@@ -644,6 +685,7 @@ app.post('/api/import', async (req, res) => {
           c,
           p,
           choreId: choreId || null,
+          locationIds: Array.isArray(row.locationIds) ? row.locationIds : [],
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
         });
@@ -651,6 +693,11 @@ app.post('/api/import', async (req, res) => {
       }
       store.entries = nextEntries;
       store.people = incomingPeople;
+      store.locations = incomingLocations.length ? incomingLocations : [...DEFAULT_LOCATIONS];
+      store.entries = store.entries.map((e) => ({
+        ...e,
+        locationIds: (e.locationIds || []).filter((x) => store.locations.includes(x)),
+      }));
       store.scheduledChores = incomingScheduled.map((s) => ({
         ...s,
         id: newId(),
@@ -669,6 +716,9 @@ app.post('/api/import', async (req, res) => {
       const peopleSet = new Set(store.people);
       incomingPeople.forEach((p) => peopleSet.add(p));
       store.people = normalizePeople([...peopleSet]);
+      const locationSet = new Set(store.locations || []);
+      incomingLocations.forEach((x) => locationSet.add(x));
+      store.locations = normalizeLocations([...locationSet]);
       for (const row of incomingEntries) {
         if (!row || typeof row.d !== 'string' || typeof row.p !== 'string') continue;
         const d = row.d.trim();
@@ -683,11 +733,16 @@ app.post('/api/import', async (req, res) => {
           c,
           p,
           choreId: choreId || null,
+          locationIds: Array.isArray(row.locationIds) ? row.locationIds : [],
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
         });
         if (e) store.entries.push(e);
       }
+      store.entries = store.entries.map((e) => ({
+        ...e,
+        locationIds: (e.locationIds || []).filter((x) => store.locations.includes(x)),
+      }));
       if (!store.scheduledChores) store.scheduledChores = [];
       for (const s of incomingScheduled) {
         store.scheduledChores.push({ ...s, id: newId() });
@@ -698,6 +753,7 @@ app.post('/api/import', async (req, res) => {
     res.json({
       entries: store.entries,
       people: store.people,
+      locations: store.locations || [],
       scheduledChores: store.scheduledChores || [],
       chorePresets: store.chorePresets || [],
       quickChoreIds: store.quickChoreIds || [],
@@ -727,12 +783,22 @@ app.post('/api/entries', async (req, res) => {
       if (!d || !p) continue;
       let c = '';
       let choreId = null;
+      let locationIds = [];
       const cid = typeof row.choreId === 'string' ? row.choreId.trim() : '';
       if (cid) {
         const preset = presets.find((x) => x.id === cid);
         if (!preset) return res.status(400).json({ error: 'Unknown choreId' });
         c = preset.title;
         choreId = cid;
+        if (Array.isArray(row.locationIds)) {
+          locationIds = row.locationIds
+            .filter((x) => typeof x === 'string' && store.locations.includes(x))
+            .map((x) => x.trim())
+            .filter(Boolean);
+        }
+        if (preset.scoringMode === 'per_location' && !locationIds.length) {
+          return res.status(400).json({ error: 'Location-based chores need at least one location' });
+        }
       } else {
         if (typeof row.c !== 'string') return res.status(400).json({ error: 'Each entry needs choreId or c' });
         c = row.c.trim();
@@ -745,6 +811,7 @@ app.post('/api/entries', async (req, res) => {
         c,
         p,
         choreId,
+        locationIds,
         createdAt: ts,
         updatedAt: ts,
       };
@@ -774,12 +841,22 @@ app.put('/api/entries/:id', async (req, res) => {
     const presets = store.chorePresets || [];
     let c = '';
     let choreId = null;
+    let locationIds = [];
     const cid = typeof req.body.choreId === 'string' ? req.body.choreId.trim() : '';
     if (cid) {
       const preset = presets.find((x) => x.id === cid);
       if (!preset) return res.status(400).json({ error: 'Unknown choreId' });
       c = preset.title;
       choreId = cid;
+      if (Array.isArray(req.body.locationIds)) {
+        locationIds = req.body.locationIds
+          .filter((x) => typeof x === 'string' && store.locations.includes(x))
+          .map((x) => x.trim())
+          .filter(Boolean);
+      }
+      if (preset.scoringMode === 'per_location' && !locationIds.length) {
+        return res.status(400).json({ error: 'Location-based chores need at least one location' });
+      }
     } else {
       c = String(req.body && req.body.c != null ? req.body.c : '').trim();
       if (!c) return res.status(400).json({ error: 'choreId or c is required' });
@@ -788,7 +865,7 @@ app.put('/api/entries/:id', async (req, res) => {
     if (idx === -1) return res.status(404).json({ error: 'Not found' });
     const prev = store.entries[idx];
     const createdAt = typeof prev.createdAt === 'string' ? prev.createdAt : nowISO();
-    store.entries[idx] = { id, d, c, p, choreId, createdAt, updatedAt: nowISO() };
+    store.entries[idx] = { id, d, c, p, choreId, locationIds, createdAt, updatedAt: nowISO() };
     await writeStore(store);
     res.json({ entry: store.entries[idx] });
   } catch (e) {

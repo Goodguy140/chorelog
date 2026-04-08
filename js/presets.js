@@ -16,7 +16,12 @@ export function presetById(id) {
 export function entryChorePoints(e) {
   if (!e || !e.choreId) return null;
   const pr = presetById(e.choreId);
-  return pr ? pr.points : null;
+  if (!pr) return null;
+  if (pr.scoringMode === 'per_location') {
+    const n = Array.isArray(e.locationIds) ? e.locationIds.length : 0;
+    return pr.points * n;
+  }
+  return pr.points;
 }
 
 export function resolveChorePayloadRows(raw) {
@@ -65,9 +70,10 @@ export function readChorePresetsFromDom() {
     const title = row.querySelector('.chore-preset-title')?.value?.trim() || '';
     let points = Number(row.querySelector('.chore-preset-points')?.value);
     const color = row.querySelector('.chore-preset-color')?.value || '#378ADD';
+    const scoringMode = row.querySelector('.chore-preset-scoring')?.value === 'per_location' ? 'per_location' : 'flat';
     if (!id || !title) return;
     if (!Number.isFinite(points)) points = 1;
-    out.push({ id, title, points, color });
+    out.push({ id, title, points, color, scoringMode });
   });
   return out;
 }
@@ -81,6 +87,10 @@ export function renderChorePresetsEditor() {
     <li class="chore-preset-row" data-id="${escapeAttr(p.id)}">
       <input type="text" class="chore-preset-title" value="${escapeAttr(p.title)}" maxlength="120" aria-label="Chore title">
       <input type="number" class="chore-preset-points" value="${Number(p.points)}" min="0" max="10000" step="1" aria-label="Points">
+      <select class="chore-preset-scoring" aria-label="Points mode">
+        <option value="flat" ${p.scoringMode === 'per_location' ? '' : 'selected'}>Flat</option>
+        <option value="per_location" ${p.scoringMode === 'per_location' ? 'selected' : ''}>Per location</option>
+      </select>
       <input type="color" class="chore-preset-color" value="${escapeAttr(p.color)}" aria-label="Color">
       <button type="button" class="btn-secondary chore-preset-remove" data-remove="${escapeAttr(p.id)}" ${app.chorePresets.length <= 1 ? 'disabled' : ''}>Remove</button>
     </li>`,

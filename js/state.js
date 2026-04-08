@@ -15,6 +15,7 @@ export const PALETTE = [
 
 export const app = {
   people: [...DEFAULT_PEOPLE],
+  locations: ['Upstairs', 'Stairs', 'Hallway', 'Kitchen', 'Living room', 'Front porch', 'Back porch'],
   chorePresets: [],
   quickChoreIds: [],
   entries: [],
