@@ -1,4 +1,5 @@
 import { apiFetch } from './api-fetch.js';
+import { t } from './i18n.js';
 import { app } from './state.js';
 import { escapeAttr, escapeHtml } from './utils/html.js';
 import { render } from './render-registry.js';
@@ -79,7 +80,7 @@ export function resolveChorePayloadRows(raw) {
       (p) => p.title.toLowerCase() === part.toLowerCase(),
     );
     if (!preset) {
-      return { ok: false, reason: `Unknown chore: "${part}"` };
+      return { ok: false, reason: 'unknown', unknownPart: part };
     }
     rows.push({ choreId: preset.id });
   }
@@ -103,7 +104,7 @@ export async function saveChorePresetsAndQuick() {
     renderQuickChoresEditor();
     render();
   } catch {
-    app.loadError = 'Could not save chore presets.';
+    app.loadError = t('errors.savePresets');
     render();
   }
 }
@@ -131,14 +132,14 @@ export function renderChorePresetsEditor() {
     .map(
       (p) => `
     <li class="chore-preset-row" data-id="${escapeAttr(p.id)}">
-      <input type="text" class="chore-preset-title" value="${escapeAttr(p.title)}" maxlength="120" aria-label="Chore title">
-      <input type="number" class="chore-preset-points" value="${Number(p.points)}" min="0" max="10000" step="1" aria-label="Points">
-      <select class="chore-preset-scoring" aria-label="Points mode">
-        <option value="flat" ${p.scoringMode === 'per_location' ? '' : 'selected'}>Flat</option>
-        <option value="per_location" ${p.scoringMode === 'per_location' ? 'selected' : ''}>Per location</option>
+      <input type="text" class="chore-preset-title" value="${escapeAttr(p.title)}" maxlength="120" aria-label="${escapeAttr(t('presets.titleAria'))}">
+      <input type="number" class="chore-preset-points" value="${Number(p.points)}" min="0" max="10000" step="1" aria-label="${escapeAttr(t('presets.pointsAria'))}">
+      <select class="chore-preset-scoring" aria-label="${escapeAttr(t('presets.pointsModeAria'))}">
+        <option value="flat" ${p.scoringMode === 'per_location' ? '' : 'selected'}>${escapeHtml(t('presets.flat'))}</option>
+        <option value="per_location" ${p.scoringMode === 'per_location' ? 'selected' : ''}>${escapeHtml(t('presets.perLocation'))}</option>
       </select>
-      <input type="color" class="chore-preset-color" value="${escapeAttr(p.color)}" aria-label="Color">
-      <button type="button" class="btn-secondary chore-preset-remove" data-remove="${escapeAttr(p.id)}" ${app.chorePresets.length <= 1 ? 'disabled' : ''}>Remove</button>
+      <input type="color" class="chore-preset-color" value="${escapeAttr(p.color)}" aria-label="${escapeAttr(t('presets.colorAria'))}">
+      <button type="button" class="btn-secondary chore-preset-remove" data-remove="${escapeAttr(p.id)}" ${app.chorePresets.length <= 1 ? 'disabled' : ''}>${escapeHtml(t('settings.remove'))}</button>
     </li>`,
     )
     .join('');
@@ -155,9 +156,9 @@ export function renderQuickChoresEditor() {
       return `<li class="quick-chore-editor-row" data-qid="${escapeAttr(id)}">
   <span class="quick-chore-editor-title" style="border-left:4px solid ${escapeAttr(p.color)}">${escapeHtml(p.title)}</span>
   <span class="quick-chore-editor-actions">
-    <button type="button" class="btn-secondary btn-quick-move" data-dir="up" data-idx="${idx}" ${idx === 0 ? 'disabled' : ''} aria-label="Move up">↑</button>
-    <button type="button" class="btn-secondary btn-quick-move" data-dir="down" data-idx="${idx}" ${idx === app.quickChoreIds.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button>
-    <button type="button" class="btn-secondary btn-quick-remove" data-remove="${escapeAttr(id)}">Remove</button>
+    <button type="button" class="btn-secondary btn-quick-move" data-dir="up" data-idx="${idx}" ${idx === 0 ? 'disabled' : ''} aria-label="${escapeAttr(t('presets.moveUpAria'))}">↑</button>
+    <button type="button" class="btn-secondary btn-quick-move" data-dir="down" data-idx="${idx}" ${idx === app.quickChoreIds.length - 1 ? 'disabled' : ''} aria-label="${escapeAttr(t('presets.moveDownAria'))}">↓</button>
+    <button type="button" class="btn-secondary btn-quick-remove" data-remove="${escapeAttr(id)}">${escapeHtml(t('settings.remove'))}</button>
   </span>
 </li>`;
     })
@@ -169,7 +170,7 @@ export function renderQuickChoresEditor() {
       .map((p) => `<option value="${escapeAttr(p.id)}">${escapeHtml(p.title)}</option>`)
       .join('');
     if (!sel.innerHTML) {
-      sel.innerHTML = '<option value="">(all presets in quick bar)</option>';
+      sel.innerHTML = `<option value="">${escapeHtml(t('settings.quickBarAll'))}</option>`;
     }
   }
 }
@@ -186,7 +187,7 @@ export function renderQuickChores() {
       if (!preset) return '';
       const safe = escapeHtml(preset.title);
       const col = escapeAttr(preset.color);
-      return `<button type="button" class="quick-chore-btn" data-chore-id="${escapeAttr(preset.id)}" style="border-color:${col};background:color-mix(in srgb, ${col} 20%, transparent)" title="Quick log: ${safe}">${safe}</button>`;
+      return `<button type="button" class="quick-chore-btn" data-chore-id="${escapeAttr(preset.id)}" style="border-color:${col};background:color-mix(in srgb, ${col} 20%, transparent)" title="${escapeAttr(t('logForm.quickTitle', { name: preset.title }))}">${safe}</button>`;
     })
     .join('');
 }

@@ -11,7 +11,7 @@
     })();
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="description" content="Track household chores and monthly contributions.">
+  <meta name="description" data-i18n="meta.description" content="Track household chores and monthly contributions.">
   <meta name="theme-color" id="metaThemeColor" content="#1a1a18">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -19,7 +19,7 @@
   <meta name="apple-mobile-web-app-title" content="Chorelog">
   <meta name="application-name" content="Chorelog">
   <meta name="msapplication-TileColor" content="#1a1a18">
-  <title>Chore Tracker</title>
+  <title data-i18n="meta.pageTitle">Chore Tracker</title>
   <link rel="icon" href="/icons/app-icon.svg" type="image/svg+xml" sizes="any">
   <link rel="shortcut icon" href="/icons/app-icon.svg" type="image/svg+xml">
   <link rel="manifest" href="/site.webmanifest">
@@ -35,133 +35,133 @@
 <body>
   <div id="loginScreen" class="login-screen">
     <form id="loginForm" class="login-card">
-      <h1 class="login-title">Chore tracker</h1>
+      <h1 class="login-title" data-i18n="login.title">Chore tracker</h1>
       <p id="loginError" class="login-error" role="alert" hidden></p>
       <div class="login-field">
-        <label for="loginUser">Username</label>
+        <label for="loginUser" data-i18n="login.username">Username</label>
         <input type="text" id="loginUser" name="username" autocomplete="username" required>
       </div>
       <div class="login-field">
-        <label for="loginPass">Password</label>
+        <label for="loginPass" data-i18n="login.password">Password</label>
         <input type="password" id="loginPass" name="password" autocomplete="current-password" required>
       </div>
-      <button type="submit" class="btn-add login-submit">Sign in</button>
+      <button type="submit" class="btn-add login-submit" data-i18n="login.submit">Sign in</button>
     </form>
   </div>
 
   <div id="appShell" class="app-shell" hidden>
   <div class="wrap">
     <div class="top-bar">
-      <span class="title">Chore tracker</span>
+      <span class="title" data-i18n="app.title">Chore tracker</span>
       <div class="top-bar-actions">
-        <button type="button" class="btn-settings" id="btnScheduled" aria-haspopup="dialog">Scheduled</button>
-        <button type="button" class="btn-settings" id="btnSettings" aria-haspopup="dialog">Settings</button>
-        <select id="monthSelect" class="month-select" aria-label="Month to view"></select>
+        <button type="button" class="btn-settings" id="btnScheduled" aria-haspopup="dialog" data-i18n="app.scheduled">Scheduled</button>
+        <button type="button" class="btn-settings" id="btnSettings" aria-haspopup="dialog" data-i18n="app.settings">Settings</button>
+        <select id="monthSelect" class="month-select" data-i18n-aria="app.monthAria" aria-label="Month to view"></select>
       </div>
     </div>
     <p id="loadError" class="empty" style="display:none;margin-bottom:12px;color:#E24B4A;"></p>
 
     <div class="analytics-filters" id="analyticsFiltersWrap">
       <label class="analytics-filter-item">
-        <span class="analytics-filter-label">Person</span>
-        <select id="analyticsPersonFilter" class="month-select analytics-filter-select" aria-label="Filter analytics by person"></select>
+        <span class="analytics-filter-label" data-i18n="analytics.person">Person</span>
+        <select id="analyticsPersonFilter" class="month-select analytics-filter-select" data-i18n-aria="analytics.filterPersonAria" aria-label="Filter analytics by person"></select>
       </label>
       <label class="analytics-filter-item">
-        <span class="analytics-filter-label">Location</span>
-        <select id="analyticsLocationFilter" class="month-select analytics-filter-select" aria-label="Filter analytics by location"></select>
+        <span class="analytics-filter-label" data-i18n="analytics.location">Location</span>
+        <select id="analyticsLocationFilter" class="month-select analytics-filter-select" data-i18n-aria="analytics.filterLocationAria" aria-label="Filter analytics by location"></select>
       </label>
     </div>
     <p id="analyticsFilterHint" class="analytics-filter-hint" hidden></p>
 
     <div class="analytics-stats-row">
       <div class="analytics-stats-col">
-        <p class="analytics-block-label">By task count</p>
+        <p class="analytics-block-label" data-i18n="analytics.byTaskCount">By task count</p>
         <div class="stat-grid" id="statsGrid"></div>
       </div>
       <div class="analytics-stats-col">
-        <p class="analytics-block-label">By preset points</p>
+        <p class="analytics-block-label" data-i18n="analytics.byPresetPoints">By preset points</p>
         <div class="stat-grid" id="statsGridPoints"></div>
       </div>
     </div>
 
     <div class="section-pair">
       <div class="section section-pair__item">
-        <p class="section-title">Contributions this month</p>
+        <p class="section-title" data-i18n="contributions.title">Contributions this month</p>
         <div class="contributions-bars-row">
           <div class="contributions-bars-col">
-            <p class="analytics-bars-label">Task count</p>
+            <p class="analytics-bars-label" data-i18n="contributions.taskCount">Task count</p>
             <div id="barsArea"></div>
           </div>
           <div class="contributions-bars-col">
-            <p class="analytics-bars-label">Preset points</p>
+            <p class="analytics-bars-label" data-i18n="contributions.presetPoints">Preset points</p>
             <div id="barsAreaPoints"></div>
           </div>
         </div>
       </div>
       <div class="section section-pair__item">
-        <p class="section-title">Daily activity</p>
-        <p class="section-sub">Tasks logged per day in the selected month (darker = more tasks).</p>
-        <div class="heatmap-wrap" id="taskHeatmap" aria-label="Tasks per day heatmap"></div>
+        <p class="section-title" data-i18n="heatmap.title">Daily activity</p>
+        <p class="section-sub" data-i18n="heatmap.subtitle">Tasks logged per day in the selected month (darker = more tasks).</p>
+        <div class="heatmap-wrap" id="taskHeatmap" data-i18n-aria="heatmap.aria" aria-label="Tasks per day heatmap"></div>
       </div>
     </div>
 
     <div class="section" id="scheduledSection" style="display:none;">
-      <p class="section-title">Scheduled chores</p>
-      <p class="section-sub">Recurring tasks and when they are due next. Mark done here to reset the timer.</p>
+      <p class="section-title" data-i18n="scheduled.sectionTitle">Scheduled chores</p>
+      <p class="section-sub" data-i18n="scheduled.sectionSub">Recurring tasks and when they are due next. Mark done here to reset the timer.</p>
       <div class="scheduled-dashboard" id="scheduledDashboard"></div>
     </div>
 
     <div class="section section--log-chore">
-      <p class="section-title">Log a chore</p>
+      <p class="section-title" data-i18n="logForm.title">Log a chore</p>
       <div class="add-form">
-        <div class="field field-date"><label for="inDate">Date</label>
+        <div class="field field-date"><label for="inDate" data-i18n="logForm.date">Date</label>
           <div class="date-input-shell"><input type="date" id="inDate" autocomplete="off"></div>
         </div>
-        <div class="field field-chore"><label for="inChore">Chore</label>
+        <div class="field field-chore"><label for="inChore" data-i18n="logForm.chore">Chore</label>
           <div class="chore-input-wrap">
-            <input type="text" id="inChore" placeholder="Search or pick a chore" maxlength="500" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-controls="choreSuggestList">
-            <ul id="choreSuggestList" class="chore-suggest-list" hidden role="listbox" aria-label="Matching chore presets"></ul>
+            <input type="text" id="inChore" data-i18n-placeholder="logForm.chorePh" placeholder="Search or pick a chore" maxlength="500" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-controls="choreSuggestList">
+            <ul id="choreSuggestList" class="chore-suggest-list" hidden role="listbox" data-i18n-aria="logForm.choreSuggestAria" aria-label="Matching chore presets"></ul>
           </div>
-          <p class="field-hint">Separate with <kbd>;</kbd> to log multiple presets in one go.</p>
+          <p class="field-hint" data-i18n="logForm.hintSemicolon">Use a semicolon (;) between preset names to log several at once.</p>
         </div>
-        <div class="field"><label>Person</label>
+        <div class="field"><label data-i18n="logForm.person">Person</label>
           <select id="inPerson"></select>
         </div>
-        <div class="field field-locations"><label for="inLocations">Locations</label>
-          <select id="inLocations" multiple size="4" aria-label="Locations for location-based chores"></select>
-          <p class="field-hint">Applied only to chores using per-location points.</p>
+        <div class="field field-locations"><label for="inLocations" data-i18n="logForm.locations">Locations</label>
+          <select id="inLocations" multiple size="4" data-i18n-aria="logForm.locationsAria" aria-label="Locations for location-based chores"></select>
+          <p class="field-hint" data-i18n="logForm.locationsHint">Applied only to chores using per-location points.</p>
         </div>
-        <button class="btn-add" onclick="addEntry()">+ Add</button>
+        <button class="btn-add" onclick="addEntry()" data-i18n="logForm.add">+ Add</button>
       </div>
       <div id="scheduledLogSuggestionsWrap" class="scheduled-log-suggestions" hidden>
-        <p class="scheduled-log-suggestions-intro">Scheduled chores due soon or overdue — tap to fill if the title matches a preset.</p>
+        <p class="scheduled-log-suggestions-intro" data-i18n="scheduled.suggestionsIntro">Scheduled chores due soon or overdue — tap to fill if the title matches a preset.</p>
         <div class="scheduled-log-suggestions-buttons" id="scheduledLogSuggestions"></div>
       </div>
       <div class="quick-chores">
-        <p class="quick-chores-label">Quick log</p>
+        <p class="quick-chores-label" data-i18n="logForm.quickLog">Quick log</p>
         <div class="quick-chores-buttons" id="quickChoreButtons"></div>
-        <p class="quick-chores-hint">Uses the date and person above — one tap to log.</p>
+        <p class="quick-chores-hint" data-i18n="logForm.quickHint">Uses the date and person above — one tap to log.</p>
       </div>
     </div>
 
     <div class="log-mom-row">
       <div class="section log-mom-col log-mom-col--log">
-        <p class="section-title">Log for <span id="logMonthLabel"></span></p>
+        <p class="section-title"><span data-i18n="logList.titlePrefix">Log for</span> <span id="logMonthLabel"></span></p>
         <div class="log-filter-row">
-          <label class="log-filter-label" for="logSearch">Filter log</label>
-          <input type="search" id="logSearch" class="log-search-input" placeholder="Search chore, person, date, locations…" autocomplete="off" enterkeyhint="search" aria-label="Filter activity log">
+          <label class="log-filter-label" for="logSearch" data-i18n="logList.filterLabel">Filter log</label>
+          <input type="search" id="logSearch" class="log-search-input" data-i18n-placeholder="logList.filterPh" placeholder="Search chore, person, date, locations…" autocomplete="off" enterkeyhint="search" data-i18n-aria="logList.filterAria" aria-label="Filter activity log">
         </div>
         <div class="log-list" id="logList"></div>
       </div>
       <div class="section log-mom-col log-mom-col--mom">
-        <p class="section-title">Month-over-month</p>
+        <p class="section-title" data-i18n="mom.title">Month-over-month</p>
         <div class="mom-pair">
           <div class="mom-pair-col">
-            <p class="mom-section-label">Task counts</p>
+            <p class="mom-section-label" data-i18n="mom.taskCounts">Task counts</p>
             <div class="mom-grid" id="momGrid"></div>
           </div>
           <div class="mom-pair-col">
-            <p class="mom-section-label">Preset points</p>
+            <p class="mom-section-label" data-i18n="mom.presetPoints">Preset points</p>
             <div class="mom-grid" id="momGridPoints"></div>
           </div>
         </div>
@@ -174,62 +174,71 @@
   <dialog class="settings-dialog" id="settingsDialog" aria-labelledby="settingsTitle">
     <div class="settings-inner">
       <div class="settings-header">
-        <h2 id="settingsTitle">Settings</h2>
-        <button type="button" class="settings-close" id="settingsClose" aria-label="Close">&times;</button>
+        <h2 id="settingsTitle" data-i18n="settings.title">Settings</h2>
+        <button type="button" class="settings-close" id="settingsClose" data-i18n-aria="settings.closeAria" aria-label="Close">&times;</button>
       </div>
 
       <div>
-        <p class="settings-block-title">Appearance</p>
+        <p class="settings-block-title" data-i18n="settings.appearance">Appearance</p>
         <div class="theme-options" id="themeOptions">
-          <label><input type="radio" name="theme" value="system"> System</label>
-          <label><input type="radio" name="theme" value="light"> Light</label>
-          <label><input type="radio" name="theme" value="dark"> Dark</label>
+          <label><input type="radio" name="theme" value="system"> <span data-i18n="settings.themeSystem">System</span></label>
+          <label><input type="radio" name="theme" value="light"> <span data-i18n="settings.themeLight">Light</span></label>
+          <label><input type="radio" name="theme" value="dark"> <span data-i18n="settings.themeDark">Dark</span></label>
         </div>
       </div>
 
       <div>
-        <p class="settings-block-title">People</p>
+        <p class="settings-block-title" data-i18n="settings.language">Language</p>
+        <p class="settings-hint" data-i18n="settings.languageHint">Interface language. Data (chore names, people) is not translated.</p>
+        <select id="settingsLocale" class="month-select" data-i18n-aria="settings.languageAria" aria-label="Language">
+          <option value="en" data-i18n="settings.langEn">English</option>
+          <option value="de" data-i18n="settings.langDe">Deutsch</option>
+        </select>
+      </div>
+
+      <div>
+        <p class="settings-block-title" data-i18n="settings.people">People</p>
         <ul class="people-list" id="peopleList"></ul>
         <div class="add-person-row">
-          <input type="text" id="newPersonName" placeholder="Name" maxlength="80" autocomplete="off">
-          <button type="button" class="btn-secondary" id="btnAddPerson">Add</button>
+          <input type="text" id="newPersonName" data-i18n-placeholder="settings.namePh" placeholder="Name" maxlength="80" autocomplete="off">
+          <button type="button" class="btn-secondary" id="btnAddPerson" data-i18n="settings.add">Add</button>
         </div>
       </div>
 
       <div>
-        <p class="settings-block-title">Locations</p>
+        <p class="settings-block-title" data-i18n="settings.locations">Locations</p>
         <ul class="people-list" id="locationsList"></ul>
         <div class="add-person-row">
-          <input type="text" id="newLocationName" placeholder="Location name" maxlength="80" autocomplete="off">
-          <button type="button" class="btn-secondary" id="btnAddLocation">Add</button>
+          <input type="text" id="newLocationName" data-i18n-placeholder="settings.locationPh" placeholder="Location name" maxlength="80" autocomplete="off">
+          <button type="button" class="btn-secondary" id="btnAddLocation" data-i18n="settings.add">Add</button>
         </div>
       </div>
 
       <div>
-        <p class="settings-block-title">Chore presets</p>
-        <p class="settings-hint">Title, points, and color for each selectable chore.</p>
+        <p class="settings-block-title" data-i18n="settings.chorePresets">Chore presets</p>
+        <p class="settings-hint" data-i18n="settings.presetsHint">Title, points, and color for each selectable chore.</p>
         <ul class="chore-presets-editor" id="chorePresetsList"></ul>
-        <button type="button" class="btn-secondary" id="btnAddChorePreset">Add chore</button>
+        <button type="button" class="btn-secondary" id="btnAddChorePreset" data-i18n="settings.addChore">Add chore</button>
       </div>
 
       <div>
-        <p class="settings-block-title">Quick log</p>
-        <p class="settings-hint">Buttons under “Log a chore” — order matches the list below.</p>
+        <p class="settings-block-title" data-i18n="settings.quickLog">Quick log</p>
+        <p class="settings-hint" data-i18n="settings.quickLogHint">Buttons under “Log a chore” — order matches the list below.</p>
         <ul class="quick-chores-editor" id="quickChoresList"></ul>
         <div class="add-quick-chore-row">
-          <select id="quickChorePresetSelect" aria-label="Add preset to quick bar"></select>
-          <button type="button" class="btn-secondary" id="btnAddQuickChore">Add</button>
+          <select id="quickChorePresetSelect" data-i18n-aria="settings.quickPresetAria" aria-label="Add preset to quick bar"></select>
+          <button type="button" class="btn-secondary" id="btnAddQuickChore" data-i18n="settings.add">Add</button>
         </div>
       </div>
 
       <div class="discord-webhook-block">
-        <p class="settings-block-title">Discord reminders</p>
-        <p class="settings-hint">When a <strong>scheduled</strong> chore is overdue, the server can POST to a Discord incoming webhook (channel settings → Integrations → Webhooks).</p>
-        <label class="discord-webhook-enable"><input type="checkbox" id="discordWebhookEnabled"> Send overdue reminders automatically</label>
-        <label class="analytics-filter-label" for="discordWebhookUrl">Webhook URL</label>
-        <input type="url" id="discordWebhookUrl" class="discord-webhook-url" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false">
-        <label class="analytics-filter-label" for="discordReminderInterval">Remind again every (same overdue chore)</label>
-        <select id="discordReminderInterval" class="month-select discord-webhook-interval" aria-label="Minimum time between Discord reminders per chore">
+        <p class="settings-block-title" data-i18n="settings.discordTitle">Discord reminders</p>
+        <p class="settings-hint" data-i18n="settings.discordHint" data-i18n-html>When a <strong>scheduled</strong> chore is overdue, the server can POST to a Discord incoming webhook (channel settings → Integrations → Webhooks).</p>
+        <label class="discord-webhook-enable"><input type="checkbox" id="discordWebhookEnabled"> <span data-i18n="settings.discordEnable">Send overdue reminders automatically</span></label>
+        <label class="analytics-filter-label" for="discordWebhookUrl" data-i18n="settings.webhookUrl">Webhook URL</label>
+        <input type="url" id="discordWebhookUrl" class="discord-webhook-url" data-i18n-placeholder="settings.webhookPh" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false">
+        <label class="analytics-filter-label" for="discordReminderInterval" data-i18n="settings.remindInterval">Remind again every (same overdue chore)</label>
+        <select id="discordReminderInterval" class="month-select discord-webhook-interval" data-i18n-aria="settings.remindIntervalAria" aria-label="Minimum time between Discord reminders per chore">
           <option value="15">15 minutes</option>
           <option value="30">30 minutes</option>
           <option value="60">1 hour</option>
@@ -241,46 +250,46 @@
           <option value="10080">7 days</option>
         </select>
         <div class="settings-actions discord-webhook-actions">
-          <button type="button" class="btn-secondary" id="btnSaveDiscordWebhook">Save</button>
-          <button type="button" class="btn-secondary" id="btnTestDiscordWebhook">Send test</button>
-          <button type="button" class="btn-secondary" id="btnDiscordRemindNow">Post overdue now</button>
+          <button type="button" class="btn-secondary" id="btnSaveDiscordWebhook" data-i18n="settings.save">Save</button>
+          <button type="button" class="btn-secondary" id="btnTestDiscordWebhook" data-i18n="settings.sendTest">Send test</button>
+          <button type="button" class="btn-secondary" id="btnDiscordRemindNow" data-i18n="settings.postOverdue">Post overdue now</button>
         </div>
         <p class="settings-hint discord-webhook-status" id="discordWebhookStatus" hidden role="status"></p>
       </div>
 
       <div>
-        <p class="settings-block-title">Account</p>
+        <p class="settings-block-title" data-i18n="settings.account">Account</p>
         <div class="settings-actions">
-          <button type="button" class="btn-secondary" id="btnLogout">Log out</button>
+          <button type="button" class="btn-secondary" id="btnLogout" data-i18n="settings.logout">Log out</button>
         </div>
       </div>
 
       <div>
-        <p class="settings-block-title">Audit log</p>
-        <p class="settings-hint">Changes to the activity log and household settings (newest first). The signed-in account name is stored as the actor.</p>
+        <p class="settings-block-title" data-i18n="settings.auditTitle">Audit log</p>
+        <p class="settings-hint" data-i18n="settings.auditHint">Changes to the activity log and household settings (newest first). The signed-in account name is stored as the actor.</p>
         <p class="settings-hint audit-log-status" id="auditLogStatus" hidden role="status"></p>
         <div class="audit-log-wrap">
-          <ul class="audit-log-list" id="auditLogList" aria-label="Audit log"></ul>
+          <ul class="audit-log-list" id="auditLogList" data-i18n-aria="settings.auditAria" aria-label="Audit log"></ul>
         </div>
-        <button type="button" class="btn-secondary" id="btnRefreshAuditLog">Refresh audit log</button>
+        <button type="button" class="btn-secondary" id="btnRefreshAuditLog" data-i18n="settings.auditRefresh">Refresh audit log</button>
       </div>
 
       <div>
-        <p class="settings-block-title">Data</p>
+        <p class="settings-block-title" data-i18n="settings.data">Data</p>
         <div class="settings-actions">
-          <button type="button" class="btn-secondary" id="btnExport">Export JSON</button>
+          <button type="button" class="btn-secondary" id="btnExport" data-i18n="settings.export">Export JSON</button>
           <label class="btn-secondary" style="cursor:pointer;display:inline-block;">
-            Import JSON
+            <span data-i18n="settings.import">Import JSON</span>
             <input type="file" id="importFile" accept="application/json,.json" hidden>
           </label>
         </div>
-        <p class="settings-hint" style="margin-top:8px;">Import can <strong>replace</strong> everything or <strong>merge</strong> with a prompt. Export includes people, log entries, and scheduled chores.</p>
+        <p class="settings-hint" style="margin-top:8px;" data-i18n="settings.dataHint" data-i18n-html>Import can <strong>replace</strong> everything or <strong>merge</strong> with a prompt. Export includes people, log entries, and scheduled chores.</p>
       </div>
 
       <div>
-        <p class="settings-block-title">Scheduled chores</p>
-        <button type="button" class="btn-secondary" id="btnOpenScheduledFromSettings">Manage scheduled chores</button>
-        <p class="settings-hint" style="margin-top:8px;">Recurring tasks (weekly, every 2 weeks, etc.). Due dates reset only when you mark them done.</p>
+        <p class="settings-block-title" data-i18n="settings.scheduledBlock">Scheduled chores</p>
+        <button type="button" class="btn-secondary" id="btnOpenScheduledFromSettings" data-i18n="scheduled.manageFromSettings">Manage scheduled chores</button>
+        <p class="settings-hint" style="margin-top:8px;" data-i18n="scheduled.settingsHint">Recurring tasks (weekly, every 2 weeks, etc.). Due dates reset only when you mark them done.</p>
       </div>
 
       <p class="settings-version" id="settingsAppVersion" hidden aria-live="polite"></p>
@@ -290,13 +299,13 @@
   <dialog class="settings-dialog" id="scheduledDialog" aria-labelledby="scheduledDialogTitle">
     <div class="settings-inner">
       <div class="settings-header">
-        <h2 id="scheduledDialogTitle">Scheduled chores</h2>
-        <button type="button" class="settings-close" id="scheduledDialogClose" aria-label="Close">&times;</button>
+        <h2 id="scheduledDialogTitle" data-i18n="scheduled.dialogTitle">Scheduled chores</h2>
+        <button type="button" class="settings-close" id="scheduledDialogClose" data-i18n-aria="settings.closeAria" aria-label="Close">&times;</button>
       </div>
-      <p class="settings-hint">Next due is computed from the last time you marked done, or from the start date if never done. You can edit start date per chore below.</p>
+      <p class="settings-hint" data-i18n="scheduled.dialogHint">Next due is computed from the last time you marked done, or from the start date if never done. You can edit start date per chore below.</p>
       <form class="scheduled-add-form" id="addScheduledForm">
-        <input type="text" name="title" id="scheduledNewTitle" placeholder="Chore name" maxlength="120" required autocomplete="off">
-        <select name="intervalDays" id="scheduledNewInterval" aria-label="Interval">
+        <input type="text" name="title" id="scheduledNewTitle" data-i18n-placeholder="scheduled.choreNamePh" placeholder="Chore name" maxlength="120" required autocomplete="off">
+        <select name="intervalDays" id="scheduledNewInterval" data-i18n-aria="scheduled.intervalAria" aria-label="Interval">
           <option value="1">Every day</option>
           <option value="7" selected>Every week</option>
           <option value="14">Every 2 weeks</option>
@@ -305,7 +314,7 @@
           <option value="60">Every 2 months</option>
           <option value="90">Every 3 months</option>
         </select>
-        <button type="submit" class="btn-secondary">Add</button>
+        <button type="submit" class="btn-secondary" data-i18n="scheduled.add">Add</button>
       </form>
       <ul class="scheduled-manage-list" id="scheduledManageList"></ul>
     </div>
@@ -314,31 +323,31 @@
   <dialog class="settings-dialog" id="editEntryDialog" aria-labelledby="editEntryTitle">
     <div class="settings-inner">
       <div class="settings-header">
-        <h2 id="editEntryTitle">Edit entry</h2>
-        <button type="button" class="settings-close" id="editEntryDialogClose" aria-label="Close">&times;</button>
+        <h2 id="editEntryTitle" data-i18n="editEntry.title">Edit entry</h2>
+        <button type="button" class="settings-close" id="editEntryDialogClose" data-i18n-aria="settings.closeAria" aria-label="Close">&times;</button>
       </div>
       <form id="editEntryForm" class="edit-entry-form">
         <div class="edit-entry-field">
-          <label for="editEntryDate">Date</label>
+          <label for="editEntryDate" data-i18n="editEntry.date">Date</label>
           <div class="date-input-shell"><input type="date" id="editEntryDate" required autocomplete="off"></div>
         </div>
         <div class="edit-entry-field">
-          <label for="editEntryChore">Chore</label>
+          <label for="editEntryChore" data-i18n="editEntry.chore">Chore</label>
           <input type="text" id="editEntryChore" list="editChoreDatalist" maxlength="500" required autocomplete="off">
           <datalist id="editChoreDatalist"></datalist>
         </div>
         <div class="edit-entry-field">
-          <label for="editEntryPerson">Person</label>
-          <select id="editEntryPerson" aria-label="Person"></select>
+          <label for="editEntryPerson" data-i18n="editEntry.person">Person</label>
+          <select id="editEntryPerson" data-i18n-aria="editEntry.personAria" aria-label="Person"></select>
         </div>
         <div class="edit-entry-field">
-          <label for="editEntryLocations">Locations</label>
-          <select id="editEntryLocations" multiple size="4" aria-label="Locations for location-based chores"></select>
-          <p class="field-hint">Applied only to chores using per-location points.</p>
+          <label for="editEntryLocations" data-i18n="editEntry.locations">Locations</label>
+          <select id="editEntryLocations" multiple size="4" data-i18n-aria="logForm.locationsAria" aria-label="Locations for location-based chores"></select>
+          <p class="field-hint" data-i18n="editEntry.locationsHint">Applied only to chores using per-location points.</p>
         </div>
         <div class="edit-entry-actions">
-          <button type="button" class="btn-secondary" id="editEntryCancel">Cancel</button>
-          <button type="submit" class="btn-secondary">Save</button>
+          <button type="button" class="btn-secondary" id="editEntryCancel" data-i18n="editEntry.cancel">Cancel</button>
+          <button type="submit" class="btn-secondary" data-i18n="editEntry.save">Save</button>
         </div>
       </form>
     </div>
@@ -347,14 +356,14 @@
   <dialog class="settings-dialog" id="deleteEntryDialog" aria-labelledby="deleteEntryTitle">
     <div class="settings-inner">
       <div class="settings-header">
-        <h2 id="deleteEntryTitle">Delete this entry?</h2>
-        <button type="button" class="settings-close" id="deleteEntryDialogClose" aria-label="Close">&times;</button>
+        <h2 id="deleteEntryTitle" data-i18n="deleteEntry.title">Delete this entry?</h2>
+        <button type="button" class="settings-close" id="deleteEntryDialogClose" data-i18n-aria="settings.closeAria" aria-label="Close">&times;</button>
       </div>
       <p class="delete-entry-preview" id="deleteEntryPreview"></p>
-      <p class="settings-hint">This removes it from your log.</p>
+      <p class="settings-hint" data-i18n="deleteEntry.hint">This removes it from your log.</p>
       <div class="edit-entry-actions">
-        <button type="button" class="btn-secondary" id="deleteEntryCancel">Cancel</button>
-        <button type="button" class="btn-secondary delete-entry-confirm" id="deleteEntryConfirm">Delete</button>
+        <button type="button" class="btn-secondary" id="deleteEntryCancel" data-i18n="deleteEntry.cancel">Cancel</button>
+        <button type="button" class="btn-secondary delete-entry-confirm" id="deleteEntryConfirm" data-i18n="deleteEntry.delete">Delete</button>
       </div>
     </div>
   </dialog>
@@ -362,23 +371,23 @@
   <dialog class="settings-dialog" id="scheduledDoneDialog" aria-labelledby="scheduledDoneHeading">
     <div class="settings-inner">
       <div class="settings-header">
-        <h2 id="scheduledDoneHeading">Who completed this?</h2>
-        <button type="button" class="settings-close" id="scheduledDoneDialogClose" aria-label="Close">&times;</button>
+        <h2 id="scheduledDoneHeading" data-i18n="scheduled.doneHeading">Who completed this?</h2>
+        <button type="button" class="settings-close" id="scheduledDoneDialogClose" data-i18n-aria="settings.closeAria" aria-label="Close">&times;</button>
       </div>
-      <p class="settings-hint">Adds one entry to today’s chore log with the scheduled task name, then resets the timer.</p>
+      <p class="settings-hint" data-i18n="scheduled.doneHint">Adds one entry to today’s chore log with the scheduled task name, then resets the timer.</p>
       <p class="scheduled-done-chore-title" id="scheduledDoneChoreTitle"></p>
-      <label class="scheduled-done-label" for="scheduledDonePerson">Person</label>
-      <select id="scheduledDonePerson" class="scheduled-done-select" aria-label="Who completed the chore"></select>
+      <label class="scheduled-done-label" for="scheduledDonePerson" data-i18n="logForm.person">Person</label>
+      <select id="scheduledDonePerson" class="scheduled-done-select" data-i18n-aria="scheduled.donePersonAria" aria-label="Who completed"></select>
       <div class="scheduled-done-actions">
-        <button type="button" class="btn-secondary" id="scheduledDoneCancel">Cancel</button>
-        <button type="button" class="btn-secondary scheduled-done-confirm" id="scheduledDoneConfirm">Add to log &amp; reset timer</button>
+        <button type="button" class="btn-secondary" id="scheduledDoneCancel" data-i18n="editEntry.cancel">Cancel</button>
+        <button type="button" class="btn-secondary scheduled-done-confirm" id="scheduledDoneConfirm" data-i18n="scheduled.doneConfirm">Add to log &amp; reset timer</button>
       </div>
     </div>
   </dialog>
 
   <div id="addToast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden>
     <span class="toast-msg" id="addToastMsg"></span>
-    <button type="button" class="btn-secondary toast-undo" id="addToastUndo">Undo</button>
+    <button type="button" class="btn-secondary toast-undo" id="addToastUndo" data-i18n="toast.undo">Undo</button>
   </div>
   </div>
 

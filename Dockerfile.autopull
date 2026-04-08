@@ -1,0 +1,37 @@
+# =============================================================================
+# Chorelog — run from a public GitHub repo with periodic git pull + Node restart
+#
+# The app tree lives on a Docker volume at /app (clone + node_modules). On each
+# interval the container fetches the latest commit; if HEAD changes, Node is
+# restarted (npm ci only when package.json / package-lock.json change).
+#
+# Build:
+#   docker build -f Dockerfile.autopull -t chorelog:autopull .
+#
+# Run (set GIT_REPO to your public repository):
+#   docker compose -f docker-compose.autopull.yml up -d
+#
+# For a one-off image build from GitHub at build time only, use Dockerfile.gitclone.
+# =============================================================================
+
+FROM node:22-alpine
+
+RUN apk add --no-cache git su-exec
+
+WORKDIR /app
+
+COPY docker/entrypoint-sync.sh /entrypoint-sync.sh
+RUN chmod +x /entrypoint-sync.sh
+
+# Defaults — override at runtime (compose / TrueNAS env)
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV GIT_BRANCH=main
+ENV SYNC_INTERVAL=300
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/version').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+ENTRYPOINT ["/entrypoint-sync.sh"]

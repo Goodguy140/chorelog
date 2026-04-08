@@ -1,4 +1,5 @@
 import { apiFetch } from './api-fetch.js';
+import { applyStaticDom, getLocale, setLocale, subscribeLocale, t } from './i18n.js';
 import { render } from './render-registry.js';
 import { switchMonth } from './render.js';
 import {
@@ -24,7 +25,7 @@ async function loadAppVersion() {
     const data = await r.json();
     const v = data && typeof data.version === 'string' ? data.version.trim() : '';
     if (!v) return;
-    const label = `Version ${v}`;
+    const label = t('version', { v });
     const settingsEl = document.getElementById('settingsAppVersion');
     const footerEl = document.getElementById('footerAppVersion');
     const footerWrap = document.getElementById('footerAppVersionWrap');
@@ -94,7 +95,7 @@ function renderPeopleEditor() {
       (p, idx) => `
     <li>
       <span>${escapeHtml(p)}</span>
-      <button type="button" data-remove="${idx}" ${app.people.length <= 1 ? 'disabled' : ''}>Remove</button>
+      <button type="button" data-remove="${idx}" ${app.people.length <= 1 ? 'disabled' : ''}>${escapeHtml(t('settings.remove'))}</button>
     </li>
   `,
     )
@@ -112,7 +113,7 @@ function renderLocationsEditor() {
       (name, idx) => `
     <li>
       <span>${escapeHtml(name)}</span>
-      <button type="button" data-remove-location="${idx}" ${app.locations.length <= 1 ? 'disabled' : ''}>Remove</button>
+      <button type="button" data-remove-location="${idx}" ${app.locations.length <= 1 ? 'disabled' : ''}>${escapeHtml(t('settings.remove'))}</button>
     </li>
   `,
     )
@@ -180,7 +181,7 @@ async function addPerson() {
     await savePeopleList([...app.people, name]);
     input.value = '';
   } catch (e) {
-    app.loadError = 'Could not save people list.';
+    app.loadError = t('errors.savePeople');
     render();
   }
 }
@@ -191,7 +192,7 @@ async function removePersonAt(index) {
   try {
     await savePeopleList(next);
   } catch (e) {
-    app.loadError = 'Could not save people list.';
+    app.loadError = t('errors.savePeople');
     render();
   }
 }
@@ -208,7 +209,7 @@ async function addLocation() {
     await saveLocationsList([...app.locations, name]);
     input.value = '';
   } catch {
-    app.loadError = 'Could not save locations.';
+    app.loadError = t('errors.saveLocations');
     render();
   }
 }
@@ -219,7 +220,7 @@ async function removeLocationAt(index) {
   try {
     await saveLocationsList(next);
   } catch {
-    app.loadError = 'Could not save locations.';
+    app.loadError = t('errors.saveLocations');
     render();
   }
 }
@@ -262,8 +263,7 @@ async function load() {
     syncPersonSelect();
     syncLocationSelect();
     syncChoreDatalists();
-    app.loadError =
-      'Could not load chores from the server. Run `npm start` and open this page from the app URL (not file://).';
+    app.loadError = t('errors.loadFailed');
   }
 }
 
@@ -291,7 +291,7 @@ function showAddToast(addedEntries) {
   const msg = document.getElementById('addToastMsg');
   if (!toast || !msg) return;
   const n = addedEntries.length;
-  msg.textContent = n === 1 ? 'Chore logged.' : `${n} chores logged.`;
+  msg.textContent = n === 1 ? t('toast.oneChore') : t('toast.nChores', { n });
   toast.hidden = false;
   toast.removeAttribute('aria-hidden');
   app.addToastHideTimer = setTimeout(() => {
@@ -315,7 +315,7 @@ async function undoLastAdd() {
     await load();
     render();
   } catch (e) {
-    app.loadError = 'Could not undo.';
+    app.loadError = t('errors.undo');
     render();
   }
 }
@@ -328,7 +328,12 @@ async function addEntry() {
   if (!d || !raw) return;
   const resolved = resolveChorePayloadRows(raw);
   if (!resolved.ok) {
-    app.loadError = resolved.reason === 'empty' ? 'Choose a chore from your presets.' : resolved.reason;
+    app.loadError =
+      resolved.reason === 'empty'
+        ? t('errors.choosePreset')
+        : resolved.reason === 'unknown'
+          ? t('errors.unknownChore', { name: resolved.unknownPart })
+          : resolved.reason;
     render();
     return;
   }
@@ -337,7 +342,7 @@ async function addEntry() {
     const preset = presetById(row.choreId);
     if (preset && preset.scoringMode === 'per_location') {
       if (!selectedLocations.length) {
-        app.loadError = `Select at least one location for "${preset.title}".`;
+        app.loadError = t('errors.selectLocation', { title: preset.title });
         render();
         return;
       }
@@ -364,7 +369,7 @@ async function addEntry() {
     render();
     showAddToast(addedEntries);
   } catch (e) {
-    app.loadError = 'Could not save chore. Is the server running?';
+    app.loadError = t('errors.saveChore');
     render();
   }
 }
@@ -475,7 +480,7 @@ async function confirmDeleteEntry() {
     await load();
     render();
   } catch (e) {
-    app.loadError = 'Could not delete entry. Is the server running?';
+    app.loadError = t('errors.deleteEntry');
     render();
   }
 }
@@ -484,7 +489,7 @@ function renderScheduledManageList() {
   const ul = document.getElementById('scheduledManageList');
   if (!ul) return;
   if (!app.scheduledChores.length) {
-    ul.innerHTML = '<li style="color:var(--color-text-tertiary);font-size:13px;">No scheduled chores yet.</li>';
+    ul.innerHTML = `<li style="color:var(--color-text-tertiary);font-size:13px;">${escapeHtml(t('scheduled.emptyList'))}</li>`;
     return;
   }
   ul.innerHTML = app.scheduledChores
@@ -497,14 +502,14 @@ function renderScheduledManageList() {
   <div class="scheduled-manage-main">
     <span>${escapeHtml(s.title)} · ${intervalLabel(s.intervalDays)} · <span class="scheduled-status ${st.cls}" style="display:inline;padding:2px 8px;">${st.label}</span></span>
     <div class="scheduled-start-edit">
-      <label for="${startInputId}">Start date</label>
-      <input id="${startInputId}" type="date" value="${escapeHtml(s.startsOn || '')}" aria-label="Start date for ${escapeHtml(s.title)}">
-      <button type="button" onclick="saveScheduledStartDate('${safeId}','${domKey}')">Save start</button>
+      <label for="${startInputId}">${escapeHtml(t('scheduled.startDate'))}</label>
+      <input id="${startInputId}" type="date" value="${escapeHtml(s.startsOn || '')}" aria-label="${escapeAttr(t('scheduled.startAria', { title: s.title }))}">
+      <button type="button" onclick="saveScheduledStartDate('${safeId}','${domKey}')">${escapeHtml(t('scheduled.saveStart'))}</button>
     </div>
   </div>
   <div class="scheduled-manage-actions">
-    <button type="button" onclick="markScheduledDone('${safeId}')">Mark done</button>
-    <button type="button" class="scheduled-btn-danger" onclick="deleteScheduledChore('${safeId}')">Remove</button>
+    <button type="button" onclick="markScheduledDone('${safeId}')">${escapeHtml(t('scheduled.markDone'))}</button>
+    <button type="button" class="scheduled-btn-danger" onclick="deleteScheduledChore('${safeId}')">${escapeHtml(t('scheduled.remove'))}</button>
   </div>
 </li>`;
     })
@@ -549,7 +554,7 @@ async function confirmScheduledComplete() {
     render();
     renderScheduledManageList();
   } catch {
-    app.loadError = 'Could not complete scheduled chore.';
+    app.loadError = t('errors.completeScheduled');
     render();
   }
 }
@@ -562,7 +567,7 @@ async function saveScheduledStartDate(id, domKey) {
   const input = document.getElementById(`scheduledStart_${domKey}`);
   const startsOn = input ? input.value : '';
   if (!startsOn) {
-    app.loadError = 'Choose a valid start date (YYYY-MM-DD).';
+    app.loadError = t('errors.scheduledStartInvalid');
     render();
     return;
   }
@@ -577,13 +582,13 @@ async function saveScheduledStartDate(id, domKey) {
     render();
     renderScheduledManageList();
   } catch {
-    app.loadError = 'Could not update scheduled chore start date.';
+    app.loadError = t('errors.scheduledStartUpdate');
     render();
   }
 }
 
 async function deleteScheduledChore(id) {
-  if (!confirm('Remove this scheduled chore?')) return;
+  if (!confirm(t('scheduled.confirmRemove'))) return;
   try {
     const r = await apiFetch(`/api/scheduled-chores/${encodeURIComponent(id)}`, { method: 'DELETE' });
     if (!r.ok && r.status !== 204) throw new Error();
@@ -591,12 +596,13 @@ async function deleteScheduledChore(id) {
     render();
     renderScheduledManageList();
   } catch {
-    app.loadError = 'Could not delete scheduled chore.';
+    app.loadError = t('errors.deleteScheduled');
     render();
   }
 }
 
 function openScheduledDialog() {
+  fillTranslatedSelectOptions();
   renderScheduledManageList();
   document.getElementById('scheduledDialog').showModal();
 }
@@ -631,7 +637,7 @@ async function loadAuditLogIntoSettings() {
   list.innerHTML = '';
   if (status) {
     status.hidden = false;
-    status.textContent = 'Loading…';
+    status.textContent = t('settings.auditLoading');
   }
   try {
     const r = await apiFetch('/api/audit?limit=150');
@@ -640,7 +646,7 @@ async function loadAuditLogIntoSettings() {
     const rows = Array.isArray(data.auditLog) ? data.auditLog : [];
     if (status) status.hidden = true;
     if (!rows.length) {
-      list.innerHTML = '<li class="audit-log-item">No events yet.</li>';
+      list.innerHTML = `<li class="audit-log-item">${escapeHtml(t('settings.auditEmpty'))}</li>`;
       return;
     }
     list.innerHTML = rows
@@ -661,7 +667,7 @@ async function loadAuditLogIntoSettings() {
       .join('');
   } catch {
     if (status) {
-      status.textContent = 'Could not load audit log.';
+      status.textContent = t('settings.auditErr');
       status.hidden = false;
     }
   }
@@ -709,9 +715,9 @@ async function saveDiscordWebhookSettings() {
     const data = await r.json();
     app.discordWebhook = data.discordWebhook;
     syncDiscordWebhookForm();
-    setDiscordStatus('Discord settings saved.', false);
+    setDiscordStatus(t('settings.discordSaved'), false);
   } catch {
-    setDiscordStatus('Could not save Discord settings.', true);
+    setDiscordStatus(t('settings.discordSaveErr'), true);
   }
 }
 
@@ -726,9 +732,9 @@ async function testDiscordWebhook() {
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.error || 'Request failed');
-    setDiscordStatus('Test message sent. Check your Discord channel.', false);
+    setDiscordStatus(t('settings.discordTestOk'), false);
   } catch {
-    setDiscordStatus('Test failed. Check the webhook URL and try again.', true);
+    setDiscordStatus(t('settings.discordTestErr'), true);
   }
 }
 
@@ -738,13 +744,44 @@ async function discordRemindOverdueNow() {
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.error || 'Request failed');
     if (data.sent === 0) {
-      setDiscordStatus(data.message || 'No overdue scheduled chores.', false);
+      setDiscordStatus(data.message || t('settings.discordNoOverdue'), false);
     } else {
-      setDiscordStatus(`Posted ${data.sent} overdue chore(s) to Discord.`, false);
+      setDiscordStatus(t('settings.discordPosted', { n: data.sent }), false);
     }
   } catch {
-    setDiscordStatus('Could not post to Discord. Save a valid webhook URL first.', true);
+    setDiscordStatus(t('settings.discordPostErr'), true);
   }
+}
+
+function fillTranslatedSelectOptions() {
+  const discordSel = document.getElementById('discordReminderInterval');
+  if (discordSel) {
+    [...discordSel.options].forEach((opt) => {
+      const v = opt.value;
+      if (v) opt.textContent = t(`discordIntervals.${v}`);
+    });
+  }
+  const schedSel = document.getElementById('scheduledNewInterval');
+  if (schedSel) {
+    const map = {
+      1: 'scheduled.intEveryDay',
+      7: 'scheduled.intEveryWeek',
+      14: 'scheduled.intEvery2w',
+      21: 'scheduled.intEvery3w',
+      30: 'scheduled.intEveryMonth',
+      60: 'scheduled.intEvery2m',
+      90: 'scheduled.intEvery3m',
+    };
+    [...schedSel.options].forEach((opt) => {
+      const key = map[Number(opt.value)];
+      if (key) opt.textContent = t(key);
+    });
+  }
+}
+
+function syncSettingsLocaleSelect() {
+  const sel = document.getElementById('settingsLocale');
+  if (sel) sel.value = getLocale();
 }
 
 loadAppVersion();
@@ -766,6 +803,8 @@ document.getElementById('btnSettings').addEventListener('click', () => {
   renderQuickChoresEditor();
   syncDiscordWebhookForm();
   loadAuditLogIntoSettings();
+  fillTranslatedSelectOptions();
+  syncSettingsLocaleSelect();
   const mode = localStorage.getItem('chorelog-theme') || 'system';
   document.querySelectorAll('#themeOptions input[name="theme"]').forEach((el) => {
     el.checked = el.value === mode;
@@ -774,6 +813,11 @@ document.getElementById('btnSettings').addEventListener('click', () => {
 });
 
 document.getElementById('btnRefreshAuditLog').addEventListener('click', () => loadAuditLogIntoSettings());
+
+document.getElementById('settingsLocale')?.addEventListener('change', async (e) => {
+  const v = e.target && e.target.value;
+  if (v) await setLocale(v);
+});
 
 document.getElementById('settingsClose').addEventListener('click', () => {
   document.getElementById('settingsDialog').close();
@@ -813,7 +857,7 @@ document.getElementById('btnExport').addEventListener('click', async () => {
     a.click();
     URL.revokeObjectURL(a.href);
   } catch {
-    alert('Export failed.');
+    alert(t('errors.exportFailed'));
   }
 });
 
@@ -826,14 +870,10 @@ document.getElementById('importFile').addEventListener('change', async (e) => {
   try {
     data = JSON.parse(await f.text());
   } catch {
-    alert('Invalid JSON file.');
+    alert(t('import.invalidJson'));
     return;
   }
-  const merge = confirm(
-    'Merge with existing data on the server?\n\n' +
-      'OK = Merge (append imported entries; combine people lists).\n' +
-      'Cancel = Replace all server data with this file.',
-  );
+  const merge = confirm(t('import.confirm'));
   try {
     const r = await apiFetch('/api/import', {
       method: 'POST',
@@ -858,7 +898,7 @@ document.getElementById('importFile').addEventListener('change', async (e) => {
     render();
     renderScheduledManageList();
   } catch {
-    app.loadError = 'Import failed.';
+    app.loadError = t('errors.importFailed');
     render();
   }
 });
@@ -907,7 +947,7 @@ document.getElementById('editEntryForm').addEventListener('submit', async (e) =>
   if (preset) {
     if (preset.scoringMode === 'per_location') {
       if (!selectedLocations.length) {
-        app.loadError = `Select at least one location for "${preset.title}".`;
+        app.loadError = t('errors.selectLocation', { title: preset.title });
         render();
         return;
       }
@@ -931,7 +971,7 @@ document.getElementById('editEntryForm').addEventListener('submit', async (e) =>
     app.currentMonth = getMonthKey(d);
     render();
   } catch {
-    app.loadError = 'Could not update entry.';
+    app.loadError = t('errors.updateEntry');
     render();
   }
 });
@@ -981,7 +1021,7 @@ document.getElementById('addScheduledForm').addEventListener('submit', async (e)
     render();
     renderScheduledManageList();
   } catch {
-    alert('Could not add scheduled chore.');
+    alert(t('scheduled.addFailed'));
   }
 });
 
@@ -1025,7 +1065,7 @@ document.getElementById('chorePresetsList').addEventListener('click', async (e) 
 
 document.getElementById('btnAddChorePreset').addEventListener('click', async () => {
   const id = crypto.randomUUID();
-  app.chorePresets.push({ id, title: 'New chore', points: 1, color: '#378ADD', scoringMode: 'flat' });
+  app.chorePresets.push({ id, title: t('newPresetTitle'), points: 1, color: '#378ADD', scoringMode: 'flat' });
   renderChorePresetsEditor();
   await saveChorePresetsAndQuick();
 });
@@ -1099,7 +1139,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
       body: JSON.stringify({ username, password }),
     });
     if (!r.ok) {
-      let msg = 'Sign in failed.';
+      let msg = t('login.errorFailed');
       try {
         const j = await r.json();
         if (j && j.error) msg = j.error;
@@ -1114,7 +1154,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     document.getElementById('appShell').hidden = false;
     await startApp();
   } catch {
-    errEl.textContent = 'Could not reach server.';
+    errEl.textContent = t('login.errorServer');
     errEl.hidden = false;
   }
 });
@@ -1137,6 +1177,24 @@ window.quickLogChore = quickLogChore;
 window.markScheduledDone = markScheduledDone;
 window.deleteScheduledChore = deleteScheduledChore;
 window.saveScheduledStartDate = saveScheduledStartDate;
+
+subscribeLocale(() => {
+  applyStaticDom(document.body);
+  fillTranslatedSelectOptions();
+  syncSettingsLocaleSelect();
+  const shell = document.getElementById('appShell');
+  if (shell && !shell.hidden) {
+    render();
+    renderPeopleEditor();
+    renderLocationsEditor();
+    renderChorePresetsEditor();
+    renderQuickChoresEditor();
+    syncDiscordWebhookForm();
+  }
+});
+
+fillTranslatedSelectOptions();
+syncSettingsLocaleSelect();
 
 bootstrap();
 

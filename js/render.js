@@ -1,4 +1,5 @@
 import { render, setRenderRenderer } from './render-registry.js';
+import { getLocaleBcp47, t } from './i18n.js';
 import { app, PALETTE } from './state.js';
 import { getMonthKey, getMonthLabel, nextDueDate } from './utils/date.js';
 import { escapeAttr, escapeHtml } from './utils/html.js';
@@ -46,13 +47,12 @@ function renderTaskHeatmap(monthKey) {
   const [y, mo] = monthKey.split('-').map(Number);
   const dim = new Date(y, mo, 0).getDate();
   const firstDow = new Date(y, mo - 1, 1).getDay();
-  const wdLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
   const parts = [];
   parts.push('<div class="heatmap-inner">');
   parts.push('<div class="heatmap-weekdays">');
-  wdLabels.forEach((w) => {
-    parts.push(`<span class="heatmap-wd">${w}</span>`);
-  });
+  for (let wi = 0; wi < 7; wi++) {
+    parts.push(`<span class="heatmap-wd">${escapeHtml(t(`heatmap.wd${wi}`))}</span>`);
+  }
   parts.push('</div><div class="heatmap-grid">');
   for (let i = 0; i < firstDow; i++) {
     parts.push('<span class="heatmap-cell heatmap-pad"></span>');
@@ -63,7 +63,12 @@ function renderTaskHeatmap(monthKey) {
     const dateStr = `${y}-${mm}-${dd}`;
     const n = map[dateStr] || 0;
     const lev = heatIntensity(n, max);
-    const label = n === 0 ? `${dateStr}: no tasks` : `${dateStr}: ${n} task${n === 1 ? '' : 's'}`;
+    const label =
+      n === 0
+        ? t('heatmap.cellNoTasks', { date: dateStr })
+        : n === 1
+          ? t('heatmap.cellTasksOne', { date: dateStr })
+          : t('heatmap.cellTasksMany', { date: dateStr, n });
     parts.push(`<span class="heatmap-cell heat-${lev}" role="img" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"></span>`);
   }
   const used = firstDow + dim;
@@ -73,13 +78,15 @@ function renderTaskHeatmap(monthKey) {
   }
   parts.push('</div>');
   parts.push('<div class="heatmap-footer"><span class="heatmap-scale">');
-  parts.push('<span>Less</span>');
+  parts.push(`<span>${escapeHtml(t('heatmap.less'))}</span>`);
   for (let h = 0; h <= 4; h++) {
     parts.push(`<span class="heatmap-cell heat-${h}" aria-hidden="true"></span>`);
   }
-  parts.push('<span>More</span></span>');
+  parts.push(`<span>${escapeHtml(t('heatmap.more'))}</span></span>`);
   if (max > 0) {
-    parts.push(`<span>Busiest day: ${max} task${max === 1 ? '' : 's'}</span>`);
+    parts.push(
+      `<span>${escapeHtml(max === 1 ? t('heatmap.busiestOne') : t('heatmap.busiestMany', { n: max }))}</span>`,
+    );
   }
   parts.push('</div></div>');
   return parts.join('');
@@ -168,7 +175,7 @@ function fullRender() {
 
   const personFilterEl = document.getElementById('analyticsPersonFilter');
   if (personFilterEl) {
-    personFilterEl.innerHTML = `<option value="">All people</option>${app.people
+    personFilterEl.innerHTML = `<option value="">${escapeHtml(t('analytics.allPeople'))}</option>${app.people
       .map((p) => `<option value="${escapeAttr(p)}">${escapeHtml(p)}</option>`)
       .join('')}`;
     personFilterEl.value = app.analyticsPersonFilter;
@@ -176,7 +183,7 @@ function fullRender() {
   }
   const locationFilterEl = document.getElementById('analyticsLocationFilter');
   if (locationFilterEl) {
-    locationFilterEl.innerHTML = `<option value="">All locations</option>${app.locations
+    locationFilterEl.innerHTML = `<option value="">${escapeHtml(t('analytics.allLocations'))}</option>${app.locations
       .map((loc) => `<option value="${escapeAttr(loc)}">${escapeHtml(loc)}</option>`)
       .join('')}`;
     locationFilterEl.value = app.analyticsLocationFilter;
@@ -189,14 +196,14 @@ function fullRender() {
   if (filterHintEl) {
     const parts = [];
     if (app.analyticsPersonFilter) {
-      parts.push(`Person: ${escapeHtml(app.analyticsPersonFilter)}`);
+      parts.push(t('analytics.hintPerson', { name: app.analyticsPersonFilter }));
     }
     if (app.analyticsLocationFilter) {
-      parts.push(`Location: ${escapeHtml(app.analyticsLocationFilter)}`);
+      parts.push(t('analytics.hintLocation', { name: app.analyticsLocationFilter }));
     }
     if (parts.length) {
       filterHintEl.hidden = false;
-      filterHintEl.textContent = `Showing analytics for ${parts.join(' · ')}.`;
+      filterHintEl.textContent = t('analytics.hintPrefix', { parts: parts.join(' · ') });
     } else {
       filterHintEl.hidden = true;
       filterHintEl.textContent = '';
@@ -204,8 +211,9 @@ function fullRender() {
   }
 
   const monthSelect = document.getElementById('monthSelect');
+  const loc = getLocaleBcp47();
   monthSelect.innerHTML = monthOptions
-    .map((m) => `<option value="${m}">${getMonthLabel(m)}</option>`)
+    .map((m) => `<option value="${m}">${escapeHtml(getMonthLabel(m, loc))}</option>`)
     .join('');
   if (monthOptions.includes(app.currentMonth)) monthSelect.value = app.currentMonth;
   else if (monthOptions.length) monthSelect.value = monthOptions[0];
@@ -219,27 +227,28 @@ function fullRender() {
   const activeDays = new Set(entriesForAnalyticsMonth(app.currentMonth).map((e) => e.d)).size;
   const balance = balanceScorePercent(cur, app.people);
   const balanceVal = balance.empty ? '—' : `${balance.pct}<span class="stat-unit">%</span>`;
-  const balanceSub = balance.empty ? 'log tasks to score' : '100% = fully balanced';
+  const balanceSub = balance.empty ? t('stats.balanceSubEmpty') : t('stats.balanceSubFull');
   const balancePts = balanceScorePercent(curPts, app.people);
   const balancePtsVal = balancePts.empty ? '—' : `${balancePts.pct}<span class="stat-unit">%</span>`;
-  const balancePtsSub = balancePts.empty ? 'log preset chores to score' : '100% = fully balanced';
+  const balancePtsSub = balancePts.empty ? t('stats.logPresetToScore') : t('stats.balanceSubFull');
   const avgPtsPerTask =
     total > 0 ? Math.round((totalPts / total) * 10) / 10 : null;
 
+  const monthLbl = escapeHtml(getMonthLabel(app.currentMonth, loc));
   document.getElementById('statsGrid').innerHTML = `
-<div class="stat-card"><p class="stat-label">Total tasks</p><p class="stat-val">${total}</p><p class="stat-sub">${getMonthLabel(app.currentMonth)}</p></div>
-<div class="stat-card"><p class="stat-label">Most active</p><p class="stat-val" style="font-size:15px;">${topPerson}</p><p class="stat-sub">${cur[topPerson]} tasks</p></div>
-<div class="stat-card"><p class="stat-label">Active days</p><p class="stat-val">${activeDays}</p><p class="stat-sub">days with chores</p></div>
-<div class="stat-card"><p class="stat-label">Members</p><p class="stat-val">${app.people.filter((p) => cur[p] > 0).length}</p><p class="stat-sub">contributed</p></div>
-<div class="stat-card stat-card--balance" title="By task count: 100% = everyone did the same share; 0% = one person logged every task."><p class="stat-label">Balance</p><p class="stat-val">${balanceVal}</p><p class="stat-sub">${balanceSub}</p></div>
+<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.totalTasks'))}</p><p class="stat-val">${total}</p><p class="stat-sub">${monthLbl}</p></div>
+<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.mostActive'))}</p><p class="stat-val" style="font-size:15px;">${escapeHtml(topPerson)}</p><p class="stat-sub">${cur[topPerson]} ${escapeHtml(t('stats.tasksSuffix'))}</p></div>
+<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.activeDays'))}</p><p class="stat-val">${activeDays}</p><p class="stat-sub">${escapeHtml(t('stats.daysWithChores'))}</p></div>
+<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.members'))}</p><p class="stat-val">${app.people.filter((p) => cur[p] > 0).length}</p><p class="stat-sub">${escapeHtml(t('stats.contributed'))}</p></div>
+<div class="stat-card stat-card--balance" title="${escapeAttr(t('stats.balanceHintTasks'))}"><p class="stat-label">${escapeHtml(t('stats.balance'))}</p><p class="stat-val">${balanceVal}</p><p class="stat-sub">${balanceSub}</p></div>
   `;
 
   document.getElementById('statsGridPoints').innerHTML = `
-<div class="stat-card"><p class="stat-label">Total points</p><p class="stat-val">${totalPts}</p><p class="stat-sub">${getMonthLabel(app.currentMonth)} · preset weights</p></div>
-<div class="stat-card"><p class="stat-label">Top earner</p><p class="stat-val" style="font-size:15px;">${topPersonPts}</p><p class="stat-sub">${curPts[topPersonPts]} pts</p></div>
-<div class="stat-card"><p class="stat-label">Avg pts / task</p><p class="stat-val">${avgPtsPerTask == null ? '—' : avgPtsPerTask}</p><p class="stat-sub">${total === 0 ? 'no tasks this month' : 'mean over all logged tasks'}</p></div>
-<div class="stat-card"><p class="stat-label">Members</p><p class="stat-val">${app.people.filter((p) => curPts[p] > 0).length}</p><p class="stat-sub">earned preset points</p></div>
-<div class="stat-card stat-card--balance" title="By points: 100% = everyone earned the same share; 0% = one person earned every point."><p class="stat-label">Balance</p><p class="stat-val">${balancePtsVal}</p><p class="stat-sub">${balancePtsSub}</p></div>
+<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.totalPoints'))}</p><p class="stat-val">${totalPts}</p><p class="stat-sub">${monthLbl} · ${escapeHtml(t('stats.presetWeights'))}</p></div>
+<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.topEarner'))}</p><p class="stat-val" style="font-size:15px;">${escapeHtml(topPersonPts)}</p><p class="stat-sub">${curPts[topPersonPts]} ${escapeHtml(t('stats.ptsSuffix'))}</p></div>
+<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.avgPtsPerTask'))}</p><p class="stat-val">${avgPtsPerTask == null ? '—' : avgPtsPerTask}</p><p class="stat-sub">${total === 0 ? escapeHtml(t('stats.noTasksMonth')) : escapeHtml(t('stats.meanTasks'))}</p></div>
+<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.members'))}</p><p class="stat-val">${app.people.filter((p) => curPts[p] > 0).length}</p><p class="stat-sub">${escapeHtml(t('stats.earnedPresetPoints'))}</p></div>
+<div class="stat-card stat-card--balance" title="${escapeAttr(t('stats.balanceHintPoints'))}"><p class="stat-label">${escapeHtml(t('stats.balance'))}</p><p class="stat-val">${balancePtsVal}</p><p class="stat-sub">${balancePtsSub}</p></div>
   `;
 
   const max = Math.max(...Object.values(cur), 1);
@@ -248,12 +257,13 @@ function fullRender() {
     .map((p) => {
       const pct = Math.round((cur[p] / max) * 100);
       const col = colorFor(p);
+      const barTxt = cur[p] > 2 ? escapeHtml(t('contributions.barTasks', { n: cur[p] })) : '';
       return `<div class="person-row">
   <div class="person-row-top">
-    <span class="person-label">${p}</span>
+    <span class="person-label">${escapeHtml(p)}</span>
     <span class="count-num">${cur[p]}</span>
   </div>
-  <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col.bar};color:${col.text};">${cur[p] > 2 ? `${cur[p]} tasks` : ''}</div></div>
+  <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col.bar};color:${col.text};">${barTxt}</div></div>
 </div>`;
     })
     .join('');
@@ -264,19 +274,20 @@ function fullRender() {
     .map((p) => {
       const pct = Math.round((curPts[p] / maxPts) * 100);
       const col = colorFor(p);
+      const barTxt = curPts[p] > 2 ? escapeHtml(t('contributions.barPts', { n: curPts[p] })) : '';
       return `<div class="person-row">
   <div class="person-row-top">
-    <span class="person-label">${p}</span>
+    <span class="person-label">${escapeHtml(p)}</span>
     <span class="count-num">${curPts[p]}</span>
   </div>
-  <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col.bar};color:${col.text};">${curPts[p] > 2 ? `${curPts[p]} pts` : ''}</div></div>
+  <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col.bar};color:${col.text};">${barTxt}</div></div>
 </div>`;
     })
     .join('');
 
   document.getElementById('taskHeatmap').innerHTML = renderTaskHeatmap(app.currentMonth);
 
-  document.getElementById('logMonthLabel').textContent = getMonthLabel(app.currentMonth);
+  document.getElementById('logMonthLabel').textContent = getMonthLabel(app.currentMonth, loc);
   const monthEntries = app.entries
     .filter((e) => getMonthKey(e.d) === app.currentMonth)
     .sort((a, b) => b.d.localeCompare(a.d));
@@ -285,9 +296,9 @@ function fullRender() {
   const logSearchEl = document.getElementById('logSearch');
   if (logSearchEl) logSearchEl.value = app.logSearchQuery;
   if (!monthEntries.length) {
-    logList.innerHTML = '<p class="empty">No entries yet this month.</p>';
+    logList.innerHTML = `<p class="empty">${escapeHtml(t('logList.emptyMonth'))}</p>`;
   } else if (!filteredLogEntries.length) {
-    logList.innerHTML = '<p class="empty">No entries match your search.</p>';
+    logList.innerHTML = `<p class="empty">${escapeHtml(t('logList.emptySearch'))}</p>`;
   } else {
     logList.innerHTML = filteredLogEntries
       .map((e) => {
@@ -297,7 +308,8 @@ function fullRender() {
         const pts = entryChorePoints(e);
         const pr = e.choreId ? presetById(e.choreId) : null;
         const barStyle = pr ? `border-left:4px solid ${escapeAttr(pr.color)};padding-left:8px` : '';
-        const ptsHtml = pts != null ? `<span class="log-chore-points">+${pts} pts</span>` : '';
+        const ptsHtml =
+          pts != null ? `<span class="log-chore-points">${escapeHtml(t('logList.points', { n: pts }))}</span>` : '';
         const locHtml = Array.isArray(e.locationIds) && e.locationIds.length
           ? `<span class="log-chore-points">${escapeHtml(e.locationIds.join(', '))}</span>`
           : '';
@@ -310,8 +322,8 @@ function fullRender() {
     </div>
     <span class="log-person" style="background:${col.bar};color:${col.text};">${escapeHtml(e.p)}</span>
     <span class="log-item-actions">
-      <button type="button" class="btn-edit" onclick="openEditEntry('${safeId}')" aria-label="Edit entry">Edit</button>
-      <button type="button" class="btn-del" onclick="delEntry('${safeId}')" aria-label="Delete entry">×</button>
+      <button type="button" class="btn-edit" onclick="openEditEntry('${safeId}')" aria-label="${escapeAttr(t('logList.edit'))}">${escapeHtml(t('logList.edit'))}</button>
+      <button type="button" class="btn-del" onclick="delEntry('${safeId}')" aria-label="${escapeAttr(t('logList.deleteAria'))}">×</button>
     </span>
   </div>`;
       })
@@ -325,6 +337,7 @@ function fullRender() {
   const momGrid = document.getElementById('momGrid');
   const momGridPoints = document.getElementById('momGridPoints');
   if (prev) {
+    const prevMonthLbl = getMonthLabel(prevMonth, loc);
     momGrid.innerHTML = app.people
       .map((p) => {
         const diff = cur[p] - prev[p];
@@ -333,11 +346,11 @@ function fullRender() {
         const arrow = diff > 0 ? '↑' : diff < 0 ? '↓' : '';
         const label =
           pct !== null
-            ? `${arrow} ${pct}% vs ${getMonthLabel(prevMonth)}`
+            ? t('mom.vsMonth', { arrow, pct, month: prevMonthLbl })
             : diff === 0
-              ? 'No change'
-              : 'New data';
-        return `<div><p class="mom-name">${p}</p><p class="mom-val">${prev[p]} → ${cur[p]}</p><p class="mom-delta ${cls}" style="font-size:12px;margin-top:3px;">${label}</p></div>`;
+              ? t('mom.noChange')
+              : t('mom.newData');
+        return `<div><p class="mom-name">${escapeHtml(p)}</p><p class="mom-val">${prev[p]} → ${cur[p]}</p><p class="mom-delta ${cls}" style="font-size:12px;margin-top:3px;">${escapeHtml(label)}</p></div>`;
       })
       .join('');
     momGridPoints.innerHTML = app.people
@@ -348,16 +361,15 @@ function fullRender() {
         const arrow = diff > 0 ? '↑' : diff < 0 ? '↓' : '';
         const label =
           pct !== null
-            ? `${arrow} ${pct}% vs ${getMonthLabel(prevMonth)}`
+            ? t('mom.vsMonth', { arrow, pct, month: prevMonthLbl })
             : diff === 0
-              ? 'No change'
-              : 'New data';
-        return `<div><p class="mom-name">${p}</p><p class="mom-val">${prevPts[p]} → ${curPts[p]}</p><p class="mom-delta ${cls}" style="font-size:12px;margin-top:3px;">${label}</p></div>`;
+              ? t('mom.noChange')
+              : t('mom.newData');
+        return `<div><p class="mom-name">${escapeHtml(p)}</p><p class="mom-val">${prevPts[p]} → ${curPts[p]}</p><p class="mom-delta ${cls}" style="font-size:12px;margin-top:3px;">${escapeHtml(label)}</p></div>`;
       })
       .join('');
   } else {
-    const emptyMom =
-      '<p style="font-size:13px;color:var(--color-text-tertiary);grid-column:1/-1;">No previous month to compare.</p>';
+    const emptyMom = `<p style="font-size:13px;color:var(--color-text-tertiary);grid-column:1/-1;">${escapeHtml(t('mom.noPrev'))}</p>`;
     momGrid.innerHTML = emptyMom;
     momGridPoints.innerHTML = emptyMom;
   }
@@ -375,11 +387,11 @@ function fullRender() {
         return `<div class="scheduled-card">
   <div>
     <div class="scheduled-card-title">${escapeHtml(s.title)}</div>
-    <div class="scheduled-card-meta">${intervalLabel(s.intervalDays)} · Next due: ${st.nextHuman}</div>
+    <div class="scheduled-card-meta">${escapeHtml(t('scheduled.metaLine', { interval: intervalLabel(s.intervalDays), nextDue: st.nextHuman }))}</div>
   </div>
-  <span class="scheduled-status ${st.cls}">${st.label}</span>
+  <span class="scheduled-status ${st.cls}">${escapeHtml(st.label)}</span>
   <div class="scheduled-card-actions">
-    <button type="button" class="scheduled-btn-done" onclick="markScheduledDone('${safeId}')">Mark done</button>
+    <button type="button" class="scheduled-btn-done" onclick="markScheduledDone('${safeId}')">${escapeHtml(t('scheduled.markDone'))}</button>
   </div>
 </div>`;
       })
@@ -407,7 +419,7 @@ function fullRender() {
       schedSuggestWrap.hidden = false;
       schedSuggestBox.innerHTML = urgent
         .map(({ s, st, preset }) => {
-          const tip = `${s.title} — ${st.label}`;
+          const tip = t('scheduled.tipTitle', { title: s.title, status: st.label });
           return `<button type="button" class="scheduled-suggest-btn scheduled-suggest-btn--${st.cls}" data-preset-id="${escapeAttr(preset.id)}" title="${escapeAttr(tip)}">
   <span class="scheduled-suggest-title">${escapeHtml(s.title)}</span>
   <span class="scheduled-suggest-meta">${escapeHtml(st.label)}</span>

@@ -1,0 +1,11 @@
+# Build context — excludes secrets, local data, and dev noise from `COPY . .`
+node_modules
+npm-debug.log*
+.git
+.gitignore
+.cursor
+.env
+.env.*
+!.env.example
+data/*.json
+.rctx

@@ -1,0 +1,38 @@
+# =============================================================================
+# OPTIONAL — build image by cloning a public GitHub repository at build time
+# =============================================================================
+#
+# No deploy keys or tokens: use the normal HTTPS URL shown on the repo page.
+#
+#   docker build -f Dockerfile.gitclone \
+#     --build-arg GIT_REPO=https://github.com/YOUR_ORG/chorelog.git \
+#     -t chorelog:latest .
+#
+# Optional branch (default: main):
+#
+#   --build-arg GIT_BRANCH=main
+#
+# For continuous updates after deploy, prefer Dockerfile.autopull + docker-compose.autopull.yml
+# instead of rebuilding this image on every change.
+# =============================================================================
+
+FROM alpine:3.20 AS fetch
+RUN apk add --no-cache git ca-certificates
+WORKDIR /src
+ARG GIT_REPO=https://github.com/YOUR_ORG/chorelog.git
+ARG GIT_BRANCH=main
+RUN git clone --depth 1 -b "${GIT_BRANCH}" "${GIT_REPO}" .
+
+FROM node:22-alpine AS app
+WORKDIR /app
+COPY --from=fetch /src/package.json /src/package-lock.json* ./
+RUN npm ci --omit=dev && npm cache clean --force
+COPY --from=fetch /src/ ./
+RUN mkdir -p /app/data && chown -R node:node /app/data
+ENV NODE_ENV=production
+ENV PORT=3000
+EXPOSE 3000
+USER node
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/version').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+CMD ["node", "server.js"]

@@ -13,10 +13,12 @@
 | HTTP API + JSON store | `server.js` |
 | HTML shell + ids | `index.html` |
 | Events, auth, mutations | `js/main.js` |
+| i18n (`t`, locales, language in Settings) | `js/i18n.js`, `locales/en.json`, `locales/de.json` |
 | Dashboard + log + scheduled DOM | `js/render.js` |
 | Presets, points, quick bar | `js/presets.js` |
 | Shared state | `js/state.js` |
 | Styles (split by feature) | `css/chore-tracker-*.css` |
+| Docker (prod image, compose, GitHub clone / auto-pull) | `Dockerfile`, `docker-compose.yml`, `Dockerfile.gitclone`, `Dockerfile.autopull`, `docker-compose.autopull.yml`, `docker/entrypoint-sync.sh` |
 
 ---
 
@@ -198,6 +200,7 @@
 - **`api-fetch.js`** — shared fetch behavior (e.g. auth failures).
 - **Render registry** — breaks import cycles between render and main.
 - **Responsive shell** — `--layout-max-width` steps at ~820px / 1100px / 1440px; log + MoM side-by-side on wide layouts.
+- **i18n** — `localStorage` key `chorelog-locale` (`en` | `de`); nested JSON flattened to dotted keys; `t(key, vars)`; `initI18n()` in `chore-tracker.js` before `main.js`; Settings → Language; month names and dates use `getLocaleBcp47()` (`en-US` / `de-DE`).
 
 ## Future ideas (implementation-oriented)
 
@@ -217,8 +220,8 @@
 - **Tags or categories** orthogonal to presets.
 - **Streaks / goals** — weekly targets, gentle nudges in UI.
 - **Attachments** — optional photo per log entry (storage + privacy policy).
-- **i18n** — extract strings; locale-aware dates in Discord copy and UI.
+- **More locales** — extend `locales/*.json` and `SUPPORTED_LOCALES` in `js/i18n.js`.
 - **OpenAPI** or short route doc generated from `server.js` for integrators.
-- **Dockerfile** / compose for predictable deploys.
+- **Helm chart** or raw Kubernetes manifests for multi-replica deploys.
 - **Slack / generic webhooks** alongside Discord.
 

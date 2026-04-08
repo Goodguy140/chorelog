@@ -1,0 +1,30 @@
+# Chorelog — public GitHub repo: persistent clone in a volume + periodic pull + restart
+#
+# 1. Copy `.env.example` to `.env` and set CHORELOG_* plus GIT_REPO (public HTTPS URL).
+# 2. docker compose -f docker-compose.autopull.yml up -d --build
+#
+# Data: `chorelog_app` holds the git checkout and `data/chores.json`; bump SYNC_INTERVAL
+# (seconds) to poll GitHub less often.
+
+services:
+  chorelog:
+    build:
+      context: .
+      dockerfile: Dockerfile.autopull
+    image: chorelog:autopull
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      CHORELOG_SECRET: ${CHORELOG_SECRET}
+      CHORELOG_USER: ${CHORELOG_USER:-house}
+      CHORELOG_PASSWORD: ${CHORELOG_PASSWORD}
+      GIT_REPO: ${GIT_REPO}
+      GIT_BRANCH: ${GIT_BRANCH:-main}
+      SYNC_INTERVAL: ${SYNC_INTERVAL:-300}
+    volumes:
+      - chorelog_app:/app
+
+volumes:
+  chorelog_app:

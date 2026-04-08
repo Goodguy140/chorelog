@@ -37,9 +37,9 @@ export function getMonthKey(d) {
   return d.slice(0, 7);
 }
 
-export function getMonthLabel(k) {
+export function getMonthLabel(k, localeBcp47 = 'en-US') {
   const [y, m] = k.split('-');
-  return new Date(y, m - 1, 1).toLocaleDateString('en-CA', { month: 'long', year: 'numeric' });
+  return new Date(y, m - 1, 1).toLocaleDateString(localeBcp47, { month: 'long', year: 'numeric' });
 }
 
 export function thisCalendarMonthKey() {

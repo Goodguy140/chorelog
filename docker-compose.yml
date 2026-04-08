@@ -1,0 +1,35 @@
+# Chorelog — Docker Compose (TrueNAS Scale / generic Docker hosts)
+#
+# To run from a public GitHub repo with automatic pull + Node restart on updates:
+#   docker compose -f docker-compose.autopull.yml up -d --build
+# (set GIT_REPO in `.env` — see `.env.example`.)
+#
+# TrueNAS Scale tips:
+# - Map a host path or ix_volume for persistent data, e.g.
+#     volumes:
+#       - /mnt/POOL/apps/chorelog/data:/app/data
+# - Set environment variables in the UI or in a .env file next to this file.
+# - Publish port 3000 (or change left side: "8080:3000").
+# - Do NOT commit .env — keep CHORELOG_SECRET and CHORELOG_PASSWORD private.
+
+services:
+  chorelog:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: chorelog:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      # Required — set in `.env` (see `.env.example`) or the host / TrueNAS UI
+      CHORELOG_SECRET: ${CHORELOG_SECRET}
+      CHORELOG_USER: ${CHORELOG_USER:-house}
+      CHORELOG_PASSWORD: ${CHORELOG_PASSWORD}
+    volumes:
+      # Persist JSON store — replace with your TrueNAS dataset path if not using a named volume
+      - chorelog_data:/app/data
+
+volumes:
+  chorelog_data:
