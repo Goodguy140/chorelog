@@ -1172,5 +1172,31 @@
     "url": "https://discord.com/api/webhooks/1491566176998785226/VyWCVD2Op30LzJyS13xlaKIXv_2gv4_3nS5qRWTbSCiCJMeUF7OzkrXZJTDMYjlEJfdU",
     "reminderIntervalMinutes": 1440
   },
-  "discordReminderSentAt": {}
+  "discordReminderSentAt": {},
+  "auditLog": [
+    {
+      "id": "14bbec79-1846-43ed-9a4b-4578db7cab8b",
+      "at": "2026-04-08T23:36:15.544Z",
+      "actor": "house",
+      "action": "settings.update",
+      "target": "household",
+      "detail": "chorePresets, quickChoreIds"
+    },
+    {
+      "id": "5d84982b-9045-4ffb-9b7e-e4f1c46655a2",
+      "at": "2026-04-08T23:36:14.483Z",
+      "actor": "house",
+      "action": "settings.update",
+      "target": "household",
+      "detail": "chorePresets, quickChoreIds"
+    },
+    {
+      "id": "f415c021-a4ac-45f0-b790-3ae3cf5384f6",
+      "at": "2026-04-08T23:36:07.597Z",
+      "actor": "house",
+      "action": "settings.update",
+      "target": "household",
+      "detail": "chorePresets, quickChoreIds"
+    }
+  ]
 }

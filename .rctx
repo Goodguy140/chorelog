@@ -25,7 +25,8 @@
 - `163` `normalizeChorePreset(row)` — validates title/points/color/scoringMode.
 - `178` `normalizeChorePresets(arr)` — array normalization for presets.
 - `188` `normalizeQuickChoreIds(ids, presets)` — validates quick bar ids against presets.
-- `291` `normalizeStore(raw)` — canonicalizes store object read from disk (`discordWebhook`, `discordReminderSentAt`).
+- `291` `normalizeStore(raw)` — canonicalizes store object read from disk (`discordWebhook`, `discordReminderSentAt`, **`auditLog`**).
+- `GET /api/audit` — recent audit events (auth required); **`appendAudit`** on entry/settings/scheduled/import/discord user actions.
 - `451` `app.get('/api/entries', ...)` — list entries + `discordWebhook` for settings UI.
 - Discord: `POST /api/discord-webhook/test`, `POST /api/discord-webhook/remind-now`; background timer sends overdue scheduled-chore reminders per `discordReminderSentAt`.
 - `469`–`542` scheduled chore routes; `PUT /api/scheduled-chores/:id` supports title/interval/**startsOn** updates; `542` `POST .../complete` writes completion entry.
@@ -36,7 +37,7 @@
 - `830` `app.put('/api/entries/:id', ...)` — update entry.
 
 `index.html` — app shell, dialogs, script bootstrap.
-- Settings: **Discord reminders** (`#discordWebhookEnabled`, `#discordWebhookUrl`, `#discordReminderInterval`, test / post-now buttons).
+- Settings: **Audit log** (`#auditLogList`, `#btnRefreshAuditLog`, `#auditLogStatus`); **Discord reminders** (`#discordWebhookEnabled`, `#discordWebhookUrl`, `#discordReminderInterval`, test / post-now buttons).
 - `62`–`74` **analytics filters** `#analyticsPersonFilter`, `#analyticsLocationFilter`, hint `#analyticsFilterHint`; then `analytics-stats-row` / `statsGrid`, `statsGridPoints`.
 - `76`–`94` `section-pair`: contributions (`barsArea`, `barsAreaPoints`) + heatmap `taskHeatmap`.
 - `114`–`145` log form: `inChore`, `#scheduledLogSuggestionsWrap` / `#scheduledLogSuggestions` (due soon / overdue, preset title match), `inLocations`, quick log.
@@ -127,22 +128,97 @@
 
 ---
 
-## Feature map (short)
+## Feature map
 
-- Auth/session: login/logout + cookie session guard.
-- Chore logging: date/person/chore; semicolon multi-preset; locations for `per_location` presets.
-- Quick log: auto-fills locations for per-location presets when none selected.
-- Custom chore suggestions.
-- Presets + quick bar: CRUD, scoring modes, persist via `/api/settings`.
-- Log edit/delete; **log text filter** (current month list only).
-- Scheduled chores: due states, complete/remove, editable **start date**, plus log-form suggestions when due + preset title match.
-- Analytics: task-count and preset-points metrics; heatmap; **person + location filters** (stats/bars/heatmap/MoM); import/export; theme + PWA.
+### Auth and server
+
+- **Login** — `POST /api/login` with env `CHORELOG_USER` / `CHORELOG_PASSWORD` (defaults documented in code); **logout** `POST /api/logout`.
+- **Session** — signed HMAC cookie (`chorelog_auth`) includes **`user`** (username) for audit actor; ~30-day expiry; secret from `CHORELOG_SECRET` (dev default in code). **`GET /api/auth`** returns `{ authenticated, user }` when valid.
+- **API guard** — all `/api/*` except auth/version/login require a valid cookie (`requireApiAuth` sets `req.authPayload`).
+- **Persistence** — JSON file `data/chores.json`; **atomic write** (temp + rename); **`ensureSeed`** expands demo rows if store is empty on first read.
+- **Version** — **`GET /api/version`** returns `package.json` version; shown in Settings + footer when loaded.
+
+### Data model (store)
+
+- **Entries** — `d`, `c`, `p`, optional `choreId`, `locationIds`, `createdAt` / `updatedAt`.
+- **People & locations** — editable lists; at least one each enforced in UI.
+- **Chore presets** — `title`, `points` (clamped), hex `color`, `scoringMode` `flat` | **`per_location`**.
+- **Quick bar** — up to **24** preset ids validated against presets.
+- **Scheduled chores** — `intervalDays`, `startsOn`, `lastCompletedAt`, timestamps; next due from last completion or start date.
+- **Audit log** — `auditLog[]` (`id`, `at`, `actor`, `action`, `target`, optional `detail`); newest first; capped (e.g. 500); one household store = one audit stream.
+
+### Chore logging
+
+- **Main form** — date, person, chore text, multi-select locations (for `per_location` presets).
+- **Semicolon bundles** — `;` separates multiple preset/title segments in one submit; server/client resolve rows (`resolveChorePayloadRows`).
+- **Preset resolution** — optional `choreId` + free-text `c`; points from preset + locations when applicable.
+- **Quick log** — one tap from bar; **`fillChoreFromPreset`** sets chore field + locations when none selected for per-location presets.
+- **Custom suggestions** — `chore-input-suggest.js`: preset picker **per segment** (query after last `;`), keyboard/mouse, color stripe from preset; avoids whole-field `<datalist>` matching.
+- **Add toast** — success message + **Undo** (removes last created entries via API).
+
+### Activity log (month-scoped)
+
+- **List** — current **month** only (from month selector); sorted by date descending.
+- **Row UI** — date, chore text, person chip; **preset color** left border when `choreId` set; **+N pts** and **location names** when present.
+- **Edit** — dialog with date, chore (datalist), person, locations; **`PUT /api/entries/:id`**.
+- **Delete** — confirm dialog; **`DELETE /api/entries/:id`**.
+- **Log search** — client-only AND-of-tokens across date/chore/person/locations/points; cleared on month change.
+
+### Analytics and dashboard
+
+- **Month picker** — options from distinct entry months (newest first); drives all dashboard + log views.
+- **Dual metrics** — **task counts** vs **preset points** (parallel stat cards, bars, MoM columns).
+- **Stat cards** — totals, most active / top earner, active days, members with activity, **balance %** (fairness across people), avg points per task (points grid).
+- **Contribution bars** — per-person horizontal bars for tasks and points (separate max scaling).
+- **Heatmap** — tasks per calendar day in selected month; intensity vs busiest day; weekday header; “busiest day” footer; respects analytics filters.
+- **Analytics filters** — **person** and **location** (entry must include location when filtered); apply to stats, bars, heatmap, MoM — **not** the activity log.
+- **Month-over-month** — previous month vs current for tasks and points; **% change** with up/down styling; handles “no previous month”.
+
+### Scheduled chores
+
+- **Intervals** — day, week, 2–3 weeks, ~month, 2–3 months (stored as `intervalDays`).
+- **Due logic** — overdue / today / soon (≤3 days) / later (`scheduled-logic.js`); human-readable next due.
+- **Main dashboard strip** — cards with status + **Mark done**; section **hidden** when there are no scheduled chores.
+- **Manage dialog** — add (title + interval), list with **start date** edits, remove; **`PUT`/`DELETE`** routes.
+- **Mark done flow** — dialog picks person; **`POST .../complete`** adds log line with scheduled title and resets timer; optional **`completedDate`** (calendar day).
+- **Discord reminders** — optional webhook URL + enable; **server timer** posts overdue reminders; **minimum interval** between posts per chore (`discordReminderSentAt`); **test** and **post overdue now** endpoints.
+- **Log-form suggestions** — buttons for urgent scheduled titles that **match a preset** (exact/fuzzy); fill chore + locations only; does not complete scheduled item (use Mark done for timer).
+
+### Settings and data lifecycle
+
+- **Appearance** — theme **system / light / dark** (`localStorage` + inline head script to prevent flash); **`syncThemeMeta`** for `theme-color`.
+- **People / locations / presets / quick bar** — CRUD in UI; **`PUT /api/settings`** batches updates.
+- **Export** — **`GET /api/export`** / download button.
+- **Import** — file upload; **replace** or **merge** with confirmation; backup may include **`auditLog`** (export v5).
+- **Audit log UI** — Settings → load **`GET /api/audit`** on open + Refresh; shows actor (signed-in account) and action summaries.
+- **PWA** — `site.webmanifest` (standalone, icons); **`sw.js`** — installability hook, **no caching** of `/api` (see file comment); Apple touch icon / meta tags.
+
+### Client infrastructure
+
+- **`api-fetch.js`** — shared fetch behavior (e.g. auth failures).
+- **Render registry** — breaks import cycles between render and main.
+- **Responsive shell** — `--layout-max-width` steps at ~820px / 1100px / 1440px; log + MoM side-by-side on wide layouts.
 
 ## Future ideas (implementation-oriented)
 
-- History/audit metadata on entries.
-- Soft delete/archive presets.
-- Fuzzy search for multi-segment chore input.
-- Optional reminders for scheduled chores.
-- Tests: API import merge + client resolver/scheduled logic.
-- Backup snapshots before import.
+- **Soft delete** or archive for presets and log rows.
+- **Fuzzy / typo-tolerant** matching for each `;` segment in the chore field (beyond current suggest list).
+- **Richer reminders** — optional per-scheduled-chore toggles, quiet hours, or channels besides Discord.
+- **Automated tests** — API import merge, `normalizeStore`, `resolveChorePayloadRows`, `scheduledStatus` / next due edge cases.
+- **Backup snapshots** — timestamped copy of `chores.json` before destructive import or on a schedule.
+- **Brute-force protection** — rate limit or lockout on `POST /api/login`.
+- **SQLite (or other) backend** — optional migration path from flat JSON for concurrency and scale.
+- **True offline mode** — cache static assets + read-only queue in SW; conflict rules for writes.
+- **Push notifications** (PWA) as an alternative to Discord for mobile users.
+- **Calendar-native recurrence** — e.g. “every second Tuesday” vs fixed day intervals only.
+- **CSV / spreadsheet export** for entries.
+- **Multi-household or multi-user** accounts with isolated stores.
+- **Read-only or guest** role (view stats, no edit).
+- **Tags or categories** orthogonal to presets.
+- **Streaks / goals** — weekly targets, gentle nudges in UI.
+- **Attachments** — optional photo per log entry (storage + privacy policy).
+- **i18n** — extract strings; locale-aware dates in Discord copy and UI.
+- **OpenAPI** or short route doc generated from `server.js` for integrators.
+- **Dockerfile** / compose for predictable deploys.
+- **Slack / generic webhooks** alongside Discord.
+

@@ -365,6 +365,60 @@ function pruneDiscordReminderSentAt(sentMap, scheduledIds) {
   return out;
 }
 
+const MAX_AUDIT_ENTRIES = 500;
+
+function normalizeAuditEntry(row) {
+  if (!row || typeof row !== 'object') return null;
+  const id = typeof row.id === 'string' && row.id ? row.id : newId();
+  let at = typeof row.at === 'string' ? row.at.trim() : '';
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(at)) at = nowISO();
+  const actor = typeof row.actor === 'string' ? row.actor.trim().slice(0, 120) : '';
+  const action = typeof row.action === 'string' ? row.action.trim().slice(0, 96) : '';
+  const target = typeof row.target === 'string' ? row.target.trim().slice(0, 240) : '';
+  const detail = row.detail != null ? String(row.detail).trim().slice(0, 800) : '';
+  if (!action) return null;
+  const out = {
+    id,
+    at,
+    actor: actor || '—',
+    action,
+    target: target || '—',
+  };
+  if (detail) out.detail = detail;
+  return out;
+}
+
+function normalizeAuditLog(arr) {
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  for (const row of arr) {
+    const a = normalizeAuditEntry(row);
+    if (a) out.push(a);
+  }
+  return out.slice(0, MAX_AUDIT_ENTRIES);
+}
+
+function appendAudit(store, req, { action, target, detail }) {
+  if (!store.auditLog) store.auditLog = [];
+  const actor =
+    req.authPayload && typeof req.authPayload.user === 'string' && req.authPayload.user.trim()
+      ? req.authPayload.user.trim().slice(0, 120)
+      : process.env.CHORELOG_USER || 'house';
+  const row = normalizeAuditEntry({
+    id: newId(),
+    at: nowISO(),
+    actor,
+    action,
+    target: target || '—',
+    ...(detail ? { detail } : {}),
+  });
+  if (!row) return;
+  store.auditLog.unshift(row);
+  if (store.auditLog.length > MAX_AUDIT_ENTRIES) {
+    store.auditLog = store.auditLog.slice(0, MAX_AUDIT_ENTRIES);
+  }
+}
+
 function normalizeStore(raw) {
   const rawEntries = Array.isArray(raw.entries) ? raw.entries : [];
   const people = normalizePeople(raw.people);
@@ -396,6 +450,7 @@ function normalizeStore(raw) {
     discordReminderSentAt,
     scheduledChores.map((s) => s.id),
   );
+  const auditLog = normalizeAuditLog(raw.auditLog);
   return {
     entries,
     people,
@@ -405,6 +460,7 @@ function normalizeStore(raw) {
     quickChoreIds,
     discordWebhook,
     discordReminderSentAt,
+    auditLog,
   };
 }
 
@@ -470,8 +526,12 @@ function parseCookieHeader(cookieHeader, name) {
   return null;
 }
 
-function createAuthToken() {
-  const payload = { v: 1, exp: Date.now() + COOKIE_MAX_AGE_MS };
+function createAuthToken(username) {
+  const user =
+    String(username || '')
+      .trim()
+      .slice(0, 120) || (process.env.CHORELOG_USER || 'house');
+  const payload = { v: 1, exp: Date.now() + COOKIE_MAX_AGE_MS, user };
   const data = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
   const sig = crypto.createHmac('sha256', getSessionSecret()).update(data).digest('base64url');
   return `${data}.${sig}`;
@@ -504,23 +564,45 @@ function requireApiAuth(req, res, next) {
   if (req.method === 'GET' && req.path === '/api/version') return next();
   if (req.method === 'POST' && req.path === '/api/login') return next();
   if (req.method === 'POST' && req.path === '/api/logout') return next();
-  if (!verifyAuthCookie(req.headers.cookie)) {
+  const payload = verifyAuthCookie(req.headers.cookie);
+  if (!payload) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
+  req.authPayload = payload;
   next();
 }
 
 app.use(requireApiAuth);
 
 app.get('/api/auth', (req, res) => {
-  if (!verifyAuthCookie(req.headers.cookie)) {
+  const payload = verifyAuthCookie(req.headers.cookie);
+  if (!payload) {
     return res.status(401).json({ authenticated: false });
   }
-  res.json({ authenticated: true });
+  res.json({
+    authenticated: true,
+    user:
+      typeof payload.user === 'string' && payload.user.trim()
+        ? payload.user.trim()
+        : process.env.CHORELOG_USER || 'house',
+  });
 });
 
 app.get('/api/version', (req, res) => {
   res.json({ version: pkg.version });
+});
+
+app.get('/api/audit', async (req, res) => {
+  try {
+    const store = await readStore();
+    let limit = Number(req.query && req.query.limit);
+    if (!Number.isFinite(limit) || limit < 1) limit = 100;
+    if (limit > MAX_AUDIT_ENTRIES) limit = MAX_AUDIT_ENTRIES;
+    res.json({ auditLog: (store.auditLog || []).slice(0, limit) });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to load audit log' });
+  }
 });
 
 app.post('/api/login', (req, res) => {
@@ -531,7 +613,7 @@ app.post('/api/login', (req, res) => {
   if (u !== okUser || p !== okPass) {
     return res.status(401).json({ error: 'Invalid username or password' });
   }
-  const token = createAuthToken();
+  const token = createAuthToken(u);
   const maxAgeSec = Math.floor(COOKIE_MAX_AGE_MS / 1000);
   res.setHeader(
     'Set-Cookie',
@@ -588,6 +670,11 @@ app.post('/api/scheduled-chores', async (req, res) => {
       updatedAt: ts,
     };
     store.scheduledChores.push(row);
+    appendAudit(store, req, {
+      action: 'scheduled.create',
+      target: title,
+      detail: `Every ${intervalDays} day(s); id ${row.id}`,
+    });
     await writeStore(store);
     res.status(201).json({ scheduledChores: store.scheduledChores });
   } catch (e) {
@@ -620,6 +707,16 @@ app.put('/api/scheduled-chores/:id', async (req, res) => {
     }
     list[idx].updatedAt = nowISO();
     store.scheduledChores = list;
+    const ch = list[idx];
+    const changes = [];
+    if (req.body.title != null) changes.push('title');
+    if (req.body.intervalDays != null) changes.push('interval');
+    if (req.body.startsOn != null) changes.push('startsOn');
+    appendAudit(store, req, {
+      action: 'scheduled.update',
+      target: ch.title,
+      detail: changes.length ? changes.join(', ') : 'update',
+    });
     await writeStore(store);
     res.json({ scheduledChores: store.scheduledChores });
   } catch (e) {
@@ -633,12 +730,17 @@ app.delete('/api/scheduled-chores/:id', async (req, res) => {
     const { id } = req.params;
     const store = await readStore();
     const list = store.scheduledChores || [];
+    const removed = list.find((s) => s.id === id);
     const next = list.filter((s) => s.id !== id);
     if (next.length === list.length) return res.status(404).json({ error: 'Not found' });
     store.scheduledChores = next;
     if (store.discordReminderSentAt && store.discordReminderSentAt[id]) {
       delete store.discordReminderSentAt[id];
     }
+    appendAudit(store, req, {
+      action: 'scheduled.delete',
+      target: removed ? removed.title : id,
+    });
     await writeStore(store);
     res.status(204).end();
   } catch (e) {
@@ -685,6 +787,11 @@ app.post('/api/scheduled-chores/:id/complete', async (req, res) => {
     if (store.discordReminderSentAt && store.discordReminderSentAt[id]) {
       delete store.discordReminderSentAt[id];
     }
+    appendAudit(store, req, {
+      action: 'scheduled.complete',
+      target: chore.title,
+      detail: `Logged for ${person} on ${completedDate}`,
+    });
     await writeStore(store);
     res.json({
       scheduledChores: store.scheduledChores,
@@ -731,6 +838,19 @@ app.put('/api/settings', async (req, res) => {
     }
     if (body.discordWebhook != null) {
       store.discordWebhook = normalizeDiscordWebhook(body.discordWebhook);
+    }
+    const touched = [];
+    if (body.people != null) touched.push('people');
+    if (body.locations != null) touched.push('locations');
+    if (body.chorePresets != null) touched.push('chorePresets');
+    if (body.quickChoreIds != null) touched.push('quickChoreIds');
+    if (body.discordWebhook != null) touched.push('discordWebhook');
+    if (touched.length) {
+      appendAudit(store, req, {
+        action: 'settings.update',
+        target: 'household',
+        detail: touched.join(', '),
+      });
     }
     await writeStore(store);
     res.json({
@@ -864,6 +984,12 @@ app.post('/api/discord-webhook/test', async (req, res) => {
     if (!ok) {
       return res.status(502).json({ error: 'Discord did not accept the webhook (check URL)' });
     }
+    appendAudit(store, req, {
+      action: 'discord.test',
+      target: 'webhook',
+      detail: 'Test message sent',
+    });
+    await writeStore(store);
     res.json({ ok: true });
   } catch (e) {
     console.error(e);
@@ -886,6 +1012,12 @@ app.post('/api/discord-webhook/remind-now', async (req, res) => {
     }
     const ok = await sendDiscordOverdueDigest(url, overdue, today);
     if (!ok) return res.status(502).json({ error: 'Discord did not accept the webhook' });
+    appendAudit(store, req, {
+      action: 'discord.remind_now',
+      target: 'webhook',
+      detail: `Posted ${overdue.length} overdue chore(s)`,
+    });
+    await writeStore(store);
     res.json({ ok: true, sent: overdue.length });
   } catch (e) {
     console.error(e);
@@ -898,7 +1030,7 @@ app.get('/api/export', async (req, res) => {
     await ensureSeed();
     const store = await readStore();
     const payload = {
-      version: 4,
+      version: 5,
       exportedAt: new Date().toISOString(),
       people: store.people,
       locations: store.locations || [],
@@ -907,6 +1039,7 @@ app.get('/api/export', async (req, res) => {
       chorePresets: store.chorePresets || [],
       quickChoreIds: store.quickChoreIds || [],
       discordWebhook: store.discordWebhook || normalizeDiscordWebhook(null),
+      auditLog: store.auditLog || [],
     };
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', 'attachment; filename="chorelog-backup.json"');
@@ -980,6 +1113,12 @@ app.post('/api/import', async (req, res) => {
       store.discordWebhook = normalizeDiscordWebhook(
         body.discordWebhook != null ? body.discordWebhook : null,
       );
+      store.auditLog = normalizeAuditLog(body.auditLog || []);
+      appendAudit(store, req, {
+        action: 'import.replace',
+        target: 'store',
+        detail: `${store.entries.length} log entries, ${store.scheduledChores.length} scheduled`,
+      });
     } else {
       const peopleSet = new Set(store.people);
       incomingPeople.forEach((p) => peopleSet.add(p));
@@ -1015,6 +1154,13 @@ app.post('/api/import', async (req, res) => {
       for (const s of incomingScheduled) {
         store.scheduledChores.push({ ...s, id: newId() });
       }
+      const incomingAudit = normalizeAuditLog(body.auditLog || []);
+      store.auditLog = [...incomingAudit, ...(store.auditLog || [])].slice(0, MAX_AUDIT_ENTRIES);
+      appendAudit(store, req, {
+        action: 'import.merge',
+        target: 'store',
+        detail: `Imported ${incomingEntries.length} row(s) from file`,
+      });
     }
 
     await writeStore(store);
@@ -1087,6 +1233,19 @@ app.post('/api/entries', async (req, res) => {
       store.entries.push(entry);
       added.push(entry);
     }
+    if (added.length) {
+      const summary =
+        added.length === 1 ? added[0].c.slice(0, 200) : `${added.length} chores`;
+      const detail = added
+        .map((e) => `${e.d} · ${e.c} · ${e.p}`)
+        .join(' · ')
+        .slice(0, 800);
+      appendAudit(store, req, {
+        action: 'entry.create',
+        target: summary,
+        ...(detail ? { detail } : {}),
+      });
+    }
     await writeStore(store);
     res.status(201).json({ entries: added });
   } catch (e) {
@@ -1135,6 +1294,11 @@ app.put('/api/entries/:id', async (req, res) => {
     const prev = store.entries[idx];
     const createdAt = typeof prev.createdAt === 'string' ? prev.createdAt : nowISO();
     store.entries[idx] = { id, d, c, p, choreId, locationIds, createdAt, updatedAt: nowISO() };
+    appendAudit(store, req, {
+      action: 'entry.update',
+      target: c.slice(0, 200),
+      detail: `Was: ${prev.d} · ${prev.c.slice(0, 120)} · ${prev.p}`,
+    });
     await writeStore(store);
     res.json({ entry: store.entries[idx] });
   } catch (e) {
@@ -1149,7 +1313,13 @@ app.delete('/api/entries/:id', async (req, res) => {
     const store = await readStore();
     const idx = store.entries.findIndex((e) => e.id === id);
     if (idx === -1) return res.status(404).json({ error: 'Not found' });
+    const gone = store.entries[idx];
     store.entries.splice(idx, 1);
+    appendAudit(store, req, {
+      action: 'entry.delete',
+      target: gone.c.slice(0, 200),
+      detail: `${gone.d} · ${gone.p}`,
+    });
     await writeStore(store);
     res.status(204).end();
   } catch (e) {

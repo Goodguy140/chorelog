@@ -256,6 +256,16 @@
       </div>
 
       <div>
+        <p class="settings-block-title">Audit log</p>
+        <p class="settings-hint">Changes to the activity log and household settings (newest first). The signed-in account name is stored as the actor.</p>
+        <p class="settings-hint audit-log-status" id="auditLogStatus" hidden role="status"></p>
+        <div class="audit-log-wrap">
+          <ul class="audit-log-list" id="auditLogList" aria-label="Audit log"></ul>
+        </div>
+        <button type="button" class="btn-secondary" id="btnRefreshAuditLog">Refresh audit log</button>
+      </div>
+
+      <div>
         <p class="settings-block-title">Data</p>
         <div class="settings-actions">
           <button type="button" class="btn-secondary" id="btnExport">Export JSON</button>

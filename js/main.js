@@ -624,6 +624,49 @@ async function bootstrap() {
   }
 }
 
+async function loadAuditLogIntoSettings() {
+  const list = document.getElementById('auditLogList');
+  const status = document.getElementById('auditLogStatus');
+  if (!list) return;
+  list.innerHTML = '';
+  if (status) {
+    status.hidden = false;
+    status.textContent = 'Loading…';
+  }
+  try {
+    const r = await apiFetch('/api/audit?limit=150');
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+    const rows = Array.isArray(data.auditLog) ? data.auditLog : [];
+    if (status) status.hidden = true;
+    if (!rows.length) {
+      list.innerHTML = '<li class="audit-log-item">No events yet.</li>';
+      return;
+    }
+    list.innerHTML = rows
+      .map((row) => {
+        const actor = escapeHtml(row.actor || '—');
+        const action = escapeHtml(row.action || '');
+        const target = escapeHtml(row.target || '');
+        const detail = row.detail ? escapeHtml(row.detail) : '';
+        const when = row.at
+          ? new Date(row.at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })
+          : '—';
+        return `<li class="audit-log-item">
+        <div class="audit-log-meta">${escapeHtml(when)} · ${actor}</div>
+        <div><span class="audit-log-action">${action}</span> — ${target}</div>
+        ${detail ? `<div class="audit-log-detail">${detail}</div>` : ''}
+      </li>`;
+      })
+      .join('');
+  } catch {
+    if (status) {
+      status.textContent = 'Could not load audit log.';
+      status.hidden = false;
+    }
+  }
+}
+
 function syncDiscordWebhookForm() {
   const w = app.discordWebhook || { enabled: false, url: '', reminderIntervalMinutes: 1440 };
   const en = document.getElementById('discordWebhookEnabled');
@@ -722,12 +765,15 @@ document.getElementById('btnSettings').addEventListener('click', () => {
   renderChorePresetsEditor();
   renderQuickChoresEditor();
   syncDiscordWebhookForm();
+  loadAuditLogIntoSettings();
   const mode = localStorage.getItem('chorelog-theme') || 'system';
   document.querySelectorAll('#themeOptions input[name="theme"]').forEach((el) => {
     el.checked = el.value === mode;
   });
   document.getElementById('settingsDialog').showModal();
 });
+
+document.getElementById('btnRefreshAuditLog').addEventListener('click', () => loadAuditLogIntoSettings());
 
 document.getElementById('settingsClose').addEventListener('click', () => {
   document.getElementById('settingsDialog').close();
@@ -800,6 +846,7 @@ document.getElementById('importFile').addEventListener('change', async (e) => {
         chorePresets: data.chorePresets,
         quickChoreIds: data.quickChoreIds,
         discordWebhook: data.discordWebhook,
+        auditLog: data.auditLog,
         mode: merge ? 'merge' : 'replace',
       }),
     });
