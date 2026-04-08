@@ -37,4 +37,6 @@ export const app = {
   pendingUndoEntryIds: [],
   addToastHideTimer: null,
   currentMonth: thisCalendarMonthKey(),
+  /** Client-side filter for the activity log (current month only); cleared when month changes. */
+  logSearchQuery: '',
 };

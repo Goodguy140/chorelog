@@ -212,6 +212,35 @@ select {
   background: var(--color-background-tertiary);
 }
 
+.log-filter-row {
+  margin-bottom: 10px;
+}
+
+.log-filter-label {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+
+.log-search-input {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  height: 34px;
+}
+
+.log-search-input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
 .log-list {
   max-height: 220px;
   overflow-y: auto;
@@ -394,6 +423,13 @@ select {
     padding: 10px 14px;
     font: 400 16px/1.25 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
+
+  .log-search-input {
+    min-height: 44px;
+    height: 44px;
+    padding: 0 12px;
+    font-size: 16px;
+  }
 }
 
 @media(max-width:560px) {
@@ -451,6 +487,13 @@ select {
     justify-self: start;
     width: auto;
     margin-top: 0;
+  }
+
+  .log-search-input {
+    min-height: 40px;
+    height: 40px;
+    padding: 0 10px;
+    font-size: 16px;
   }
 
   .quick-chore-btn {

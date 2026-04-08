@@ -101,6 +101,17 @@ function pointsByPerson(monthKey) {
   return c;
 }
 
+/** Whitespace-separated tokens; entry must match all (case-insensitive). Matches date, chore text, person, locations, points. */
+function entryMatchesLogSearch(e, rawQ) {
+  const q = rawQ.trim().toLowerCase();
+  if (!q) return true;
+  const tokens = q.split(/\s+/).filter(Boolean);
+  const loc = Array.isArray(e.locationIds) ? e.locationIds.join(' ') : '';
+  const pts = entryChorePoints(e);
+  const hay = [e.d, e.c || '', e.p || '', loc, pts != null ? String(pts) : ''].join(' ').toLowerCase();
+  return tokens.every((t) => hay.includes(t));
+}
+
 /**
  * 100% = totals split evenly across everyone; 0% = one person has 100% of the total.
  * Uses (1 − maxShare) / (1 − 1/n) with maxShare = largest person's share.
@@ -214,11 +225,16 @@ function fullRender() {
   const monthEntries = app.entries
     .filter((e) => getMonthKey(e.d) === app.currentMonth)
     .sort((a, b) => b.d.localeCompare(a.d));
+  const filteredLogEntries = monthEntries.filter((e) => entryMatchesLogSearch(e, app.logSearchQuery));
   const logList = document.getElementById('logList');
+  const logSearchEl = document.getElementById('logSearch');
+  if (logSearchEl) logSearchEl.value = app.logSearchQuery;
   if (!monthEntries.length) {
     logList.innerHTML = '<p class="empty">No entries yet this month.</p>';
+  } else if (!filteredLogEntries.length) {
+    logList.innerHTML = '<p class="empty">No entries match your search.</p>';
   } else {
-    logList.innerHTML = monthEntries
+    logList.innerHTML = filteredLogEntries
       .map((e) => {
         const col = colorFor(e.p);
         const [, m, d] = e.d.split('-');
@@ -322,5 +338,6 @@ setRenderRenderer(fullRender);
 
 export function switchMonth(m) {
   app.currentMonth = m;
+  app.logSearchQuery = '';
   render();
 }

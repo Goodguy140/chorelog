@@ -774,6 +774,11 @@ document.getElementById('monthSelect').addEventListener('change', (e) => {
   switchMonth(e.target.value);
 });
 
+document.getElementById('logSearch').addEventListener('input', (e) => {
+  app.logSearchQuery = e.target.value;
+  render();
+});
+
 document.getElementById('chorePresetsList').addEventListener('change', async () => {
   const next = readChorePresetsFromDom();
   if (next.length) {

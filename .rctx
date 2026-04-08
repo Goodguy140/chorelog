@@ -1,0 +1,133 @@
+# Local AI / contributor context index
+
+**Do not delete this file.** It is the navigation map for humans and agents; extend it when behavior or layout changes.
+
+**Tracked in git** (not ignored) so clones keep the map. Edit anchors if line numbers drift.
+
+---
+
+## Quick navigation
+
+| Area | Primary files |
+|------|----------------|
+| HTTP API + JSON store | `server.js` |
+| HTML shell + ids | `index.html` |
+| Events, auth, mutations | `js/main.js` |
+| Dashboard + log + scheduled DOM | `js/render.js` |
+| Presets, points, quick bar | `js/presets.js` |
+| Shared state | `js/state.js` |
+| Styles (split by feature) | `css/chore-tracker-*.css` |
+
+---
+
+`server.js` — API + persistence + import/export/store normalization.
+- `135` `normalizeEntry(row)` — entry shape, `choreId`, `locationIds`.
+- `163` `normalizeChorePreset(row)` — validates title/points/color/scoringMode.
+- `178` `normalizeChorePresets(arr)` — array normalization for presets.
+- `188` `normalizeQuickChoreIds(ids, presets)` — validates quick bar ids against presets.
+- `291` `normalizeStore(raw)` — canonicalizes store object read from disk.
+- `451` `app.get('/api/entries', ...)` — list entries.
+- `469`–`542` scheduled chore routes; `542` `POST .../complete` — completion entry (per-location presets get all `store.locations` when applicable).
+- `588` `app.put('/api/settings', ...)` — settings write (people/presets/quick ids/locations).
+- `657` `app.post('/api/import', ...)` — import handler (replace/merge modes).
+- `634` `app.get('/api/export', ...)` — export.
+- `768` `app.post('/api/entries', ...)` — add entry (supports `choreId`, locations).
+- `830` `app.put('/api/entries/:id', ...)` — update entry.
+
+`index.html` — app shell, dialogs, script bootstrap.
+- `64`–`73` `analytics-stats-row` / `statsGrid`, `statsGridPoints`.
+- `75`–`94` `section-pair`: contributions (`barsArea`, `barsAreaPoints`) + heatmap `taskHeatmap`.
+- `102`–`129` log form (`inChore`, `inLocations`, quick log).
+- `131`–`147` `log-mom-row`: **log filter** `#logSearch` (label `log-filter-label`), `#logList`, `momGrid`, `momGridPoints`.
+- (approx.) `<script type="module" src="/js/chore-tracker.js">` at end of body.
+
+`js/chore-tracker.js` — thin entrypoint → `main.js`.
+
+`js/main.js` — event wiring, auth/bootstrap, mutations, import/export UI flows.
+- `205` `load()` — fetch entries/settings, populate state.
+- `295` `addEntry()` — main add flow; semicolon payload, posts `/api/entries`.
+- `344` `quickLogChore(presetId)` — per-location presets auto-select all `#inLocations` when empty.
+- `524` `startApp()` — init date field, load, pick month, `render()`.
+- `534` `bootstrap()` — session check + app/login visibility.
+- `773`–`775` `#monthSelect` → `switchMonth` (clears log filter).
+- `777`–`780` `#logSearch` `input` → `app.logSearchQuery`, `render()`.
+- export/import handlers (`/api/export`, `/api/import`).
+- `360` `initQuickChores()`; chore suggest init nearby.
+
+`js/presets.js` — chore presets + quick log editor + payload resolution.
+- `6` `syncChoreDatalists()` — syncs edit dialog datalist.
+- `16` `entryChorePoints(e)` — points from preset + per_location × locations.
+- `27` `resolveChorePayloadRows(raw)` — splits `;` and resolves preset ids.
+- `43` `saveChorePresetsAndQuick()` — persists settings to `/api/settings`.
+- preset/quick editors + `renderQuickChores`.
+
+`js/chore-input-suggest.js` — custom suggestion list for `#inChore`.
+- `initChoreInputSuggest()` — keyboard/mouse + segment-aware filtering.
+
+`js/render.js` — render pipeline for dashboard/log/scheduled views.
+- `104` `entryMatchesLogSearch` — client-side log filter: whitespace tokens (AND), case-insensitive; haystack = date, chore text, person, location ids joined, numeric points.
+- `79` `countsByPerson` / `91` `pointsByPerson` — task vs preset points per person.
+- `136` `fullRender()` — dual stat grids, dual bar areas, heatmap, log (filtered list + empty states), dual MoM, scheduled.
+- `switchMonth` — sets `app.currentMonth`, clears `app.logSearchQuery`, `render()`.
+- `setRenderRenderer(fullRender)` registration.
+
+`js/state.js` — shared mutable app state (`app.entries`, `app.currentMonth`, **`app.logSearchQuery`**, …).
+
+`js/render-registry.js` — indirection to avoid import cycles.
+
+`js/scheduled-logic.js` — scheduled chore status computations.
+
+`js/utils/date.js` — date helpers and month keys.
+
+`js/api-fetch.js` — fetch wrapper with auth redirect behavior.
+
+`css/chore-tracker-base.css` — reset/theme/shell, top bar, settings dialog, toast.
+- `:root` includes `--layout-max-width` (820px; widens at `1100px` / `1440px`).
+- `.wrap` uses `var(--layout-max-width)`.
+
+`css/chore-tracker-dashboard.css` — stats, sections, heatmap, bars, MoM, desktop side-by-side rows.
+
+`css/chore-tracker-forms.css` — log form, edit dialog, **`.log-filter-row` / `.log-search-input`**, `.log-list` height (taller at `1100px` + `log-mom-row`).
+
+`css/chore-tracker-scheduled.css` — scheduled dashboard + dialogs.
+
+`css/chore-tracker-auth.css` — login screen visibility and card.
+
+`css/chore-tracker-extras.css` — chore suggest, preset editors, `#inLocations`, `.log-chore-points`.
+
+`data/chores.json` — persisted store (`entries`, `people`, `chorePresets`, `quickChoreIds`, `locations`, `scheduledChores`, …).
+
+---
+
+## Log search / filter (client-only)
+
+- State: `app.logSearchQuery` (string). Cleared when the month dropdown changes (`switchMonth`).
+- UI: `#logSearch` in `index.html` under “Log for …”; styles in `chore-tracker-forms.css`.
+- Matching: `entryMatchesLogSearch` in `render.js` — all whitespace-separated words must appear somewhere in the combined searchable text (date `YYYY-MM-DD`, chore title, person, space-joined location ids, points as string). Does not change analytics; only filters rows in `#logList`.
+
+---
+
+## Feature map (short)
+
+- Auth/session: login/logout + cookie session guard.
+- Chore logging: date/person/chore; semicolon multi-preset; locations for `per_location` presets.
+- Quick log: auto-fills locations for per-location presets when none selected.
+- Custom chore suggestions.
+- Presets + quick bar: CRUD, scoring modes, persist via `/api/settings`.
+- Log edit/delete; **log text filter** (current month list only).
+- Scheduled chores: due states, complete/remove.
+- Analytics: task-count and preset-points metrics; heatmap; import/export; theme + PWA.
+
+## Future ideas (implementation-oriented)
+
+- Preset categories/tags with filters in analytics (log already has text filter).
+- Duplicate detection on import merge.
+- Undo/redo stack for edits/deletes.
+- Scheduled auto-suggestions in log form when due.
+- Bulk log mode.
+- History/audit metadata on entries.
+- Soft delete/archive presets.
+- Fuzzy search for multi-segment chore input.
+- Optional reminders for scheduled chores.
+- Tests: API import merge + client resolver/scheduled logic.
+- Backup snapshots before import.
