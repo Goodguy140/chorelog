@@ -218,12 +218,7 @@ function defaultChorePresets() {
     ['Swept kitchen', 1, '#C973D9'],
     ['Bathroom', 1, '#D8A530'],
   ];
-  return defs.map(([title, points, color]) => ({
-    id: newId(),
-    title,
-    points,
-    color,
-  }));
+  return defs.map(([title, points, color]) => normalizeChorePreset({ title, points, color })).filter(Boolean);
 }
 
 function normalizePeople(arr) {

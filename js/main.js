@@ -11,7 +11,7 @@ import {
   saveChorePresetsAndQuick,
   syncChoreDatalists,
 } from './presets.js';
-import { app, DEFAULT_PEOPLE } from './state.js';
+import { app, DEFAULT_LOCATIONS, DEFAULT_PEOPLE } from './state.js';
 import { getMonthKey, localDateISO, thisCalendarMonthKey } from './utils/date.js';
 import { escapeHtml } from './utils/html.js';
 import { intervalLabel, scheduledStatus } from './scheduled-logic.js';
@@ -212,7 +212,8 @@ async function load() {
     const data = await r.json();
     app.entries = Array.isArray(data.entries) ? data.entries : [];
     app.people = Array.isArray(data.people) && data.people.length ? data.people : [...DEFAULT_PEOPLE];
-    app.locations = Array.isArray(data.locations) && data.locations.length ? data.locations : [...app.locations];
+    app.locations =
+      Array.isArray(data.locations) && data.locations.length ? data.locations : [...DEFAULT_LOCATIONS];
     app.chorePresets = Array.isArray(data.chorePresets) ? data.chorePresets : [];
     app.quickChoreIds = Array.isArray(data.quickChoreIds) ? data.quickChoreIds : [];
     app.scheduledChores = Array.isArray(data.scheduledChores) ? data.scheduledChores : [];
@@ -222,6 +223,7 @@ async function load() {
   } catch (e) {
     app.entries = [];
     app.people = [...DEFAULT_PEOPLE];
+    app.locations = [...DEFAULT_LOCATIONS];
     app.chorePresets = [];
     app.quickChoreIds = [];
     app.scheduledChores = [];

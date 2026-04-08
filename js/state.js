@@ -2,6 +2,16 @@ import { thisCalendarMonthKey } from './utils/date.js';
 
 export const DEFAULT_PEOPLE = ['Dylan', 'Rachel', 'Vic', 'Christian'];
 
+export const DEFAULT_LOCATIONS = [
+  'Upstairs',
+  'Stairs',
+  'Hallway',
+  'Kitchen',
+  'Living room',
+  'Front porch',
+  'Back porch',
+];
+
 export const PALETTE = [
   { bar: '#378ADD', text: '#E6F1FB' },
   { bar: '#D85A30', text: '#FAECE7' },
@@ -15,7 +25,7 @@ export const PALETTE = [
 
 export const app = {
   people: [...DEFAULT_PEOPLE],
-  locations: ['Upstairs', 'Stairs', 'Hallway', 'Kitchen', 'Living room', 'Front porch', 'Back porch'],
+  locations: [...DEFAULT_LOCATIONS],
   chorePresets: [],
   quickChoreIds: [],
   entries: [],
