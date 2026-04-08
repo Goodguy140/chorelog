@@ -1,0 +1,455 @@
+.edit-entry-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.edit-entry-field label {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-bottom: 4px;
+}
+
+.edit-entry-field input[type=text],
+.edit-entry-field select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.edit-entry-field .date-input-shell {
+  width: 100%;
+}
+
+.edit-entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.delete-entry-preview {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin-bottom: 6px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.delete-entry-confirm {
+  color: #E24B4A;
+  font-weight: 500;
+}
+
+.delete-entry-confirm:hover {
+  opacity: 0.9;
+}
+.add-form {
+  display: grid;
+  /* minmax(0,1fr) lets columns shrink; plain 1fr can let date inputs blow column width on iOS */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  /* Top-align so Date / Chore / Person labels and inputs line up; chore hint sits below without shifting neighbors. */
+  align-items: start;
+}
+
+/* Align + Add with the input row (same offset as .field label + margin). */
+.add-form .btn-add {
+  margin-top: calc(12px * 1.25 + 4px);
+}
+
+.add-form .field {
+  min-width: 0;
+}
+
+.add-form .field-locations {
+  grid-column: 1 / span 3;
+}
+
+.add-form input[type=text],
+.add-form .date-input-shell,
+.add-form select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.field label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  display: block;
+  margin-bottom: 4px;
+}
+
+input[type=text],
+select {
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  height: 34px;
+}
+
+/*
+  Border lives on .date-input-shell so overflow:hidden can clip iOS WebKit overflow
+  without eating the visible stroke (border on the input was clipped with .field overflow).
+*/
+.date-input-shell {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 34px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  overflow: hidden;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.date-input-shell input[type=date] {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0 10px;
+  font-size: 13px;
+  line-height: 34px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  color-scheme: light dark;
+  height: 34px;
+  box-sizing: border-box;
+  display: block;
+  margin: 0;
+}
+
+.date-input-shell input[type=date]::-webkit-date-and-time-value {
+  text-align: left;
+}
+
+/* iOS/WebKit: vertically center the native date segments inside the control */
+.date-input-shell input[type=date]::-webkit-datetime-edit,
+.date-input-shell input[type=date]::-webkit-datetime-edit-fields-wrapper {
+  height: 100%;
+}
+
+.date-input-shell input[type=date]::-webkit-datetime-edit-fields-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.btn-add {
+  height: 34px;
+  padding: 0 16px;
+  font-size: 13px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-text-primary);
+  color: var(--color-background-primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-add:hover {
+  opacity: 0.85;
+}
+
+.quick-chores {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 0.5px solid var(--color-border-tertiary);
+}
+
+/* Match .field label — uppercase + tracking looked like a different font in Firefox. */
+.quick-chores-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: normal;
+  color: var(--color-text-secondary);
+  margin-bottom: 8px;
+}
+
+.quick-chores-hint {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  margin-top: 10px;
+  line-height: 1.4;
+}
+
+.quick-chores-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.quick-chore-btn {
+  /* Explicit stack: Firefox otherwise keeps <button>’s UA font. */
+  font: 400 13px/1.2 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  padding: 7px 12px;
+  border-radius: var(--border-radius-md);
+  border: 0.5px solid var(--color-border-secondary);
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.quick-chore-btn:hover {
+  border-color: var(--color-text-tertiary);
+  background: var(--color-background-tertiary);
+}
+
+.log-list {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.log-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+  font-size: 13px;
+  min-width: 0;
+}
+
+.log-item:last-child {
+  border-bottom: none;
+}
+
+.log-item-main {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  flex: 1 1 0;
+  min-width: 0;
+  gap: 6px 10px;
+}
+
+.log-date {
+  color: var(--color-text-tertiary);
+  width: 58px;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.log-chore {
+  flex: 1 1 0;
+  min-width: 0;
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 560px) {
+  .log-item {
+    cursor: pointer;
+  }
+
+  .log-item .btn-del {
+    cursor: pointer;
+  }
+
+  .log-item .btn-edit {
+    display: none;
+  }
+
+  .log-item-main {
+    gap: 3px;
+  }
+
+  .log-date {
+    width: 42px;
+    text-align: left;
+    box-sizing: border-box;
+  }
+
+  .log-person {
+    max-width: min(7rem, 28%);
+  }
+}
+
+.log-person {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(9rem, 32%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.btn-edit {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  padding: 2px 6px;
+  line-height: 1;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.btn-edit:hover {
+  color: var(--color-text-primary);
+}
+
+.btn-del {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--color-text-tertiary);
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.btn-del:hover {
+  color: #E24B4A;
+}
+
+.empty {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  padding: 12px 0;
+}
+/* Phones / narrow layout: identical box model for every control (iOS date was taller due to extra padding) */
+@media (max-width: 896px) {
+  .add-form {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .add-form .field-locations {
+    grid-column: auto;
+  }
+
+  .add-form .date-input-shell {
+    min-height: 44px;
+  }
+
+  .add-form input[type=text],
+  .add-form select {
+    height: 44px;
+    min-height: 44px;
+    padding: 0 12px;
+    font-size: 16px;
+    line-height: normal;
+  }
+
+  .add-form .date-input-shell input[type=date] {
+    height: 44px;
+    min-height: 44px;
+    padding: 0 12px;
+    font-size: 16px;
+    line-height: 44px;
+  }
+
+  .add-form .btn-add {
+    height: 44px;
+    min-height: 44px;
+    padding: 0 16px;
+    font-size: 16px;
+    margin-top: 0;
+    justify-self: start;
+  }
+
+  .quick-chore-btn {
+    min-height: 44px;
+    padding: 10px 14px;
+    font: 400 16px/1.25 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+}
+
+@media(max-width:560px) {
+  /* Log form: a bit more horizontal room; single column = full-width fields. */
+  .section--log-chore {
+    padding: 1rem 0.875rem;
+  }
+
+  .add-form {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  .add-form .field {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .add-form input[type=text],
+  .add-form select {
+    height: 40px;
+    min-height: 40px;
+    padding: 0 10px;
+    font-size: 16px;
+  }
+
+  .add-form .date-input-shell {
+    min-height: 40px;
+    flex: none;
+    min-width: 0;
+  }
+
+  .add-form .date-input-shell input[type=date] {
+    height: 40px;
+    min-height: 40px;
+    padding: 0 10px;
+    font-size: 16px;
+    line-height: 40px;
+  }
+
+  .add-form .date-input-shell input[type=date]::-webkit-datetime-edit,
+  .add-form .date-input-shell input[type=date]::-webkit-datetime-edit-fields-wrapper {
+    max-width: 100%;
+  }
+
+  .add-form .btn-add {
+    height: 36px;
+    min-height: 36px;
+    padding: 0 12px;
+    font-size: 14px;
+    justify-self: start;
+    width: auto;
+    margin-top: 0;
+  }
+
+  .quick-chore-btn {
+    min-height: 0;
+    padding: 5px 10px;
+    font: 400 13px/1.25 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  .quick-chores-buttons {
+    gap: 6px;
+  }
+}
