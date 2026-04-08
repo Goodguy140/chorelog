@@ -13,11 +13,50 @@ export function presetById(id) {
   return app.chorePresets.find((p) => p.id === id);
 }
 
-/** Case-insensitive match of scheduled chore title to a preset (for log suggestions). */
+/** Levenshtein distance; titles are short (≤120). */
+function levenshtein(a, b) {
+  const m = a.length;
+  const n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const c = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + c);
+    }
+  }
+  return dp[m][n];
+}
+
+/**
+ * Match scheduled chore title to a preset for log suggestions.
+ * Exact case-insensitive match first; otherwise best fuzzy match within a small edit budget
+ * (handles e.g. "Wipe common surfaces" vs preset "Wiped common surfaces").
+ */
 export function presetMatchingScheduledTitle(scheduledTitle) {
   const t = String(scheduledTitle).trim().toLowerCase();
   if (!t) return null;
-  return app.chorePresets.find((p) => p.title.trim().toLowerCase() === t) || null;
+  const exact = app.chorePresets.find((p) => p.title.trim().toLowerCase() === t);
+  if (exact) return exact;
+  if (t.length < 4) return null;
+
+  const maxDist = Math.min(4, Math.max(2, Math.ceil(t.length * 0.12)));
+  let best = null;
+  let bestD = Infinity;
+  for (const p of app.chorePresets) {
+    const pl = p.title.trim().toLowerCase();
+    if (!pl) continue;
+    const d = levenshtein(t, pl);
+    if (d < bestD) {
+      bestD = d;
+      best = p;
+    }
+  }
+  if (best && bestD <= maxDist) return best;
+  return null;
 }
 
 export function entryChorePoints(e) {

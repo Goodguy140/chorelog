@@ -43,4 +43,6 @@ export const app = {
   analyticsPersonFilter: '',
   /** Empty = all locations. Matches entries whose `locationIds` includes this name. */
   analyticsLocationFilter: '',
+  /** Server: optional Discord webhook for overdue scheduled chore reminders. */
+  discordWebhook: { enabled: false, url: '', reminderIntervalMinutes: 1440 },
 };

@@ -375,7 +375,7 @@ function fullRender() {
         return `<div class="scheduled-card">
   <div>
     <div class="scheduled-card-title">${escapeHtml(s.title)}</div>
-    <div class="scheduled-card-meta">${intervalLabel(s.intervalDays)} · Next due: ${st.next}</div>
+    <div class="scheduled-card-meta">${intervalLabel(s.intervalDays)} · Next due: ${st.nextHuman}</div>
   </div>
   <span class="scheduled-status ${st.cls}">${st.label}</span>
   <div class="scheduled-card-actions">

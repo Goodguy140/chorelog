@@ -25,9 +25,10 @@
 - `163` `normalizeChorePreset(row)` — validates title/points/color/scoringMode.
 - `178` `normalizeChorePresets(arr)` — array normalization for presets.
 - `188` `normalizeQuickChoreIds(ids, presets)` — validates quick bar ids against presets.
-- `291` `normalizeStore(raw)` — canonicalizes store object read from disk.
-- `451` `app.get('/api/entries', ...)` — list entries.
-- `469`–`542` scheduled chore routes; `542` `POST .../complete` — completion entry (per-location presets get all `store.locations` when applicable).
+- `291` `normalizeStore(raw)` — canonicalizes store object read from disk (`discordWebhook`, `discordReminderSentAt`).
+- `451` `app.get('/api/entries', ...)` — list entries + `discordWebhook` for settings UI.
+- Discord: `POST /api/discord-webhook/test`, `POST /api/discord-webhook/remind-now`; background timer sends overdue scheduled-chore reminders per `discordReminderSentAt`.
+- `469`–`542` scheduled chore routes; `PUT /api/scheduled-chores/:id` supports title/interval/**startsOn** updates; `542` `POST .../complete` writes completion entry.
 - `588` `app.put('/api/settings', ...)` — settings write (people/presets/quick ids/locations).
 - `657` `app.post('/api/import', ...)` — import handler (replace/merge modes).
 - `634` `app.get('/api/export', ...)` — export.
@@ -35,6 +36,7 @@
 - `830` `app.put('/api/entries/:id', ...)` — update entry.
 
 `index.html` — app shell, dialogs, script bootstrap.
+- Settings: **Discord reminders** (`#discordWebhookEnabled`, `#discordWebhookUrl`, `#discordReminderInterval`, test / post-now buttons).
 - `62`–`74` **analytics filters** `#analyticsPersonFilter`, `#analyticsLocationFilter`, hint `#analyticsFilterHint`; then `analytics-stats-row` / `statsGrid`, `statsGridPoints`.
 - `76`–`94` `section-pair`: contributions (`barsArea`, `barsAreaPoints`) + heatmap `taskHeatmap`.
 - `114`–`145` log form: `inChore`, `#scheduledLogSuggestionsWrap` / `#scheduledLogSuggestions` (due soon / overdue, preset title match), `inLocations`, quick log.
@@ -49,6 +51,7 @@
 - `fillChoreFromPreset(presetId)` — sets `#inChore` + per-location locations (shared with quick log).
 - `quickLogChore(presetId)` — `fillChoreFromPreset` then `addEntry()`.
 - `initScheduledLogSuggestions()` — delegated click on `#scheduledLogSuggestions` → fill + focus chore field.
+- `saveScheduledStartDate(id, domKey)` — updates scheduled chore `startsOn` from manage-list date input.
 - `524` `startApp()` — init date field, load, pick month, `render()`.
 - `534` `bootstrap()` — session check + app/login visibility.
 - `#monthSelect` → `switchMonth` (clears log search only).
@@ -60,7 +63,7 @@
 `js/presets.js` — chore presets + quick log editor + payload resolution.
 - `6` `syncChoreDatalists()` — syncs edit dialog datalist.
 - `16` `entryChorePoints(e)` — points from preset + per_location × locations.
-- `presetMatchingScheduledTitle(title)` — case-insensitive preset match for scheduled log suggestions.
+- `presetMatchingScheduledTitle(title)` — preset match for scheduled log suggestions (exact, then small Levenshtein budget).
 - `27` `resolveChorePayloadRows(raw)` — splits `;` and resolves preset ids.
 - `43` `saveChorePresetsAndQuick()` — persists settings to `/api/settings`.
 - preset/quick editors + `renderQuickChores`.
@@ -94,7 +97,7 @@
 
 `css/chore-tracker-forms.css` — log form, edit dialog, **`.log-filter-row` / `.log-search-input`**, `.log-list` height (taller at `1100px` + `log-mom-row`).
 
-`css/chore-tracker-scheduled.css` — scheduled dashboard + dialogs + **`.scheduled-log-suggestions`** / `.scheduled-suggest-btn`.
+`css/chore-tracker-scheduled.css` — scheduled dashboard + dialogs + start-date editor (`.scheduled-start-edit`) + **`.scheduled-log-suggestions`** / `.scheduled-suggest-btn`.
 
 `css/chore-tracker-auth.css` — login screen visibility and card.
 
@@ -119,7 +122,7 @@
 
 ## Scheduled log suggestions (client-only)
 
-- Shown when a scheduled chore is **overdue**, **due today**, or **due within 3 days** (`scheduledStatus` `soon`), and its **title matches a chore preset** (case-insensitive).
+- Shown when a scheduled chore is **overdue**, **due today**, or **due within 3 days** (`scheduledStatus` `soon`), and its **title matches a chore preset** (exact case-insensitive, or close fuzzy match via `presetMatchingScheduledTitle` — e.g. “Wipe …” vs “Wiped …”).
 - Renders under “Log a chore”, above Quick log. Tap fills `#inChore` (and per-location selects like quick log); user picks person/date and **Add**. Does **not** call scheduled “complete” API — use Scheduled dashboard **Mark done** to reset the timer.
 
 ---
@@ -132,15 +135,11 @@
 - Custom chore suggestions.
 - Presets + quick bar: CRUD, scoring modes, persist via `/api/settings`.
 - Log edit/delete; **log text filter** (current month list only).
-- Scheduled chores: due states, complete/remove; **log form suggestions** when due + preset title match.
+- Scheduled chores: due states, complete/remove, editable **start date**, plus log-form suggestions when due + preset title match.
 - Analytics: task-count and preset-points metrics; heatmap; **person + location filters** (stats/bars/heatmap/MoM); import/export; theme + PWA.
 
 ## Future ideas (implementation-oriented)
 
-- Preset categories/tags in analytics UI.
-- Duplicate detection on import merge.
-- Undo/redo stack for edits/deletes.
-- Bulk log mode.
 - History/audit metadata on entries.
 - Soft delete/archive presets.
 - Fuzzy search for multi-segment chore input.

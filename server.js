@@ -3,6 +3,8 @@ const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 
+const pkg = require('./package.json');
+
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'chores.json');
@@ -288,6 +290,81 @@ function normalizeScheduledChores(arr) {
   return out;
 }
 
+/** Calendar helpers for scheduled chores (aligned with `js/utils/date.js`). */
+function addDaysIso(isoDate, n) {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + n);
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+  return `${dt.getFullYear()}-${mm}-${dd}`;
+}
+
+function scheduledStartsOnCalendar(s) {
+  if (s.startsOn && /^\d{4}-\d{2}-\d{2}$/.test(String(s.startsOn))) return String(s.startsOn);
+  const ca = s.createdAt;
+  if (typeof ca === 'string') {
+    const t = ca.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+    if (t.includes('T')) return localCalendarDateISO();
+  }
+  return localCalendarDateISO();
+}
+
+function nextDueDateScheduled(s) {
+  const anchor = s.lastCompletedAt || scheduledStartsOnCalendar(s);
+  return addDaysIso(anchor, s.intervalDays);
+}
+
+/** YYYY-MM-DD → locale medium date for Discord (matches client “Due Mon D, YYYY” style). */
+function formatCalendarDateHuman(isoDate) {
+  if (!isoDate || typeof isoDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+    return String(isoDate || '').trim() || '—';
+  }
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function isDiscordWebhookUrl(url) {
+  return (
+    typeof url === 'string' &&
+    /^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\/[^?\s#]+$/i.test(url.trim())
+  );
+}
+
+function normalizeDiscordWebhook(raw) {
+  const defaults = { enabled: false, url: '', reminderIntervalMinutes: 1440 };
+  if (!raw || typeof raw !== 'object') return { ...defaults };
+  const enabled = Boolean(raw.enabled);
+  let url = typeof raw.url === 'string' ? raw.url.trim() : '';
+  if (url && !isDiscordWebhookUrl(url)) url = '';
+  let reminderIntervalMinutes = Number(raw.reminderIntervalMinutes);
+  if (!Number.isFinite(reminderIntervalMinutes)) reminderIntervalMinutes = defaults.reminderIntervalMinutes;
+  reminderIntervalMinutes = Math.min(10080, Math.max(15, Math.round(reminderIntervalMinutes)));
+  return { enabled, url, reminderIntervalMinutes };
+}
+
+function normalizeDiscordReminderSentAt(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [k, v] of Object.entries(raw)) {
+    if (typeof k === 'string' && k.length > 0 && typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+function pruneDiscordReminderSentAt(sentMap, scheduledIds) {
+  const set = new Set(scheduledIds);
+  const out = {};
+  for (const [k, v] of Object.entries(sentMap)) {
+    if (set.has(k)) out[k] = v;
+  }
+  return out;
+}
+
 function normalizeStore(raw) {
   const rawEntries = Array.isArray(raw.entries) ? raw.entries : [];
   const people = normalizePeople(raw.people);
@@ -313,7 +390,22 @@ function normalizeStore(raw) {
     return { ...e, locationIds: validLocationIds };
   });
   entries = entries.filter((e) => e.c && e.d && e.p);
-  return { entries, people, locations, scheduledChores, chorePresets, quickChoreIds };
+  const discordWebhook = normalizeDiscordWebhook(raw.discordWebhook);
+  let discordReminderSentAt = normalizeDiscordReminderSentAt(raw.discordReminderSentAt);
+  discordReminderSentAt = pruneDiscordReminderSentAt(
+    discordReminderSentAt,
+    scheduledChores.map((s) => s.id),
+  );
+  return {
+    entries,
+    people,
+    locations,
+    scheduledChores,
+    chorePresets,
+    quickChoreIds,
+    discordWebhook,
+    discordReminderSentAt,
+  };
 }
 
 async function readStore() {
@@ -409,6 +501,7 @@ function verifyAuthCookie(cookieHeader) {
 function requireApiAuth(req, res, next) {
   if (!req.path.startsWith('/api')) return next();
   if (req.method === 'GET' && req.path === '/api/auth') return next();
+  if (req.method === 'GET' && req.path === '/api/version') return next();
   if (req.method === 'POST' && req.path === '/api/login') return next();
   if (req.method === 'POST' && req.path === '/api/logout') return next();
   if (!verifyAuthCookie(req.headers.cookie)) {
@@ -424,6 +517,10 @@ app.get('/api/auth', (req, res) => {
     return res.status(401).json({ authenticated: false });
   }
   res.json({ authenticated: true });
+});
+
+app.get('/api/version', (req, res) => {
+  res.json({ version: pkg.version });
 });
 
 app.post('/api/login', (req, res) => {
@@ -459,6 +556,7 @@ app.get('/api/entries', async (req, res) => {
       scheduledChores: store.scheduledChores || [],
       chorePresets: store.chorePresets || [],
       quickChoreIds: store.quickChoreIds || [],
+      discordWebhook: store.discordWebhook || normalizeDiscordWebhook(null),
     });
   } catch (e) {
     console.error(e);
@@ -513,6 +611,13 @@ app.put('/api/scheduled-chores/:id', async (req, res) => {
       let n = Number(req.body.intervalDays);
       if (Number.isFinite(n) && n >= 1 && n <= 3650) list[idx].intervalDays = n;
     }
+    if (req.body.startsOn != null) {
+      const nextStart = parseCalendarDateParam(req.body.startsOn);
+      if (!nextStart) {
+        return res.status(400).json({ error: 'startsOn must be YYYY-MM-DD calendar date' });
+      }
+      list[idx].startsOn = nextStart;
+    }
     list[idx].updatedAt = nowISO();
     store.scheduledChores = list;
     await writeStore(store);
@@ -531,6 +636,9 @@ app.delete('/api/scheduled-chores/:id', async (req, res) => {
     const next = list.filter((s) => s.id !== id);
     if (next.length === list.length) return res.status(404).json({ error: 'Not found' });
     store.scheduledChores = next;
+    if (store.discordReminderSentAt && store.discordReminderSentAt[id]) {
+      delete store.discordReminderSentAt[id];
+    }
     await writeStore(store);
     res.status(204).end();
   } catch (e) {
@@ -574,6 +682,9 @@ app.post('/api/scheduled-chores/:id/complete', async (req, res) => {
       createdAt: entryTs,
       updatedAt: entryTs,
     });
+    if (store.discordReminderSentAt && store.discordReminderSentAt[id]) {
+      delete store.discordReminderSentAt[id];
+    }
     await writeStore(store);
     res.json({
       scheduledChores: store.scheduledChores,
@@ -618,16 +729,167 @@ app.put('/api/settings', async (req, res) => {
     if (body.quickChoreIds != null) {
       store.quickChoreIds = normalizeQuickChoreIds(body.quickChoreIds, store.chorePresets || []);
     }
+    if (body.discordWebhook != null) {
+      store.discordWebhook = normalizeDiscordWebhook(body.discordWebhook);
+    }
     await writeStore(store);
     res.json({
       people: store.people,
       locations: store.locations,
       chorePresets: store.chorePresets,
       quickChoreIds: store.quickChoreIds,
+      discordWebhook: store.discordWebhook || normalizeDiscordWebhook(null),
     });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to save settings' });
+  }
+});
+
+async function postDiscordWebhook(url, payload) {
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return r.ok || r.status === 204;
+  } catch (e) {
+    console.error('Discord webhook:', e.message || e);
+    return false;
+  }
+}
+
+async function sendDiscordTestMessage(url) {
+  return postDiscordWebhook(url, {
+    embeds: [
+      {
+        title: 'Chorelog',
+        description: 'Test notification — webhook is configured correctly.',
+        color: 0x1d9e75,
+      },
+    ],
+  });
+}
+
+async function sendDiscordOverdueMessage(url, chore, nextDue, today) {
+  const daysPast = Math.floor(
+    (new Date(`${today}T12:00:00`).getTime() - new Date(`${nextDue}T12:00:00`).getTime()) / 864e5,
+  );
+  const title = String(chore.title || 'Chore').replace(/\*/g, '');
+  const dueWhen = formatCalendarDateHuman(nextDue);
+  return postDiscordWebhook(url, {
+    embeds: [
+      {
+        title: 'Scheduled chore overdue',
+        description: `**${title}** was due **${dueWhen}** (${daysPast} day${daysPast === 1 ? '' : 's'} overdue).`,
+        color: 0xe24b4a,
+      },
+    ],
+  });
+}
+
+async function sendDiscordOverdueDigest(url, chores, today) {
+  const lines = chores.map((s) => {
+    const next = nextDueDateScheduled(s);
+    const daysPast = Math.floor(
+      (new Date(`${today}T12:00:00`).getTime() - new Date(`${next}T12:00:00`).getTime()) / 864e5,
+    );
+    const title = String(s.title || 'Chore').replace(/\*/g, '');
+    const dueWhen = formatCalendarDateHuman(next);
+    return `• **${title}** — due ${dueWhen} (${daysPast}d overdue)`;
+  });
+  const desc = lines.join('\n').slice(0, 3900);
+  return postDiscordWebhook(url, {
+    content: `**${chores.length} overdue scheduled chore(s)**`,
+    embeds: [{ description: desc, color: 0xe24b4a }],
+  });
+}
+
+let discordReminderJobRunning = false;
+async function runDiscordReminders() {
+  if (discordReminderJobRunning) return;
+  discordReminderJobRunning = true;
+  try {
+    const store = await readStore();
+    const w = store.discordWebhook;
+    if (!w || !w.enabled || !w.url) return;
+
+    const today = localCalendarDateISO();
+    const intervalMs = w.reminderIntervalMinutes * 60 * 1000;
+    const now = Date.now();
+    const list = store.scheduledChores || [];
+    let sentMap = { ...store.discordReminderSentAt };
+    let changed = false;
+
+    for (const s of list) {
+      const next = nextDueDateScheduled(s);
+      if (next >= today) {
+        if (sentMap[s.id]) {
+          delete sentMap[s.id];
+          changed = true;
+        }
+        continue;
+      }
+      const last = sentMap[s.id] ? Date.parse(sentMap[s.id]) : 0;
+      if (last && now - last < intervalMs) continue;
+
+      const ok = await sendDiscordOverdueMessage(w.url, s, next, today);
+      if (ok) {
+        sentMap[s.id] = new Date().toISOString();
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      store.discordReminderSentAt = sentMap;
+      await writeStore(store);
+    }
+  } catch (e) {
+    console.error('Discord reminders:', e);
+  } finally {
+    discordReminderJobRunning = false;
+  }
+}
+
+app.post('/api/discord-webhook/test', async (req, res) => {
+  try {
+    const store = await readStore();
+    const fromBody = req.body && typeof req.body.url === 'string' ? req.body.url.trim() : '';
+    const url = fromBody || (store.discordWebhook && store.discordWebhook.url);
+    if (!url || !isDiscordWebhookUrl(url)) {
+      return res.status(400).json({ error: 'Enter a valid Discord webhook URL' });
+    }
+    const ok = await sendDiscordTestMessage(url);
+    if (!ok) {
+      return res.status(502).json({ error: 'Discord did not accept the webhook (check URL)' });
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Test failed' });
+  }
+});
+
+app.post('/api/discord-webhook/remind-now', async (req, res) => {
+  try {
+    const store = await readStore();
+    const w = store.discordWebhook;
+    const url = w && w.url;
+    if (!url || !isDiscordWebhookUrl(url)) {
+      return res.status(400).json({ error: 'Save a valid Discord webhook URL first' });
+    }
+    const today = localCalendarDateISO();
+    const overdue = (store.scheduledChores || []).filter((s) => nextDueDateScheduled(s) < today);
+    if (!overdue.length) {
+      return res.json({ ok: true, sent: 0, message: 'No overdue scheduled chores' });
+    }
+    const ok = await sendDiscordOverdueDigest(url, overdue, today);
+    if (!ok) return res.status(502).json({ error: 'Discord did not accept the webhook' });
+    res.json({ ok: true, sent: overdue.length });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to send' });
   }
 });
 
@@ -644,6 +906,7 @@ app.get('/api/export', async (req, res) => {
       scheduledChores: store.scheduledChores || [],
       chorePresets: store.chorePresets || [],
       quickChoreIds: store.quickChoreIds || [],
+      discordWebhook: store.discordWebhook || normalizeDiscordWebhook(null),
     };
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', 'attachment; filename="chorelog-backup.json"');
@@ -713,6 +976,10 @@ app.post('/api/import', async (req, res) => {
         store.chorePresets = defaultChorePresets();
         store.quickChoreIds = store.chorePresets.slice(0, 6).map((x) => x.id);
       }
+      store.discordReminderSentAt = {};
+      store.discordWebhook = normalizeDiscordWebhook(
+        body.discordWebhook != null ? body.discordWebhook : null,
+      );
     } else {
       const peopleSet = new Set(store.people);
       incomingPeople.forEach((p) => peopleSet.add(p));
@@ -758,6 +1025,7 @@ app.post('/api/import', async (req, res) => {
       scheduledChores: store.scheduledChores || [],
       chorePresets: store.chorePresets || [],
       quickChoreIds: store.quickChoreIds || [],
+      discordWebhook: store.discordWebhook || normalizeDiscordWebhook(null),
     });
   } catch (e) {
     console.error(e);
@@ -904,6 +1172,10 @@ app.get('/favicon.ico', (req, res) => {
 });
 
 app.use(express.static(__dirname));
+
+setInterval(() => {
+  runDiscordReminders().catch((e) => console.error(e));
+}, 60 * 1000);
 
 app.listen(PORT, () => {
   console.log(`Chore tracker: http://127.0.0.1:${PORT}/`);

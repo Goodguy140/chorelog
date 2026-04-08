@@ -919,22 +919,22 @@
     {
       "id": "da9bd6ed-eab7-498a-8fea-0dca0d6483d9",
       "d": "2026-04-03",
-      "c": "Wiped kitchen table",
+      "c": "Wiped Kitchen Table",
       "p": "Christian",
-      "choreId": null,
+      "choreId": "3eaf4845-d63a-4375-8cc7-65de572e26d2",
       "locationIds": [],
       "createdAt": "2026-04-03T12:00:00.000Z",
-      "updatedAt": "2026-04-03T12:00:00.000Z"
+      "updatedAt": "2026-04-08T22:15:26.970Z"
     },
     {
       "id": "9fcf4cc8-afdb-4cf4-9889-f89bd3feee15",
       "d": "2026-04-03",
-      "c": "Replaced garbage & can bag",
+      "c": "Replace Garbage & Can Bags",
       "p": "Christian",
-      "choreId": null,
+      "choreId": "9367bad0-d8e3-4d74-8069-c53e16c7f114",
       "locationIds": [],
       "createdAt": "2026-04-03T12:00:00.000Z",
-      "updatedAt": "2026-04-03T12:00:00.000Z"
+      "updatedAt": "2026-04-08T22:15:44.507Z"
     },
     {
       "id": "e84f09dc-4930-4721-b36c-2e1644d8f726",
@@ -999,6 +999,21 @@
       "locationIds": [],
       "createdAt": "2026-04-07T22:03:29.515Z",
       "updatedAt": "2026-04-07T22:03:29.515Z"
+    },
+    {
+      "id": "5cd08d56-d88b-4348-b9f5-706dadcc1e9b",
+      "d": "2026-04-08",
+      "c": "Swept",
+      "p": "Christian",
+      "choreId": "865fc716-fafd-404f-ac2b-af417e92051f",
+      "locationIds": [
+        "Upstairs",
+        "Stairs",
+        "Hallway",
+        "Kitchen"
+      ],
+      "createdAt": "2026-04-08T22:11:55.990Z",
+      "updatedAt": "2026-04-08T22:11:55.990Z"
     }
   ],
   "people": [
@@ -1019,13 +1034,22 @@
   ],
   "scheduledChores": [
     {
-      "id": "f539e3be-ac06-4982-9fee-0e203f9deda9",
+      "id": "ffcc26d5-782e-460d-ae10-4f9e04047d76",
       "title": "Wipe common surfaces",
-      "intervalDays": 30,
-      "startsOn": "2026-04-03",
+      "intervalDays": 21,
+      "startsOn": "2026-03-03",
       "lastCompletedAt": null,
-      "createdAt": "2026-04-03T12:00:00.000Z",
-      "updatedAt": "2026-04-03T12:00:00.000Z"
+      "createdAt": "2026-04-08T22:34:12.255Z",
+      "updatedAt": "2026-04-08T22:34:17.458Z"
+    },
+    {
+      "id": "27c4728b-baa9-4456-9b75-723c19138a97",
+      "title": "Cleaned Bathroom",
+      "intervalDays": 14,
+      "startsOn": "2026-03-29",
+      "lastCompletedAt": null,
+      "createdAt": "2026-04-08T23:24:39.631Z",
+      "updatedAt": "2026-04-08T23:24:49.594Z"
     }
   ],
   "chorePresets": [
@@ -1039,7 +1063,7 @@
     {
       "id": "8e719c68-d5ad-464c-9414-8711972ce813",
       "title": "Garbage out",
-      "points": 8,
+      "points": 6,
       "color": "#d85a30",
       "scoringMode": "flat"
     },
@@ -1052,15 +1076,15 @@
     },
     {
       "id": "73988b6f-896d-4f0d-8de3-d079ac61223f",
-      "title": "Wiped common surfaces",
+      "title": "Wipe common surfaces",
       "points": 1,
       "color": "#1d9e75",
       "scoringMode": "flat"
     },
     {
       "id": "57cb8e24-6803-4170-85fc-11f7abaa02fc",
-      "title": "Bathroom",
-      "points": 8,
+      "title": "Cleaned Bathroom (w/o grout)",
+      "points": 4,
       "color": "#d8a530",
       "scoringMode": "flat"
     },
@@ -1091,7 +1115,62 @@
       "points": 1,
       "color": "#6300ff",
       "scoringMode": "per_location"
+    },
+    {
+      "id": "54b2107c-3f18-4cd4-aa36-076a4fc86c15",
+      "title": "Replace Garbage Bag",
+      "points": 1,
+      "color": "#378add",
+      "scoringMode": "flat"
+    },
+    {
+      "id": "01d86148-8b09-47c7-9f89-d6c446dbd882",
+      "title": "Replace Can Bag",
+      "points": 1,
+      "color": "#378add",
+      "scoringMode": "flat"
+    },
+    {
+      "id": "9367bad0-d8e3-4d74-8069-c53e16c7f114",
+      "title": "Replace Garbage & Can Bags",
+      "points": 2,
+      "color": "#378add",
+      "scoringMode": "flat"
+    },
+    {
+      "id": "3b676ef2-56df-4220-a5a2-f68a3043c6dd",
+      "title": "Replace Cardboard",
+      "points": 1,
+      "color": "#378add",
+      "scoringMode": "flat"
+    },
+    {
+      "id": "60c91882-57ba-4f11-8b30-3a00e4beae07",
+      "title": "Take out Cardboard",
+      "points": 6,
+      "color": "#378add",
+      "scoringMode": "flat"
+    },
+    {
+      "id": "3eaf4845-d63a-4375-8cc7-65de572e26d2",
+      "title": "Wiped Kitchen Table",
+      "points": 1,
+      "color": "#378add",
+      "scoringMode": "flat"
+    },
+    {
+      "id": "aab7e25b-2c18-4624-87ab-2e88cfd2ff3f",
+      "title": "Cleaned Bathroom",
+      "points": 8,
+      "color": "#378add",
+      "scoringMode": "flat"
     }
   ],
-  "quickChoreIds": []
+  "quickChoreIds": [],
+  "discordWebhook": {
+    "enabled": false,
+    "url": "https://discord.com/api/webhooks/1491566176998785226/VyWCVD2Op30LzJyS13xlaKIXv_2gv4_3nS5qRWTbSCiCJMeUF7OzkrXZJTDMYjlEJfdU",
+    "reminderIntervalMinutes": 1440
+  },
+  "discordReminderSentAt": {}
 }

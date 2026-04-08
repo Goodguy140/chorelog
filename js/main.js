@@ -17,6 +17,28 @@ import { escapeHtml } from './utils/html.js';
 import { intervalLabel, scheduledStatus } from './scheduled-logic.js';
 import { initChoreInputSuggest } from './chore-input-suggest.js';
 
+async function loadAppVersion() {
+  try {
+    const r = await fetch('/api/version', { credentials: 'same-origin' });
+    if (!r.ok) return;
+    const data = await r.json();
+    const v = data && typeof data.version === 'string' ? data.version.trim() : '';
+    if (!v) return;
+    const label = `Version ${v}`;
+    const settingsEl = document.getElementById('settingsAppVersion');
+    const footerEl = document.getElementById('footerAppVersion');
+    const footerWrap = document.getElementById('footerAppVersionWrap');
+    if (settingsEl) {
+      settingsEl.textContent = label;
+      settingsEl.hidden = false;
+    }
+    if (footerEl) footerEl.textContent = label;
+    if (footerWrap) footerWrap.hidden = false;
+  } catch {
+    /* ignore */
+  }
+}
+
 function syncThemeMeta() {
   const el = document.getElementById('metaThemeColor');
   if (!el) return;
@@ -221,6 +243,11 @@ async function load() {
     app.chorePresets = Array.isArray(data.chorePresets) ? data.chorePresets : [];
     app.quickChoreIds = Array.isArray(data.quickChoreIds) ? data.quickChoreIds : [];
     app.scheduledChores = Array.isArray(data.scheduledChores) ? data.scheduledChores : [];
+    app.discordWebhook = data.discordWebhook || {
+      enabled: false,
+      url: '',
+      reminderIntervalMinutes: 1440,
+    };
     syncPersonSelect();
     syncLocationSelect();
     syncChoreDatalists();
@@ -231,6 +258,7 @@ async function load() {
     app.chorePresets = [];
     app.quickChoreIds = [];
     app.scheduledChores = [];
+    app.discordWebhook = { enabled: false, url: '', reminderIntervalMinutes: 1440 };
     syncPersonSelect();
     syncLocationSelect();
     syncChoreDatalists();
@@ -463,8 +491,17 @@ function renderScheduledManageList() {
     .map((s) => {
       const st = scheduledStatus(s);
       const safeId = String(s.id).replace(/'/g, "\\'");
+      const domKey = String(s.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const startInputId = `scheduledStart_${domKey}`;
       return `<li>
-  <span>${escapeHtml(s.title)} · ${intervalLabel(s.intervalDays)} · <span class="scheduled-status ${st.cls}" style="display:inline;padding:2px 8px;">${st.label}</span></span>
+  <div class="scheduled-manage-main">
+    <span>${escapeHtml(s.title)} · ${intervalLabel(s.intervalDays)} · <span class="scheduled-status ${st.cls}" style="display:inline;padding:2px 8px;">${st.label}</span></span>
+    <div class="scheduled-start-edit">
+      <label for="${startInputId}">Start date</label>
+      <input id="${startInputId}" type="date" value="${escapeHtml(s.startsOn || '')}" aria-label="Start date for ${escapeHtml(s.title)}">
+      <button type="button" onclick="saveScheduledStartDate('${safeId}','${domKey}')">Save start</button>
+    </div>
+  </div>
   <div class="scheduled-manage-actions">
     <button type="button" onclick="markScheduledDone('${safeId}')">Mark done</button>
     <button type="button" class="scheduled-btn-danger" onclick="deleteScheduledChore('${safeId}')">Remove</button>
@@ -521,6 +558,30 @@ function markScheduledDone(id) {
   openScheduledCompleteDialog(id);
 }
 
+async function saveScheduledStartDate(id, domKey) {
+  const input = document.getElementById(`scheduledStart_${domKey}`);
+  const startsOn = input ? input.value : '';
+  if (!startsOn) {
+    app.loadError = 'Choose a valid start date (YYYY-MM-DD).';
+    render();
+    return;
+  }
+  try {
+    const r = await apiFetch(`/api/scheduled-chores/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ startsOn }),
+    });
+    if (!r.ok) throw new Error();
+    await load();
+    render();
+    renderScheduledManageList();
+  } catch {
+    app.loadError = 'Could not update scheduled chore start date.';
+    render();
+  }
+}
+
 async function deleteScheduledChore(id) {
   if (!confirm('Remove this scheduled chore?')) return;
   try {
@@ -563,6 +624,88 @@ async function bootstrap() {
   }
 }
 
+function syncDiscordWebhookForm() {
+  const w = app.discordWebhook || { enabled: false, url: '', reminderIntervalMinutes: 1440 };
+  const en = document.getElementById('discordWebhookEnabled');
+  const urlEl = document.getElementById('discordWebhookUrl');
+  const intervalEl = document.getElementById('discordReminderInterval');
+  const status = document.getElementById('discordWebhookStatus');
+  if (en) en.checked = Boolean(w.enabled);
+  if (urlEl) urlEl.value = typeof w.url === 'string' ? w.url : '';
+  if (intervalEl) {
+    const m = Number(w.reminderIntervalMinutes);
+    const v = Number.isFinite(m) ? String(m) : '1440';
+    intervalEl.value = [...intervalEl.options].some((o) => o.value === v) ? v : '1440';
+  }
+  if (status) {
+    status.textContent = '';
+    status.hidden = true;
+    status.style.color = '';
+  }
+}
+
+function setDiscordStatus(msg, isError) {
+  const status = document.getElementById('discordWebhookStatus');
+  if (!status) return;
+  status.textContent = msg || '';
+  status.hidden = !msg;
+  status.style.color = isError ? '#E24B4A' : '';
+}
+
+async function saveDiscordWebhookSettings() {
+  const enabled = document.getElementById('discordWebhookEnabled')?.checked;
+  const url = document.getElementById('discordWebhookUrl')?.value.trim() ?? '';
+  const reminderIntervalMinutes = Number(document.getElementById('discordReminderInterval')?.value);
+  try {
+    const r = await apiFetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ discordWebhook: { enabled, url, reminderIntervalMinutes } }),
+    });
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+    app.discordWebhook = data.discordWebhook;
+    syncDiscordWebhookForm();
+    setDiscordStatus('Discord settings saved.', false);
+  } catch {
+    setDiscordStatus('Could not save Discord settings.', true);
+  }
+}
+
+async function testDiscordWebhook() {
+  const url =
+    document.getElementById('discordWebhookUrl')?.value.trim() || app.discordWebhook?.url || '';
+  try {
+    const r = await apiFetch('/api/discord-webhook/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Request failed');
+    setDiscordStatus('Test message sent. Check your Discord channel.', false);
+  } catch {
+    setDiscordStatus('Test failed. Check the webhook URL and try again.', true);
+  }
+}
+
+async function discordRemindOverdueNow() {
+  try {
+    const r = await apiFetch('/api/discord-webhook/remind-now', { method: 'POST' });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Request failed');
+    if (data.sent === 0) {
+      setDiscordStatus(data.message || 'No overdue scheduled chores.', false);
+    } else {
+      setDiscordStatus(`Posted ${data.sent} overdue chore(s) to Discord.`, false);
+    }
+  } catch {
+    setDiscordStatus('Could not post to Discord. Save a valid webhook URL first.', true);
+  }
+}
+
+loadAppVersion();
+
 applyTheme(localStorage.getItem('chorelog-theme') || 'system');
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
   if (document.documentElement.getAttribute('data-theme') === 'system') syncThemeMeta();
@@ -578,6 +721,7 @@ document.getElementById('btnSettings').addEventListener('click', () => {
   renderLocationsEditor();
   renderChorePresetsEditor();
   renderQuickChoresEditor();
+  syncDiscordWebhookForm();
   const mode = localStorage.getItem('chorelog-theme') || 'system';
   document.querySelectorAll('#themeOptions input[name="theme"]').forEach((el) => {
     el.checked = el.value === mode;
@@ -607,6 +751,10 @@ document.getElementById('newLocationName').addEventListener('keydown', (e) => {
     addLocation();
   }
 });
+
+document.getElementById('btnSaveDiscordWebhook').addEventListener('click', () => saveDiscordWebhookSettings());
+document.getElementById('btnTestDiscordWebhook').addEventListener('click', () => testDiscordWebhook());
+document.getElementById('btnDiscordRemindNow').addEventListener('click', () => discordRemindOverdueNow());
 
 document.getElementById('btnExport').addEventListener('click', async () => {
   try {
@@ -651,6 +799,7 @@ document.getElementById('importFile').addEventListener('change', async (e) => {
         scheduledChores: data.scheduledChores,
         chorePresets: data.chorePresets,
         quickChoreIds: data.quickChoreIds,
+        discordWebhook: data.discordWebhook,
         mode: merge ? 'merge' : 'replace',
       }),
     });
@@ -940,6 +1089,7 @@ window.delEntry = delEntry;
 window.quickLogChore = quickLogChore;
 window.markScheduledDone = markScheduledDone;
 window.deleteScheduledChore = deleteScheduledChore;
+window.saveScheduledStartDate = saveScheduledStartDate;
 
 bootstrap();
 

@@ -135,6 +135,34 @@
   flex-wrap: wrap;
 }
 
+.scheduled-manage-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.scheduled-start-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.scheduled-start-edit label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.scheduled-start-edit input[type="date"] {
+  padding: 5px 8px;
+  font-size: 12px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+}
+
 .scheduled-manage-list button {
   font-size: 12px;
   padding: 4px 10px;

@@ -368,6 +368,50 @@
   color: #D85A30;
 }
 
+/* Narrow screens: denser analytics stat cards */
+@media (max-width: 896px) {
+  .analytics-stats-row {
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .analytics-stats-col .analytics-block-label {
+    font-size: 11px;
+    margin-bottom: 0;
+  }
+
+  .stat-grid {
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .stat-card {
+    padding: 0.45rem 0.5rem;
+    border-radius: 6px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+    margin-bottom: 2px;
+    line-height: 1.2;
+  }
+
+  .stat-val {
+    font-size: 16px;
+    line-height: 1.15;
+  }
+
+  .stat-val .stat-unit {
+    font-size: 0.6em;
+  }
+
+  .stat-sub {
+    font-size: 9px;
+    margin-top: 1px;
+    line-height: 1.25;
+  }
+}
+
 @media (max-width: 560px) {
   .analytics-filters {
     flex-direction: column;
@@ -389,6 +433,7 @@
 
   .stat-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 5px;
   }
 
   .mom-grid {

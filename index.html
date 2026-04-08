@@ -167,6 +167,8 @@
         </div>
       </div>
     </div>
+
+    <footer class="app-footer" id="footerAppVersionWrap" hidden><span id="footerAppVersion" class="app-version"></span></footer>
   </div>
 
   <dialog class="settings-dialog" id="settingsDialog" aria-labelledby="settingsTitle">
@@ -220,6 +222,32 @@
         </div>
       </div>
 
+      <div class="discord-webhook-block">
+        <p class="settings-block-title">Discord reminders</p>
+        <p class="settings-hint">When a <strong>scheduled</strong> chore is overdue, the server can POST to a Discord incoming webhook (channel settings → Integrations → Webhooks).</p>
+        <label class="discord-webhook-enable"><input type="checkbox" id="discordWebhookEnabled"> Send overdue reminders automatically</label>
+        <label class="analytics-filter-label" for="discordWebhookUrl">Webhook URL</label>
+        <input type="url" id="discordWebhookUrl" class="discord-webhook-url" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false">
+        <label class="analytics-filter-label" for="discordReminderInterval">Remind again every (same overdue chore)</label>
+        <select id="discordReminderInterval" class="month-select discord-webhook-interval" aria-label="Minimum time between Discord reminders per chore">
+          <option value="15">15 minutes</option>
+          <option value="30">30 minutes</option>
+          <option value="60">1 hour</option>
+          <option value="120">2 hours</option>
+          <option value="360">6 hours</option>
+          <option value="720">12 hours</option>
+          <option value="1440">24 hours</option>
+          <option value="2880">48 hours</option>
+          <option value="10080">7 days</option>
+        </select>
+        <div class="settings-actions discord-webhook-actions">
+          <button type="button" class="btn-secondary" id="btnSaveDiscordWebhook">Save</button>
+          <button type="button" class="btn-secondary" id="btnTestDiscordWebhook">Send test</button>
+          <button type="button" class="btn-secondary" id="btnDiscordRemindNow">Post overdue now</button>
+        </div>
+        <p class="settings-hint discord-webhook-status" id="discordWebhookStatus" hidden role="status"></p>
+      </div>
+
       <div>
         <p class="settings-block-title">Account</p>
         <div class="settings-actions">
@@ -244,6 +272,8 @@
         <button type="button" class="btn-secondary" id="btnOpenScheduledFromSettings">Manage scheduled chores</button>
         <p class="settings-hint" style="margin-top:8px;">Recurring tasks (weekly, every 2 weeks, etc.). Due dates reset only when you mark them done.</p>
       </div>
+
+      <p class="settings-version" id="settingsAppVersion" hidden aria-live="polite"></p>
     </div>
   </dialog>
 
@@ -253,13 +283,14 @@
         <h2 id="scheduledDialogTitle">Scheduled chores</h2>
         <button type="button" class="settings-close" id="scheduledDialogClose" aria-label="Close">&times;</button>
       </div>
-      <p class="settings-hint">Next due is computed from the last time you marked done, or from the created date if never done.</p>
+      <p class="settings-hint">Next due is computed from the last time you marked done, or from the start date if never done. You can edit start date per chore below.</p>
       <form class="scheduled-add-form" id="addScheduledForm">
         <input type="text" name="title" id="scheduledNewTitle" placeholder="Chore name" maxlength="120" required autocomplete="off">
         <select name="intervalDays" id="scheduledNewInterval" aria-label="Interval">
           <option value="1">Every day</option>
           <option value="7" selected>Every week</option>
           <option value="14">Every 2 weeks</option>
+          <option value="21">Every 3 weeks</option>
           <option value="30">Every month (~30 days)</option>
           <option value="60">Every 2 months</option>
           <option value="90">Every 3 months</option>
