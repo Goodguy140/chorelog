@@ -131,6 +131,9 @@ export function renderQuickChoresEditor() {
 export function renderQuickChores() {
   const wrap = document.getElementById('quickChoreButtons');
   if (!wrap) return;
+  const section = wrap.closest('.quick-chores');
+  const hasQuick = app.quickChoreIds.some((id) => presetById(id));
+  if (section) section.hidden = !hasQuick;
   wrap.innerHTML = app.quickChoreIds
     .map((id) => {
       const preset = presetById(id);

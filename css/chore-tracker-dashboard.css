@@ -1,3 +1,15 @@
+.analytics-block-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin: 0 0 8px;
+  letter-spacing: 0.02em;
+}
+
+.stat-grid + .analytics-block-label {
+  margin-top: 14px;
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -60,7 +72,30 @@
 }
 
 .section-pair__item:first-child > .section-title {
-  margin-bottom: 22px;
+  margin-bottom: 10px;
+}
+
+.analytics-bars-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin: 0 0 8px;
+}
+
+.analytics-bars-label + div + .analytics-bars-label {
+  margin-top: 14px;
+}
+
+.mom-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin: 10px 0 8px;
+  letter-spacing: 0.02em;
+}
+
+.section-title + .mom-section-label {
+  margin-top: 4px;
 }
 
 .section {

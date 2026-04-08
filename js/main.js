@@ -346,6 +346,14 @@ async function quickLogChore(presetId) {
   if (!preset) return;
   const el = document.getElementById('inChore');
   if (el) el.value = preset.title;
+  if (preset.scoringMode === 'per_location') {
+    const sel = document.getElementById('inLocations');
+    if (sel && [...sel.selectedOptions].length === 0) {
+      [...sel.options].forEach((o) => {
+        o.selected = true;
+      });
+    }
+  }
   await addEntry();
 }
 

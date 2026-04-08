@@ -295,10 +295,12 @@ function normalizeStore(raw) {
   const scheduledChores = normalizeScheduledChores(raw.scheduledChores);
   let chorePresets = normalizeChorePresets(raw.chorePresets);
   let quickChoreIds = normalizeQuickChoreIds(raw.quickChoreIds, chorePresets);
+  const quickKeyPresent = raw && Object.prototype.hasOwnProperty.call(raw, 'quickChoreIds');
   if (!chorePresets.length) {
     chorePresets = defaultChorePresets();
     quickChoreIds = chorePresets.slice(0, 6).map((x) => x.id);
-  } else if (!quickChoreIds.length) {
+  } else if (!quickChoreIds.length && !quickKeyPresent) {
+    /* Legacy stores without quickChoreIds: default the bar. Explicit [] means user cleared it. */
     quickChoreIds = chorePresets.slice(0, Math.min(6, chorePresets.length)).map((x) => x.id);
   }
   const presetMap = new Map(chorePresets.map((p) => [p.id, p]));
@@ -558,13 +560,17 @@ app.post('/api/scheduled-chores/:id/complete', async (req, res) => {
     chore.updatedAt = nowISO();
     const entryTs = nowISO();
     const matchPreset = (store.chorePresets || []).find((x) => x.title === chore.title);
+    const locationIds =
+      matchPreset && matchPreset.scoringMode === 'per_location'
+        ? [...(store.locations || [])]
+        : [];
     store.entries.push({
       id: newId(),
       d: completedDate,
       c: chore.title,
       p: person,
       choreId: matchPreset ? matchPreset.id : null,
-      locationIds: [],
+      locationIds,
       createdAt: entryTs,
       updatedAt: entryTs,
     });

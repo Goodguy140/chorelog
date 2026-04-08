@@ -87,9 +87,24 @@ function countsByPerson(monthKey) {
   return c;
 }
 
+/** Sum of preset points per person for the month (entries without a preset contribute 0). */
+function pointsByPerson(monthKey) {
+  const c = {};
+  app.people.forEach((p) => {
+    c[p] = 0;
+  });
+  app.entries.filter((e) => getMonthKey(e.d) === monthKey).forEach((e) => {
+    if (c[e.p] === undefined) return;
+    const pts = entryChorePoints(e);
+    if (pts != null) c[e.p] += pts;
+  });
+  return c;
+}
+
 /**
- * 100% = tasks split evenly across everyone; 0% = one person did all tasks this month.
- * Uses (1 − maxShare) / (1 − 1/n) with maxShare = largest person's count / total.
+ * 100% = totals split evenly across everyone; 0% = one person has 100% of the total.
+ * Uses (1 − maxShare) / (1 − 1/n) with maxShare = largest person's share.
+ * Works for task counts or point totals per person.
  */
 function balanceScorePercent(cur, peopleList) {
   const n = peopleList.length;
@@ -128,21 +143,37 @@ function fullRender() {
   else if (monthOptions.length) monthSelect.value = monthOptions[0];
 
   const cur = countsByPerson(app.currentMonth);
+  const curPts = pointsByPerson(app.currentMonth);
   const total = Object.values(cur).reduce((a, b) => a + b, 0);
+  const totalPts = Object.values(curPts).reduce((a, b) => a + b, 0);
   const topPerson = app.people.reduce((a, b) => (cur[a] >= cur[b] ? a : b));
+  const topPersonPts = app.people.reduce((a, b) => (curPts[a] >= curPts[b] ? a : b));
   const activeDays = new Set(
     app.entries.filter((e) => getMonthKey(e.d) === app.currentMonth).map((e) => e.d),
   ).size;
   const balance = balanceScorePercent(cur, app.people);
   const balanceVal = balance.empty ? '—' : `${balance.pct}<span class="stat-unit">%</span>`;
   const balanceSub = balance.empty ? 'log tasks to score' : '100% = fully balanced';
+  const balancePts = balanceScorePercent(curPts, app.people);
+  const balancePtsVal = balancePts.empty ? '—' : `${balancePts.pct}<span class="stat-unit">%</span>`;
+  const balancePtsSub = balancePts.empty ? 'log preset chores to score' : '100% = fully balanced';
+  const avgPtsPerTask =
+    total > 0 ? Math.round((totalPts / total) * 10) / 10 : null;
 
   document.getElementById('statsGrid').innerHTML = `
 <div class="stat-card"><p class="stat-label">Total tasks</p><p class="stat-val">${total}</p><p class="stat-sub">${getMonthLabel(app.currentMonth)}</p></div>
 <div class="stat-card"><p class="stat-label">Most active</p><p class="stat-val" style="font-size:15px;">${topPerson}</p><p class="stat-sub">${cur[topPerson]} tasks</p></div>
 <div class="stat-card"><p class="stat-label">Active days</p><p class="stat-val">${activeDays}</p><p class="stat-sub">days with chores</p></div>
 <div class="stat-card"><p class="stat-label">Members</p><p class="stat-val">${app.people.filter((p) => cur[p] > 0).length}</p><p class="stat-sub">contributed</p></div>
-<div class="stat-card stat-card--balance" title="100% = fully balanced (same share for everyone); 0% = one person did everything."><p class="stat-label">Balance</p><p class="stat-val">${balanceVal}</p><p class="stat-sub">${balanceSub}</p></div>
+<div class="stat-card stat-card--balance" title="By task count: 100% = everyone did the same share; 0% = one person logged every task."><p class="stat-label">Balance</p><p class="stat-val">${balanceVal}</p><p class="stat-sub">${balanceSub}</p></div>
+  `;
+
+  document.getElementById('statsGridPoints').innerHTML = `
+<div class="stat-card"><p class="stat-label">Total points</p><p class="stat-val">${totalPts}</p><p class="stat-sub">${getMonthLabel(app.currentMonth)} · preset weights</p></div>
+<div class="stat-card"><p class="stat-label">Top earner</p><p class="stat-val" style="font-size:15px;">${topPersonPts}</p><p class="stat-sub">${curPts[topPersonPts]} pts</p></div>
+<div class="stat-card"><p class="stat-label">Avg pts / task</p><p class="stat-val">${avgPtsPerTask == null ? '—' : avgPtsPerTask}</p><p class="stat-sub">${total === 0 ? 'no tasks this month' : 'mean over all logged tasks'}</p></div>
+<div class="stat-card"><p class="stat-label">Members</p><p class="stat-val">${app.people.filter((p) => curPts[p] > 0).length}</p><p class="stat-sub">earned preset points</p></div>
+<div class="stat-card stat-card--balance" title="By points: 100% = everyone earned the same share; 0% = one person earned every point."><p class="stat-label">Balance</p><p class="stat-val">${balancePtsVal}</p><p class="stat-sub">${balancePtsSub}</p></div>
   `;
 
   const max = Math.max(...Object.values(cur), 1);
@@ -157,6 +188,22 @@ function fullRender() {
     <span class="count-num">${cur[p]}</span>
   </div>
   <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col.bar};color:${col.text};">${cur[p] > 2 ? `${cur[p]} tasks` : ''}</div></div>
+</div>`;
+    })
+    .join('');
+
+  const maxPts = Math.max(...Object.values(curPts), 1);
+  const sortedPts = [...app.people].sort((a, b) => curPts[b] - curPts[a]);
+  document.getElementById('barsAreaPoints').innerHTML = sortedPts
+    .map((p) => {
+      const pct = Math.round((curPts[p] / maxPts) * 100);
+      const col = colorFor(p);
+      return `<div class="person-row">
+  <div class="person-row-top">
+    <span class="person-label">${p}</span>
+    <span class="count-num">${curPts[p]}</span>
+  </div>
+  <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col.bar};color:${col.text};">${curPts[p] > 2 ? `${curPts[p]} pts` : ''}</div></div>
 </div>`;
     })
     .join('');
@@ -203,7 +250,9 @@ function fullRender() {
   const allMonths = getMonths();
   const prevMonth = allMonths[allMonths.indexOf(app.currentMonth) + 1];
   const prev = prevMonth ? countsByPerson(prevMonth) : null;
+  const prevPts = prevMonth ? pointsByPerson(prevMonth) : null;
   const momGrid = document.getElementById('momGrid');
+  const momGridPoints = document.getElementById('momGridPoints');
   if (prev) {
     momGrid.innerHTML = app.people
       .map((p) => {
@@ -220,9 +269,26 @@ function fullRender() {
         return `<div><p class="mom-name">${p}</p><p class="mom-val">${prev[p]} → ${cur[p]}</p><p class="mom-delta ${cls}" style="font-size:12px;margin-top:3px;">${label}</p></div>`;
       })
       .join('');
+    momGridPoints.innerHTML = app.people
+      .map((p) => {
+        const diff = curPts[p] - prevPts[p];
+        const pct = prevPts[p] > 0 ? Math.round((Math.abs(diff) / prevPts[p]) * 100) : null;
+        const cls = diff > 0 ? 'up' : diff < 0 ? 'down' : '';
+        const arrow = diff > 0 ? '↑' : diff < 0 ? '↓' : '';
+        const label =
+          pct !== null
+            ? `${arrow} ${pct}% vs ${getMonthLabel(prevMonth)}`
+            : diff === 0
+              ? 'No change'
+              : 'New data';
+        return `<div><p class="mom-name">${p}</p><p class="mom-val">${prevPts[p]} → ${curPts[p]}</p><p class="mom-delta ${cls}" style="font-size:12px;margin-top:3px;">${label}</p></div>`;
+      })
+      .join('');
   } else {
-    momGrid.innerHTML =
+    const emptyMom =
       '<p style="font-size:13px;color:var(--color-text-tertiary);grid-column:1/-1;">No previous month to compare.</p>';
+    momGrid.innerHTML = emptyMom;
+    momGridPoints.innerHTML = emptyMom;
   }
 
   const section = document.getElementById('scheduledSection');

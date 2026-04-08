@@ -903,12 +903,18 @@
     {
       "id": "5ad11197-de77-4e62-8a58-5ce33546bd0f",
       "d": "2026-04-03",
-      "c": "Swept upstairs, stairs, hallway, kitchen & back porch",
+      "c": "Swept",
       "p": "Christian",
-      "choreId": null,
-      "locationIds": [],
+      "choreId": "865fc716-fafd-404f-ac2b-af417e92051f",
+      "locationIds": [
+        "Upstairs",
+        "Stairs",
+        "Hallway",
+        "Kitchen",
+        "Back porch"
+      ],
       "createdAt": "2026-04-03T12:00:00.000Z",
-      "updatedAt": "2026-04-03T12:00:00.000Z"
+      "updatedAt": "2026-04-08T17:26:41.635Z"
     },
     {
       "id": "da9bd6ed-eab7-498a-8fea-0dca0d6483d9",
@@ -935,30 +941,30 @@
       "d": "2026-04-03",
       "c": "Dishes",
       "p": "Christian",
-      "choreId": null,
+      "choreId": "85868379-4bfd-4dd3-94c5-1325490f9f3d",
       "locationIds": [],
       "createdAt": "2026-04-03T12:00:00.000Z",
-      "updatedAt": "2026-04-03T12:00:00.000Z"
+      "updatedAt": "2026-04-08T17:27:00.394Z"
     },
     {
       "id": "2b14ebd7-ef97-4798-951d-460bad8d2c67",
       "d": "2026-04-02",
       "c": "Dishes",
       "p": "Dylan",
-      "choreId": null,
+      "choreId": "85868379-4bfd-4dd3-94c5-1325490f9f3d",
       "locationIds": [],
       "createdAt": "2026-04-02T12:00:00.000Z",
-      "updatedAt": "2026-04-02T12:00:00.000Z"
+      "updatedAt": "2026-04-08T17:27:02.892Z"
     },
     {
       "id": "de2b856e-9bb0-4e1d-bb6f-d42937cb25f8",
       "d": "2026-04-04",
-      "c": "Garbage Day",
+      "c": "Garbage out",
       "p": "Rachel",
-      "choreId": null,
+      "choreId": "8e719c68-d5ad-464c-9414-8711972ce813",
       "locationIds": [],
       "createdAt": "2026-04-04T12:00:00.000Z",
-      "updatedAt": "2026-04-04T12:00:00.000Z"
+      "updatedAt": "2026-04-08T17:26:25.276Z"
     },
     {
       "id": "ddad2e82-c073-417c-8d86-024feb116215",
@@ -978,9 +984,11 @@
       "c": "Tidied",
       "p": "Rachel",
       "choreId": "120328a2-30ae-4ff5-8861-7b330ededb0d",
-      "locationIds": [],
+      "locationIds": [
+        "Living room"
+      ],
       "createdAt": "2026-04-07T22:03:05.444Z",
-      "updatedAt": "2026-04-08T17:18:27.654Z"
+      "updatedAt": "2026-04-08T17:22:17.954Z"
     },
     {
       "id": "89e14097-eb7c-4844-9f7b-c8affa2f6098",
@@ -1085,12 +1093,5 @@
       "scoringMode": "per_location"
     }
   ],
-  "quickChoreIds": [
-    "85868379-4bfd-4dd3-94c5-1325490f9f3d",
-    "8e719c68-d5ad-464c-9414-8711972ce813",
-    "911ecbd5-15ed-4418-a277-b5176b643f3d",
-    "73988b6f-896d-4f0d-8de3-d079ac61223f",
-    "57cb8e24-6803-4170-85fc-11f7abaa02fc",
-    "865fc716-fafd-404f-ac2b-af417e92051f"
-  ]
+  "quickChoreIds": []
 }
