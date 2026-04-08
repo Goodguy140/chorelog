@@ -179,6 +179,18 @@ body {
   overflow-y: auto;
 }
 
+@media (min-width: 700px) {
+  .settings-dialog {
+    width: min(560px, calc(100vw - 2rem));
+    max-height: min(92vh, 780px);
+  }
+
+  .settings-inner {
+    max-height: min(88vh, 720px);
+    padding: 1.15rem 1.25rem 1.25rem;
+  }
+}
+
 .settings-header {
   display: flex;
   align-items: center;

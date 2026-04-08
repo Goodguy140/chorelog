@@ -94,7 +94,8 @@
   }
 }
 
-#inLocations {
+#inLocations,
+#editEntryLocations {
   min-height: 88px;
   height: auto;
 }

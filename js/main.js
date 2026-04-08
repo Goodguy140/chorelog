@@ -135,6 +135,10 @@ async function saveLocationsList(next) {
   if (Array.isArray(data.chorePresets)) app.chorePresets = data.chorePresets;
   if (Array.isArray(data.quickChoreIds)) app.quickChoreIds = data.quickChoreIds;
   syncLocationSelect();
+  if (app.pendingEditEntryId) {
+    const ent = app.entries.find((x) => x.id === app.pendingEditEntryId);
+    if (ent) fillEditEntryLocationSelect(ent.locationIds);
+  }
   renderLocationsEditor();
   renderChorePresetsEditor();
   renderQuickChoresEditor();
@@ -370,6 +374,20 @@ function fillEditEntryPersonSelect() {
   if ([...sel.options].some((o) => o.value === cur)) sel.value = cur;
 }
 
+function fillEditEntryLocationSelect(locationIds) {
+  const sel = document.getElementById('editEntryLocations');
+  if (!sel) return;
+  const selected = new Set(Array.isArray(locationIds) ? locationIds : []);
+  sel.innerHTML = '';
+  app.locations.forEach((name) => {
+    const o = document.createElement('option');
+    o.value = name;
+    o.textContent = name;
+    if (selected.has(name)) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
 function openEditEntry(id) {
   const e = app.entries.find((x) => x.id === id);
   if (!e) return;
@@ -379,6 +397,7 @@ function openEditEntry(id) {
   document.getElementById('editEntryChore').value = e.c;
   fillEditEntryPersonSelect();
   document.getElementById('editEntryPerson').value = e.p;
+  fillEditEntryLocationSelect(e.locationIds);
   document.getElementById('editEntryDialog').showModal();
 }
 
@@ -658,10 +677,24 @@ document.getElementById('editEntryForm').addEventListener('submit', async (e) =>
   const p = document.getElementById('editEntryPerson').value;
   if (!d || !title || !p) return;
   const preset = app.chorePresets.find((x) => x.title.toLowerCase() === title.toLowerCase());
-  const prev = app.entries.find((x) => x.id === id);
-  const body = preset
-    ? { d, p, choreId: preset.id, locationIds: preset.scoringMode === 'per_location' ? (prev?.locationIds || []) : [] }
-    : { d, c: title, p, locationIds: [] };
+  const selectedLocations = [...document.querySelectorAll('#editEntryLocations option:checked')].map(
+    (o) => o.value,
+  );
+  let body;
+  if (preset) {
+    if (preset.scoringMode === 'per_location') {
+      if (!selectedLocations.length) {
+        app.loadError = `Select at least one location for "${preset.title}".`;
+        render();
+        return;
+      }
+      body = { d, p, choreId: preset.id, locationIds: selectedLocations };
+    } else {
+      body = { d, p, choreId: preset.id, locationIds: [] };
+    }
+  } else {
+    body = { d, c: title, p, locationIds: [] };
+  }
   try {
     const r = await apiFetch(`/api/entries/${encodeURIComponent(id)}`, {
       method: 'PUT',
