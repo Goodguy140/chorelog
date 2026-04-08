@@ -217,6 +217,16 @@ select {
   overflow-y: auto;
 }
 
+@media (min-width: 1100px) {
+  .log-list {
+    max-height: min(42vh, 400px);
+  }
+
+  .log-mom-row .log-list {
+    max-height: min(58vh, 560px);
+  }
+}
+
 .log-item {
   display: flex;
   align-items: center;

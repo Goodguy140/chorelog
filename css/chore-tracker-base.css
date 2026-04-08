@@ -9,6 +9,7 @@
 :root {
   --border-radius-md: 8px;
   --border-radius-lg: 12px;
+  --layout-max-width: 820px;
 }
 
 :root[data-theme="light"] {
@@ -69,8 +70,20 @@ body {
 }
 
 .wrap {
-  max-width: 820px;
+  max-width: var(--layout-max-width);
   margin: 0 auto;
+}
+
+@media (min-width: 1100px) {
+  :root {
+    --layout-max-width: min(1200px, calc(100vw - 3rem));
+  }
+}
+
+@media (min-width: 1440px) {
+  :root {
+    --layout-max-width: min(1320px, calc(100vw - 4rem));
+  }
 }
 
 .toast {

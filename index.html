@@ -61,18 +61,30 @@
     </div>
     <p id="loadError" class="empty" style="display:none;margin-bottom:12px;color:#E24B4A;"></p>
 
-    <p class="analytics-block-label">By task count</p>
-    <div class="stat-grid" id="statsGrid"></div>
-    <p class="analytics-block-label">By preset points</p>
-    <div class="stat-grid" id="statsGridPoints"></div>
+    <div class="analytics-stats-row">
+      <div class="analytics-stats-col">
+        <p class="analytics-block-label">By task count</p>
+        <div class="stat-grid" id="statsGrid"></div>
+      </div>
+      <div class="analytics-stats-col">
+        <p class="analytics-block-label">By preset points</p>
+        <div class="stat-grid" id="statsGridPoints"></div>
+      </div>
+    </div>
 
     <div class="section-pair">
       <div class="section section-pair__item">
         <p class="section-title">Contributions this month</p>
-        <p class="analytics-bars-label">Task count</p>
-        <div id="barsArea"></div>
-        <p class="analytics-bars-label">Preset points</p>
-        <div id="barsAreaPoints"></div>
+        <div class="contributions-bars-row">
+          <div class="contributions-bars-col">
+            <p class="analytics-bars-label">Task count</p>
+            <div id="barsArea"></div>
+          </div>
+          <div class="contributions-bars-col">
+            <p class="analytics-bars-label">Preset points</p>
+            <div id="barsAreaPoints"></div>
+          </div>
+        </div>
       </div>
       <div class="section section-pair__item">
         <p class="section-title">Daily activity</p>
@@ -116,17 +128,24 @@
       </div>
     </div>
 
-    <div class="section">
-      <p class="section-title">Log for <span id="logMonthLabel"></span></p>
-      <div class="log-list" id="logList"></div>
-    </div>
-
-    <div class="section">
-      <p class="section-title">Month-over-month</p>
-      <p class="mom-section-label">Task counts</p>
-      <div class="mom-grid" id="momGrid"></div>
-      <p class="mom-section-label">Preset points</p>
-      <div class="mom-grid" id="momGridPoints"></div>
+    <div class="log-mom-row">
+      <div class="section log-mom-col log-mom-col--log">
+        <p class="section-title">Log for <span id="logMonthLabel"></span></p>
+        <div class="log-list" id="logList"></div>
+      </div>
+      <div class="section log-mom-col log-mom-col--mom">
+        <p class="section-title">Month-over-month</p>
+        <div class="mom-pair">
+          <div class="mom-pair-col">
+            <p class="mom-section-label">Task counts</p>
+            <div class="mom-grid" id="momGrid"></div>
+          </div>
+          <div class="mom-pair-col">
+            <p class="mom-section-label">Preset points</p>
+            <div class="mom-grid" id="momGridPoints"></div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
