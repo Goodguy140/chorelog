@@ -13,6 +13,13 @@ export function presetById(id) {
   return app.chorePresets.find((p) => p.id === id);
 }
 
+/** Case-insensitive match of scheduled chore title to a preset (for log suggestions). */
+export function presetMatchingScheduledTitle(scheduledTitle) {
+  const t = String(scheduledTitle).trim().toLowerCase();
+  if (!t) return null;
+  return app.chorePresets.find((p) => p.title.trim().toLowerCase() === t) || null;
+}
+
 export function entryChorePoints(e) {
   if (!e || !e.choreId) return null;
   const pr = presetById(e.choreId);

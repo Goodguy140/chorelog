@@ -61,6 +61,18 @@
     </div>
     <p id="loadError" class="empty" style="display:none;margin-bottom:12px;color:#E24B4A;"></p>
 
+    <div class="analytics-filters" id="analyticsFiltersWrap">
+      <label class="analytics-filter-item">
+        <span class="analytics-filter-label">Person</span>
+        <select id="analyticsPersonFilter" class="month-select analytics-filter-select" aria-label="Filter analytics by person"></select>
+      </label>
+      <label class="analytics-filter-item">
+        <span class="analytics-filter-label">Location</span>
+        <select id="analyticsLocationFilter" class="month-select analytics-filter-select" aria-label="Filter analytics by location"></select>
+      </label>
+    </div>
+    <p id="analyticsFilterHint" class="analytics-filter-hint" hidden></p>
+
     <div class="analytics-stats-row">
       <div class="analytics-stats-col">
         <p class="analytics-block-label">By task count</p>
@@ -120,6 +132,10 @@
           <p class="field-hint">Applied only to chores using per-location points.</p>
         </div>
         <button class="btn-add" onclick="addEntry()">+ Add</button>
+      </div>
+      <div id="scheduledLogSuggestionsWrap" class="scheduled-log-suggestions" hidden>
+        <p class="scheduled-log-suggestions-intro">Scheduled chores due soon or overdue — tap to fill if the title matches a preset.</p>
+        <div class="scheduled-log-suggestions-buttons" id="scheduledLogSuggestions"></div>
       </div>
       <div class="quick-chores">
         <p class="quick-chores-label">Quick log</p>

@@ -1,8 +1,8 @@
 import { render, setRenderRenderer } from './render-registry.js';
 import { app, PALETTE } from './state.js';
-import { getMonthKey, getMonthLabel } from './utils/date.js';
+import { getMonthKey, getMonthLabel, nextDueDate } from './utils/date.js';
 import { escapeAttr, escapeHtml } from './utils/html.js';
-import { entryChorePoints, presetById, renderQuickChores } from './presets.js';
+import { entryChorePoints, presetById, presetMatchingScheduledTitle, renderQuickChores } from './presets.js';
 import { intervalLabel, scheduledStatus } from './scheduled-logic.js';
 
 function colorFor(name) {
@@ -11,10 +11,23 @@ function colorFor(name) {
   return PALETTE[i % PALETTE.length];
 }
 
+function entryMatchesAnalyticsFilters(e) {
+  if (app.analyticsPersonFilter && e.p !== app.analyticsPersonFilter) return false;
+  if (app.analyticsLocationFilter) {
+    const ids = Array.isArray(e.locationIds) ? e.locationIds : [];
+    if (!ids.includes(app.analyticsLocationFilter)) return false;
+  }
+  return true;
+}
+
+/** Entries in `monthKey` that pass analytics person/location filters. */
+function entriesForAnalyticsMonth(monthKey) {
+  return app.entries.filter((e) => getMonthKey(e.d) === monthKey && entryMatchesAnalyticsFilters(e));
+}
+
 function taskCountsByDay(monthKey) {
   const map = {};
-  for (const e of app.entries) {
-    if (getMonthKey(e.d) !== monthKey) continue;
+  for (const e of entriesForAnalyticsMonth(monthKey)) {
     map[e.d] = (map[e.d] || 0) + 1;
   }
   return map;
@@ -81,9 +94,9 @@ function countsByPerson(monthKey) {
   app.people.forEach((p) => {
     c[p] = 0;
   });
-  app.entries.filter((e) => getMonthKey(e.d) === monthKey).forEach((e) => {
+  for (const e of entriesForAnalyticsMonth(monthKey)) {
     if (c[e.p] !== undefined) c[e.p]++;
-  });
+  }
   return c;
 }
 
@@ -93,11 +106,11 @@ function pointsByPerson(monthKey) {
   app.people.forEach((p) => {
     c[p] = 0;
   });
-  app.entries.filter((e) => getMonthKey(e.d) === monthKey).forEach((e) => {
-    if (c[e.p] === undefined) return;
+  for (const e of entriesForAnalyticsMonth(monthKey)) {
+    if (c[e.p] === undefined) continue;
     const pts = entryChorePoints(e);
     if (pts != null) c[e.p] += pts;
-  });
+  }
   return c;
 }
 
@@ -146,6 +159,50 @@ function fullRender() {
   if (!months.includes(app.currentMonth) && months.length) app.currentMonth = months[0];
   const monthOptions = months.length ? months : [app.currentMonth];
 
+  if (app.analyticsPersonFilter && !app.people.includes(app.analyticsPersonFilter)) {
+    app.analyticsPersonFilter = '';
+  }
+  if (app.analyticsLocationFilter && !app.locations.includes(app.analyticsLocationFilter)) {
+    app.analyticsLocationFilter = '';
+  }
+
+  const personFilterEl = document.getElementById('analyticsPersonFilter');
+  if (personFilterEl) {
+    personFilterEl.innerHTML = `<option value="">All people</option>${app.people
+      .map((p) => `<option value="${escapeAttr(p)}">${escapeHtml(p)}</option>`)
+      .join('')}`;
+    personFilterEl.value = app.analyticsPersonFilter;
+    if (personFilterEl.value !== app.analyticsPersonFilter) app.analyticsPersonFilter = personFilterEl.value;
+  }
+  const locationFilterEl = document.getElementById('analyticsLocationFilter');
+  if (locationFilterEl) {
+    locationFilterEl.innerHTML = `<option value="">All locations</option>${app.locations
+      .map((loc) => `<option value="${escapeAttr(loc)}">${escapeHtml(loc)}</option>`)
+      .join('')}`;
+    locationFilterEl.value = app.analyticsLocationFilter;
+    if (locationFilterEl.value !== app.analyticsLocationFilter) {
+      app.analyticsLocationFilter = locationFilterEl.value;
+    }
+  }
+
+  const filterHintEl = document.getElementById('analyticsFilterHint');
+  if (filterHintEl) {
+    const parts = [];
+    if (app.analyticsPersonFilter) {
+      parts.push(`Person: ${escapeHtml(app.analyticsPersonFilter)}`);
+    }
+    if (app.analyticsLocationFilter) {
+      parts.push(`Location: ${escapeHtml(app.analyticsLocationFilter)}`);
+    }
+    if (parts.length) {
+      filterHintEl.hidden = false;
+      filterHintEl.textContent = `Showing analytics for ${parts.join(' · ')}.`;
+    } else {
+      filterHintEl.hidden = true;
+      filterHintEl.textContent = '';
+    }
+  }
+
   const monthSelect = document.getElementById('monthSelect');
   monthSelect.innerHTML = monthOptions
     .map((m) => `<option value="${m}">${getMonthLabel(m)}</option>`)
@@ -159,9 +216,7 @@ function fullRender() {
   const totalPts = Object.values(curPts).reduce((a, b) => a + b, 0);
   const topPerson = app.people.reduce((a, b) => (cur[a] >= cur[b] ? a : b));
   const topPersonPts = app.people.reduce((a, b) => (curPts[a] >= curPts[b] ? a : b));
-  const activeDays = new Set(
-    app.entries.filter((e) => getMonthKey(e.d) === app.currentMonth).map((e) => e.d),
-  ).size;
+  const activeDays = new Set(entriesForAnalyticsMonth(app.currentMonth).map((e) => e.d)).size;
   const balance = balanceScorePercent(cur, app.people);
   const balanceVal = balance.empty ? '—' : `${balance.pct}<span class="stat-unit">%</span>`;
   const balanceSub = balance.empty ? 'log tasks to score' : '100% = fully balanced';
@@ -329,6 +384,37 @@ function fullRender() {
 </div>`;
       })
       .join('');
+  }
+
+  const schedSuggestBox = document.getElementById('scheduledLogSuggestions');
+  const schedSuggestWrap = document.getElementById('scheduledLogSuggestionsWrap');
+  if (schedSuggestBox && schedSuggestWrap) {
+    const urgent = app.scheduledChores
+      .map((s) => {
+        const st = scheduledStatus(s);
+        const preset = presetMatchingScheduledTitle(s.title);
+        return { s, st, preset };
+      })
+      .filter(
+        ({ st, preset }) =>
+          preset && (st.cls === 'overdue' || st.cls === 'today' || st.cls === 'soon'),
+      )
+      .sort((a, b) => nextDueDate(a.s).localeCompare(nextDueDate(b.s)));
+    if (!urgent.length) {
+      schedSuggestWrap.hidden = true;
+      schedSuggestBox.innerHTML = '';
+    } else {
+      schedSuggestWrap.hidden = false;
+      schedSuggestBox.innerHTML = urgent
+        .map(({ s, st, preset }) => {
+          const tip = `${s.title} — ${st.label}`;
+          return `<button type="button" class="scheduled-suggest-btn scheduled-suggest-btn--${st.cls}" data-preset-id="${escapeAttr(preset.id)}" title="${escapeAttr(tip)}">
+  <span class="scheduled-suggest-title">${escapeHtml(s.title)}</span>
+  <span class="scheduled-suggest-meta">${escapeHtml(st.label)}</span>
+</button>`;
+        })
+        .join('');
+    }
   }
 
   renderQuickChores();

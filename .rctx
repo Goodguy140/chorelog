@@ -35,10 +35,10 @@
 - `830` `app.put('/api/entries/:id', ...)` — update entry.
 
 `index.html` — app shell, dialogs, script bootstrap.
-- `64`–`73` `analytics-stats-row` / `statsGrid`, `statsGridPoints`.
-- `75`–`94` `section-pair`: contributions (`barsArea`, `barsAreaPoints`) + heatmap `taskHeatmap`.
-- `102`–`129` log form (`inChore`, `inLocations`, quick log).
-- `131`–`147` `log-mom-row`: **log filter** `#logSearch` (label `log-filter-label`), `#logList`, `momGrid`, `momGridPoints`.
+- `62`–`74` **analytics filters** `#analyticsPersonFilter`, `#analyticsLocationFilter`, hint `#analyticsFilterHint`; then `analytics-stats-row` / `statsGrid`, `statsGridPoints`.
+- `76`–`94` `section-pair`: contributions (`barsArea`, `barsAreaPoints`) + heatmap `taskHeatmap`.
+- `114`–`145` log form: `inChore`, `#scheduledLogSuggestionsWrap` / `#scheduledLogSuggestions` (due soon / overdue, preset title match), `inLocations`, quick log.
+- `147`+ `log-mom-row`: **log filter** `#logSearch`, `#logList`, `momGrid`, `momGridPoints`.
 - (approx.) `<script type="module" src="/js/chore-tracker.js">` at end of body.
 
 `js/chore-tracker.js` — thin entrypoint → `main.js`.
@@ -46,17 +46,21 @@
 `js/main.js` — event wiring, auth/bootstrap, mutations, import/export UI flows.
 - `205` `load()` — fetch entries/settings, populate state.
 - `295` `addEntry()` — main add flow; semicolon payload, posts `/api/entries`.
-- `344` `quickLogChore(presetId)` — per-location presets auto-select all `#inLocations` when empty.
+- `fillChoreFromPreset(presetId)` — sets `#inChore` + per-location locations (shared with quick log).
+- `quickLogChore(presetId)` — `fillChoreFromPreset` then `addEntry()`.
+- `initScheduledLogSuggestions()` — delegated click on `#scheduledLogSuggestions` → fill + focus chore field.
 - `524` `startApp()` — init date field, load, pick month, `render()`.
 - `534` `bootstrap()` — session check + app/login visibility.
-- `773`–`775` `#monthSelect` → `switchMonth` (clears log filter).
-- `777`–`780` `#logSearch` `input` → `app.logSearchQuery`, `render()`.
+- `#monthSelect` → `switchMonth` (clears log search only).
+- `#analyticsPersonFilter` / `#analyticsLocationFilter` `change` → `app.analyticsPersonFilter` / `app.analyticsLocationFilter`, `render()`.
+- `#logSearch` `input` → `app.logSearchQuery`, `render()`.
 - export/import handlers (`/api/export`, `/api/import`).
-- `360` `initQuickChores()`; chore suggest init nearby.
+- `initQuickChores()`; `initScheduledLogSuggestions()`; chore suggest init nearby.
 
 `js/presets.js` — chore presets + quick log editor + payload resolution.
 - `6` `syncChoreDatalists()` — syncs edit dialog datalist.
 - `16` `entryChorePoints(e)` — points from preset + per_location × locations.
+- `presetMatchingScheduledTitle(title)` — case-insensitive preset match for scheduled log suggestions.
 - `27` `resolveChorePayloadRows(raw)` — splits `;` and resolves preset ids.
 - `43` `saveChorePresetsAndQuick()` — persists settings to `/api/settings`.
 - preset/quick editors + `renderQuickChores`.
@@ -65,17 +69,18 @@
 - `initChoreInputSuggest()` — keyboard/mouse + segment-aware filtering.
 
 `js/render.js` — render pipeline for dashboard/log/scheduled views.
-- `104` `entryMatchesLogSearch` — client-side log filter: whitespace tokens (AND), case-insensitive; haystack = date, chore text, person, location ids joined, numeric points.
-- `79` `countsByPerson` / `91` `pointsByPerson` — task vs preset points per person.
-- `136` `fullRender()` — dual stat grids, dual bar areas, heatmap, log (filtered list + empty states), dual MoM, scheduled.
+- `14` `entryMatchesAnalyticsFilters` / `entriesForAnalyticsMonth` — person + location filters for stats/bars/heatmap/MoM (location = entry `locationIds` includes selected name).
+- `entryMatchesLogSearch` — log-only text filter (whitespace AND tokens).
+- `countsByPerson` / `pointsByPerson` / `taskCountsByDay` — use `entriesForAnalyticsMonth`.
+- `fullRender()` — analytics filters, dual stat grids, bars, heatmap, log list, **scheduled log suggestion buttons** (`scheduledStatus` overdue/today/soon + `presetMatchingScheduledTitle`), dual MoM, scheduled dashboard.
 - `switchMonth` — sets `app.currentMonth`, clears `app.logSearchQuery`, `render()`.
 - `setRenderRenderer(fullRender)` registration.
 
-`js/state.js` — shared mutable app state (`app.entries`, `app.currentMonth`, **`app.logSearchQuery`**, …).
+`js/state.js` — shared mutable app state (`app.entries`, `app.currentMonth`, `app.logSearchQuery`, **`app.analyticsPersonFilter`**, **`app.analyticsLocationFilter`**, …).
 
 `js/render-registry.js` — indirection to avoid import cycles.
 
-`js/scheduled-logic.js` — scheduled chore status computations.
+`js/scheduled-logic.js` — `scheduledStatus(s)` (overdue / today / soon ≤3 days / later); `intervalLabel`.
 
 `js/utils/date.js` — date helpers and month keys.
 
@@ -85,11 +90,11 @@
 - `:root` includes `--layout-max-width` (820px; widens at `1100px` / `1440px`).
 - `.wrap` uses `var(--layout-max-width)`.
 
-`css/chore-tracker-dashboard.css` — stats, sections, heatmap, bars, MoM, desktop side-by-side rows.
+`css/chore-tracker-dashboard.css` — **`.analytics-filters`**, stats, sections, heatmap, bars, MoM, desktop side-by-side rows.
 
 `css/chore-tracker-forms.css` — log form, edit dialog, **`.log-filter-row` / `.log-search-input`**, `.log-list` height (taller at `1100px` + `log-mom-row`).
 
-`css/chore-tracker-scheduled.css` — scheduled dashboard + dialogs.
+`css/chore-tracker-scheduled.css` — scheduled dashboard + dialogs + **`.scheduled-log-suggestions`** / `.scheduled-suggest-btn`.
 
 `css/chore-tracker-auth.css` — login screen visibility and card.
 
@@ -99,11 +104,23 @@
 
 ---
 
+## Analytics filters (client-only)
+
+- State: `app.analyticsPersonFilter` (empty = all), `app.analyticsLocationFilter` (empty = all). Not cleared on month change.
+- UI: `#analyticsPersonFilter`, `#analyticsLocationFilter`, `#analyticsFilterHint` above the stat grids.
+- Scope: task + points stats, contribution bars, daily heatmap, month-over-month (current vs previous month both use the same filters). **Does not** change the activity log (`#logList`); use log search there.
+- Location: an entry matches only if `locationIds` includes the selected location (entries with no locations excluded when a location is selected).
+
 ## Log search / filter (client-only)
 
 - State: `app.logSearchQuery` (string). Cleared when the month dropdown changes (`switchMonth`).
-- UI: `#logSearch` in `index.html` under “Log for …”; styles in `chore-tracker-forms.css`.
-- Matching: `entryMatchesLogSearch` in `render.js` — all whitespace-separated words must appear somewhere in the combined searchable text (date `YYYY-MM-DD`, chore title, person, space-joined location ids, points as string). Does not change analytics; only filters rows in `#logList`.
+- UI: `#logSearch` under “Log for …”; styles in `chore-tracker-forms.css`.
+- Matching: `entryMatchesLogSearch` — whitespace tokens AND; haystack = date, chore, person, locations, points. Only affects `#logList`.
+
+## Scheduled log suggestions (client-only)
+
+- Shown when a scheduled chore is **overdue**, **due today**, or **due within 3 days** (`scheduledStatus` `soon`), and its **title matches a chore preset** (case-insensitive).
+- Renders under “Log a chore”, above Quick log. Tap fills `#inChore` (and per-location selects like quick log); user picks person/date and **Add**. Does **not** call scheduled “complete” API — use Scheduled dashboard **Mark done** to reset the timer.
 
 ---
 
@@ -115,15 +132,14 @@
 - Custom chore suggestions.
 - Presets + quick bar: CRUD, scoring modes, persist via `/api/settings`.
 - Log edit/delete; **log text filter** (current month list only).
-- Scheduled chores: due states, complete/remove.
-- Analytics: task-count and preset-points metrics; heatmap; import/export; theme + PWA.
+- Scheduled chores: due states, complete/remove; **log form suggestions** when due + preset title match.
+- Analytics: task-count and preset-points metrics; heatmap; **person + location filters** (stats/bars/heatmap/MoM); import/export; theme + PWA.
 
 ## Future ideas (implementation-oriented)
 
-- Preset categories/tags with filters in analytics (log already has text filter).
+- Preset categories/tags in analytics UI.
 - Duplicate detection on import merge.
 - Undo/redo stack for edits/deletes.
-- Scheduled auto-suggestions in log form when due.
 - Bulk log mode.
 - History/audit metadata on entries.
 - Soft delete/archive presets.

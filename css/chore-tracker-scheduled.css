@@ -185,3 +185,90 @@
 .scheduled-done-confirm {
   font-weight: 500;
 }
+
+/* Log form: scheduled chores due soon / overdue (title matches a preset) */
+.scheduled-log-suggestions {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 0.5px solid var(--color-border-tertiary);
+}
+
+.scheduled-log-suggestions-intro {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  line-height: 1.4;
+  margin: 0 0 8px;
+}
+
+.scheduled-log-suggestions-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.scheduled-suggest-btn {
+  font: 400 13px/1.2 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  padding: 7px 12px;
+  border-radius: var(--border-radius-md);
+  border: 0.5px solid var(--color-border-secondary);
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.scheduled-suggest-btn:hover {
+  border-color: var(--color-text-tertiary);
+  background: var(--color-background-tertiary);
+}
+
+.scheduled-suggest-title {
+  font-weight: 500;
+}
+
+.scheduled-suggest-meta {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.scheduled-suggest-btn--overdue {
+  border-color: rgba(226, 75, 74, 0.45);
+  background: rgba(226, 75, 74, 0.08);
+}
+
+.scheduled-suggest-btn--today {
+  border-color: rgba(29, 158, 117, 0.45);
+  background: rgba(29, 158, 117, 0.1);
+}
+
+.scheduled-suggest-btn--soon {
+  border-color: rgba(216, 160, 48, 0.4);
+  background: rgba(216, 160, 48, 0.1);
+}
+
+@media (max-width: 896px) {
+  .scheduled-suggest-btn {
+    min-height: 44px;
+    font-size: 16px;
+    padding: 10px 14px;
+  }
+
+  .scheduled-suggest-meta {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 560px) {
+  .scheduled-suggest-btn {
+    min-height: 0;
+    font-size: 13px;
+    padding: 7px 12px;
+  }
+}

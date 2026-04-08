@@ -341,9 +341,9 @@ async function addEntry() {
   }
 }
 
-async function quickLogChore(presetId) {
+function fillChoreFromPreset(presetId) {
   const preset = presetById(presetId);
-  if (!preset) return;
+  if (!preset) return false;
   const el = document.getElementById('inChore');
   if (el) el.value = preset.title;
   if (preset.scoringMode === 'per_location') {
@@ -354,6 +354,11 @@ async function quickLogChore(presetId) {
       });
     }
   }
+  return true;
+}
+
+async function quickLogChore(presetId) {
+  if (!fillChoreFromPreset(presetId)) return;
   await addEntry();
 }
 
@@ -366,6 +371,20 @@ function initQuickChores() {
     if (!btn) return;
     const id = btn.getAttribute('data-chore-id');
     if (id) quickLogChore(id);
+  });
+}
+
+function initScheduledLogSuggestions() {
+  const box = document.getElementById('scheduledLogSuggestions');
+  if (!box || box.dataset.delegated === '1') return;
+  box.dataset.delegated = '1';
+  box.addEventListener('click', (e) => {
+    const btn = e.target.closest('.scheduled-suggest-btn');
+    if (!btn) return;
+    const id = btn.getAttribute('data-preset-id');
+    if (id && fillChoreFromPreset(id)) {
+      document.getElementById('inChore')?.focus();
+    }
   });
 }
 
@@ -774,6 +793,16 @@ document.getElementById('monthSelect').addEventListener('change', (e) => {
   switchMonth(e.target.value);
 });
 
+document.getElementById('analyticsPersonFilter').addEventListener('change', (e) => {
+  app.analyticsPersonFilter = e.target.value;
+  render();
+});
+
+document.getElementById('analyticsLocationFilter').addEventListener('change', (e) => {
+  app.analyticsLocationFilter = e.target.value;
+  render();
+});
+
 document.getElementById('logSearch').addEventListener('input', (e) => {
   app.logSearchQuery = e.target.value;
   render();
@@ -845,6 +874,7 @@ document.getElementById('btnAddQuickChore').addEventListener('click', async () =
 });
 
 initQuickChores();
+initScheduledLogSuggestions();
 initChoreInputSuggest();
 
 document.getElementById('addToastUndo').addEventListener('click', () => {
