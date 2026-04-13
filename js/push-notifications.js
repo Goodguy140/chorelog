@@ -139,7 +139,21 @@ export async function enableBrowserPush() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(sub.toJSON()),
     });
-    if (!r.ok) throw new Error();
+    if (!r.ok) {
+      const errBody = await r.json().catch(() => ({}));
+      const msg = [errBody.error, errBody.detail].filter(Boolean).join(' — ') || t('settings.pushEnableErr');
+      setPushStatus(msg, true);
+      return;
+    }
+    const verify = await apiFetch('/api/push/subscriptions');
+    if (verify.ok) {
+      const data = await verify.json();
+      const endpoints = new Set((data.subscriptions || []).map((x) => x.endpoint));
+      if (!endpoints.has(sub.endpoint)) {
+        setPushStatus(t('settings.pushVerifyErr'), true);
+        return;
+      }
+    }
     setPushStatus(t('settings.pushEnabledOk'), false);
     await refreshPushNotificationsPanel();
   } catch {
@@ -172,7 +186,14 @@ export async function testBrowserPush() {
   try {
     const r = await apiFetch('/api/push/test', { method: 'POST' });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.error || 'fail');
+    if (!r.ok) {
+      const msg =
+        typeof data.error === 'string' && data.error.trim()
+          ? data.error.trim()
+          : t('settings.pushTestErr');
+      setPushStatus(msg, true);
+      return;
+    }
     setPushStatus(t('settings.pushTestOk'), false);
   } catch {
     setPushStatus(t('settings.pushTestErr'), true);

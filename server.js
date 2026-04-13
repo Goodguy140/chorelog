@@ -526,14 +526,76 @@ function pruneDiscordReminderSentAt(sentMap, scheduledIds) {
 
 const MAX_PUSH_SUBSCRIPTIONS = 24;
 
+/**
+ * Decode p256dh / auth from PushSubscription JSON. Prefer URL-safe base64; fall back to RFC 4648
+ * so keys match web-push `Buffer.from(..., 'base64url')` after re-encoding.
+ */
+function decodeP256dhKeyBytes(raw) {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim().replace(/\s/g, '');
+  if (!trimmed) return null;
+  const tryStd = () => {
+    const std = trimmed.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = '='.repeat((4 - (std.length % 4)) % 4);
+    return Buffer.from(std + pad, 'base64');
+  };
+  const attempts = [() => Buffer.from(trimmed, 'base64url'), tryStd];
+  for (const fn of attempts) {
+    try {
+      const buf = fn();
+      if (buf && buf.length === 65) return buf;
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+
+function decodeAuthKeyBytes(raw) {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim().replace(/\s/g, '');
+  if (!trimmed) return null;
+  const tryStd = () => {
+    const std = trimmed.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = '='.repeat((4 - (std.length % 4)) % 4);
+    return Buffer.from(std + pad, 'base64');
+  };
+  const attempts = [() => Buffer.from(trimmed, 'base64url'), tryStd];
+  for (const fn of attempts) {
+    try {
+      const buf = fn();
+      if (buf && buf.length >= 16) return buf;
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+
 function normalizePushSubscription(row) {
   if (!row || typeof row !== 'object') return null;
   const endpoint = typeof row.endpoint === 'string' ? row.endpoint.trim() : '';
-  if (!endpoint.startsWith('https://')) return null;
+  if (!endpoint) return null;
+  try {
+    const u = new URL(endpoint);
+    if (u.protocol !== 'https:') return null;
+  } catch {
+    return null;
+  }
   const keys = row.keys && typeof row.keys === 'object' ? row.keys : {};
-  const p256dh = typeof keys.p256dh === 'string' ? keys.p256dh.trim() : '';
-  const auth = typeof keys.auth === 'string' ? keys.auth.trim() : '';
-  if (!p256dh || !auth) return null;
+  const rawP =
+    (typeof keys.p256dh === 'string' && keys.p256dh) ||
+    (typeof keys.P256DH === 'string' && keys.P256DH) ||
+    '';
+  const rawA =
+    (typeof keys.auth === 'string' && keys.auth) ||
+    (typeof keys.Auth === 'string' && keys.Auth) ||
+    '';
+  const bufP = decodeP256dhKeyBytes(rawP);
+  const bufA = decodeAuthKeyBytes(rawA);
+  if (!bufP || !bufA) return null;
+  const p256dh = bufP.toString('base64url');
+  const auth = bufA.toString('base64url');
   const id = typeof row.id === 'string' && row.id ? row.id : newId();
   let createdAt = typeof row.createdAt === 'string' ? row.createdAt : nowISO();
   if (!/^\d{4}-\d{2}-\d{2}T/.test(createdAt)) createdAt = nowISO();
@@ -934,12 +996,19 @@ app.post('/api/push/subscribe', async (req, res) => {
       return res.status(503).json({ error: 'Push is not configured on this server' });
     }
     const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const sub =
+      body.subscription && typeof body.subscription === 'object' ? body.subscription : body;
     const row = normalizePushSubscription({
-      endpoint: body.endpoint,
-      keys: body.keys,
+      endpoint: sub.endpoint,
+      keys: sub.keys,
       createdAt: nowISO(),
     });
-    if (!row) return res.status(400).json({ error: 'Invalid subscription' });
+    if (!row) {
+      return res.status(400).json({
+        error: 'Invalid subscription',
+        detail: 'Expected HTTPS endpoint and valid p256dh (65 bytes) and auth (16+ bytes) keys',
+      });
+    }
     const store = await readStore(req.householdId);
     let list = normalizePushSubscriptions(store.pushSubscriptions || []);
     const idx = list.findIndex((x) => x.endpoint === row.endpoint);
@@ -991,9 +1060,14 @@ app.post('/api/push/test', async (req, res) => {
       return res.status(503).json({ error: 'Push is not configured on this server' });
     }
     const store = await readStore(req.householdId);
-    if (!store.pushSubscriptions || !store.pushSubscriptions.length) {
-      return res.status(400).json({ error: 'No browser subscriptions for this household' });
+    const subs = normalizePushSubscriptions(store.pushSubscriptions || []);
+    if (!subs.length) {
+      return res.status(400).json({
+        error: 'No browser subscriptions for this household',
+        code: 'no_subscriptions',
+      });
     }
+    store.pushSubscriptions = subs;
     const payload = JSON.stringify({
       title: 'Chorelog',
       body: 'Test notification — browser push is working.',
@@ -1001,7 +1075,13 @@ app.post('/api/push/test', async (req, res) => {
       tag: 'chorelog-test',
     });
     const pushRes = await sendPushPayloadToStoreSubscriptions(store, req.householdId, payload);
-    if (!pushRes.ok) return res.status(502).json({ error: 'Push services did not accept the message' });
+    if (!pushRes.ok) {
+      return res.status(502).json({
+        error:
+          'Push could not be delivered. Check VAPID keys match this server, network access to the push service, and try subscribing again.',
+        code: 'send_failed',
+      });
+    }
     appendAudit(store, req, {
       action: 'push.test',
       target: 'web-push',
@@ -1714,6 +1794,8 @@ async function sendPushPayloadToStoreSubscriptions(store, householdId, payloadSt
       const code = e.statusCode;
       if (code === 404 || code === 410) dead.push(sub.endpoint);
       else console.error('Web push:', e.message || e);
+      /* Sync errors from web-push (e.g. bad key encoding) have no statusCode */
+      if (code == null && e && e.message) console.error('Web push (detail):', sub.endpoint.slice(0, 48), e.message);
     }
   }
   if (dead.length) {
