@@ -22,3 +22,12 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      # About page: pass GITHUB_SHA, GITHUB_REPOSITORY, GITHUB_RUN_ID, etc. into your deploy
+      # environment or container so the app can show them under Settings → About.
+      - name: Echo GitHub build metadata (for deploy wiring)
+        run: |
+          echo "GITHUB_REPOSITORY=${GITHUB_REPOSITORY}"
+          echo "GITHUB_SHA=${GITHUB_SHA}"
+          echo "GITHUB_RUN_ID=${GITHUB_RUN_ID}"
+          echo "GITHUB_REF=${GITHUB_REF}"

@@ -123,32 +123,87 @@ async function loadAboutPanel() {
     if (!r.ok) throw new Error('bad status');
     const d = await r.json();
     const rows = [];
-    rows.push([t('settings.aboutAppVersion'), d.version != null ? String(d.version) : '—']);
-    rows.push([t('settings.aboutNode'), d.nodeVersion != null ? String(d.nodeVersion) : '—']);
+    rows.push([t('settings.aboutAppVersion'), d.version != null ? String(d.version) : '—', false]);
+    rows.push([t('settings.aboutNode'), d.nodeVersion != null ? String(d.nodeVersion) : '—', false]);
+    const gb = d.gitHubBuild && typeof d.gitHubBuild === 'object' ? d.gitHubBuild : null;
+    if (gb) {
+      if (gb.repository) {
+        const repoUrl = `https://github.com/${gb.repository}`;
+        rows.push([
+          t('settings.aboutGitHubRepo'),
+          `<a href="${escapeAttr(repoUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(gb.repository)}</a>`,
+          true,
+        ]);
+      }
+      if (gb.sha) {
+        const short = String(gb.sha).slice(0, 7);
+        const commitUrl = gb.repository
+          ? `https://github.com/${gb.repository}/commit/${gb.sha}`
+          : null;
+        rows.push([
+          t('settings.aboutGitHubCommit'),
+          commitUrl
+            ? `<a href="${escapeAttr(commitUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(short)}</a>`
+            : escapeHtml(String(gb.sha)),
+          true,
+        ]);
+      }
+      if (gb.ref) {
+        const shortRef = String(gb.ref).replace(/^refs\/(heads|tags)\//, '');
+        rows.push([t('settings.aboutGitHubRef'), shortRef, false]);
+      }
+      if (gb.workflow) {
+        rows.push([t('settings.aboutGitHubWorkflow'), String(gb.workflow), false]);
+      }
+      if (gb.runId) {
+        const runUrl = gb.actionsRunUrl || (gb.repository ? `https://github.com/${gb.repository}/actions/runs/${gb.runId}` : null);
+        const runLabel =
+          gb.runNumber != null && String(gb.runNumber).trim() !== ''
+            ? `#${String(gb.runNumber)}`
+            : String(gb.runId);
+        rows.push([
+          t('settings.aboutGitHubRun'),
+          runUrl
+            ? `<a href="${escapeAttr(runUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(runLabel)}</a>`
+            : escapeHtml(String(gb.runId)),
+          true,
+        ]);
+      } else if (gb.actionsRunUrl) {
+        rows.push([
+          t('settings.aboutGitHubRun'),
+          `<a href="${escapeAttr(gb.actionsRunUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('settings.aboutGitHubRunLink'))}</a>`,
+          true,
+        ]);
+      }
+    }
     if (d.household != null && String(d.household).trim()) {
-      rows.push([t('settings.aboutHousehold'), String(d.household).trim()]);
+      rows.push([t('settings.aboutHousehold'), String(d.household).trim(), false]);
     }
     if (d.persistence) {
       const persistLabel =
         d.persistence === 'sqlite' ? t('settings.aboutPersistenceSqlite') : t('settings.aboutPersistenceJson');
-      rows.push([t('settings.aboutPersistence'), persistLabel]);
-      rows.push([t('settings.aboutDbFile'), d.databaseRelativePath != null ? String(d.databaseRelativePath) : '—']);
+      rows.push([t('settings.aboutPersistence'), persistLabel, false]);
+      rows.push([t('settings.aboutDbFile'), d.databaseRelativePath != null ? String(d.databaseRelativePath) : '—', false]);
       if (d.persistence === 'sqlite' && d.sqliteVersion) {
-        rows.push([t('settings.aboutSqliteEngine'), String(d.sqliteVersion)]);
+        rows.push([t('settings.aboutSqliteEngine'), String(d.sqliteVersion), false]);
         if (d.journalMode) {
-          rows.push([t('settings.aboutJournalMode'), String(d.journalMode)]);
+          rows.push([t('settings.aboutJournalMode'), String(d.journalMode), false]);
         }
       }
     } else {
-      rows.push([t('settings.aboutPersistence'), '—']);
-      rows.push([t('settings.aboutDbFile'), '—']);
+      rows.push([t('settings.aboutPersistence'), '—', false]);
+      rows.push([t('settings.aboutDbFile'), '—', false]);
     }
     rows.push([
       t('settings.aboutExportSchema'),
       d.exportSchemaVersion != null ? String(d.exportSchemaVersion) : '—',
+      false,
     ]);
     dl.innerHTML = rows
-      .map(([label, val]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(val)}</dd>`)
+      .map(([label, val, rawHtml]) => {
+        const dd = rawHtml ? val : escapeHtml(val);
+        return `<dt>${escapeHtml(label)}</dt><dd>${dd}</dd>`;
+      })
       .join('');
   } catch {
     errEl.textContent = t('settings.aboutLoadError');
