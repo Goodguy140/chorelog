@@ -9,39 +9,53 @@ const EXPORT_SCHEMA_VERSION = 5;
 
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
-const DATA_FILE = path.join(DATA_DIR, 'chores.json');
+/** Legacy single-file store; migrated once into `data/households/default/chores.json`. */
+const LEGACY_DATA_FILE = path.join(DATA_DIR, 'chores.json');
 
 /**
- * Optional SQLite backing store (CHORELOG_SQLITE_PATH). Empty DB imports legacy data/chores.json once.
+ * Multi-household: isolated stores under `data/households/<id>/` + household credentials in SQLite `data/households/registry.db` (legacy `registry.json` is migrated once).
+ * Optional SQLite: set CHORELOG_SQLITE_PATH (any value) to use `chores.db` per household dir instead of JSON.
  * Login brute-force: CHORELOG_LOGIN_MAX_FAILURES, CHORELOG_LOGIN_LOCKOUT_MS, CHORELOG_LOGIN_WINDOW_MS;
  * data/login-throttle.json persists lockouts. CHORELOG_TRUST_PROXY=1 when behind a reverse proxy (uses X-Forwarded-For).
  */
 const { createLoginThrottle } = require('./lib/login-throttle.cjs');
 const { openSqliteStore } = require('./lib/sqlite-store.cjs');
+const householdReg = require('./lib/households-registry.cjs');
 
-const CHORELOG_SQLITE_PATH_RAW = process.env.CHORELOG_SQLITE_PATH;
+const USE_SQLITE_PER_HOUSEHOLD = Boolean(
+  process.env.CHORELOG_SQLITE_PATH && String(process.env.CHORELOG_SQLITE_PATH).trim(),
+);
 
-/** Resolve DB path: absolute as-is; `data/...` or `./data/...` from project root; bare `file.db` → `data/file.db`. */
-function resolveSqliteDbPath(raw) {
-  if (raw == null) return null;
-  const s = String(raw).trim();
-  if (!s) return null;
-  const norm = path.normalize(s);
-  if (path.isAbsolute(norm)) return norm;
-  if (norm.startsWith('..')) return path.resolve(__dirname, norm);
-  const first = norm.split(path.sep)[0];
-  if (first === 'data') return path.join(__dirname, norm);
-  return path.join(DATA_DIR, norm);
+let householdRegistry = null;
+const sqliteStoreByHousehold = new Map();
+
+function ensureRegistryLoaded() {
+  if (!householdRegistry) {
+    householdRegistry = householdReg.ensureRegistry(DATA_DIR, LEGACY_DATA_FILE, process.env.CHORELOG_PASSWORD);
+  }
+  return householdRegistry;
 }
 
-const SQLITE_DB_PATH = resolveSqliteDbPath(CHORELOG_SQLITE_PATH_RAW);
+function householdDataFile(hid) {
+  return path.join(householdReg.householdsRoot(DATA_DIR), hid, 'chores.json');
+}
 
-let sqliteStore = null;
-if (SQLITE_DB_PATH) {
-  sqliteStore = openSqliteStore(SQLITE_DB_PATH, DATA_FILE);
-  if (sqliteStore.migratedFromJson) {
-    console.log('Chorelog: migrated persisted store from JSON to SQLite');
+function householdSqlitePath(hid) {
+  if (!USE_SQLITE_PER_HOUSEHOLD) return null;
+  return path.join(householdReg.householdsRoot(DATA_DIR), hid, 'chores.db');
+}
+
+function getSqliteStoreForHousehold(hid) {
+  if (!USE_SQLITE_PER_HOUSEHOLD) return null;
+  if (sqliteStoreByHousehold.has(hid)) return sqliteStoreByHousehold.get(hid);
+  const dbPath = householdSqlitePath(hid);
+  const jsonPath = householdDataFile(hid);
+  const st = openSqliteStore(dbPath, jsonPath);
+  if (st.migratedFromJson) {
+    console.log(`Chorelog: migrated household "${hid}" store from JSON to SQLite`);
   }
+  sqliteStoreByHousehold.set(hid, st);
+  return st;
 }
 
 const loginThrottle = createLoginThrottle({ dataDir: DATA_DIR });
@@ -528,7 +542,7 @@ function appendAudit(store, req, { action, target, detail }) {
   const actor =
     req.authPayload && typeof req.authPayload.user === 'string' && req.authPayload.user.trim()
       ? req.authPayload.user.trim().slice(0, 120)
-      : process.env.CHORELOG_USER || 'house';
+      : (req.authPayload && req.authPayload.household) || 'house';
   const row = normalizeAuditEntry({
     id: newId(),
     at: nowISO(),
@@ -589,7 +603,14 @@ function normalizeStore(raw) {
   };
 }
 
-async function readStore() {
+async function readStore(householdId) {
+  ensureRegistryLoaded();
+  const hid = String(householdId || '').trim();
+  if (!hid || !householdRegistry.households[hid]) {
+    throw new Error('Invalid household');
+  }
+  const sqliteStore = getSqliteStoreForHousehold(hid);
+  const dataFile = householdDataFile(hid);
   if (sqliteStore) {
     const raw = sqliteStore.readJsonString();
     if (raw == null || raw === '') {
@@ -611,7 +632,7 @@ async function readStore() {
     return normalizeStore(data);
   }
   try {
-    const buf = await fs.promises.readFile(DATA_FILE, 'utf8');
+    const buf = await fs.promises.readFile(dataFile, 'utf8');
     const data = JSON.parse(buf);
     return normalizeStore(data);
   } catch (err) {
@@ -629,27 +650,35 @@ async function readStore() {
   }
 }
 
-async function writeStore(data) {
+async function writeStore(householdId, data) {
+  ensureRegistryLoaded();
+  const hid = String(householdId || '').trim();
+  if (!hid || !householdRegistry.households[hid]) {
+    throw new Error('Invalid household');
+  }
   const normalized = normalizeStore(data);
+  const sqliteStore = getSqliteStoreForHousehold(hid);
   if (sqliteStore) {
     sqliteStore.writeJsonString(JSON.stringify(normalized));
     return;
   }
-  await fs.promises.mkdir(DATA_DIR, { recursive: true });
-  const tmp = `${DATA_FILE}.${process.pid}.tmp`;
+  const dataFile = householdDataFile(hid);
+  const dir = path.dirname(dataFile);
+  await fs.promises.mkdir(dir, { recursive: true });
+  const tmp = `${dataFile}.${process.pid}.tmp`;
   await fs.promises.writeFile(tmp, JSON.stringify(normalized, null, 2), 'utf8');
-  await fs.promises.rename(tmp, DATA_FILE);
+  await fs.promises.rename(tmp, dataFile);
 }
 
-async function ensureSeed() {
-  const store = await readStore();
+async function ensureSeed(householdId) {
+  const store = await readStore(householdId);
   if (store.entries.length > 0) return;
   const expanded = expandRaw(RAW_SEED);
   store.entries = expanded
     .map((e) => normalizeEntry({ id: newId(), d: e.d, c: e.c, p: e.p }))
     .filter(Boolean);
   if (!store.people || store.people.length === 0) store.people = [...DEFAULT_PEOPLE];
-  await writeStore(store);
+  await writeStore(householdId, store);
 }
 
 const app = express();
@@ -680,12 +709,14 @@ function parseCookieHeader(cookieHeader, name) {
   return null;
 }
 
-function createAuthToken(username) {
-  const user =
-    String(username || '')
-      .trim()
-      .slice(0, 120) || (process.env.CHORELOG_USER || 'house');
-  const payload = { v: 1, exp: Date.now() + COOKIE_MAX_AGE_MS, user };
+function createAuthToken(username, householdId) {
+  const user = String(username || '')
+    .trim()
+    .slice(0, 120) || 'member';
+  const household = String(householdId || '')
+    .trim()
+    .slice(0, 64);
+  const payload = { v: 2, exp: Date.now() + COOKIE_MAX_AGE_MS, user, household };
   const data = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
   const sig = crypto.createHmac('sha256', getSessionSecret()).update(data).digest('base64url');
   return `${data}.${sig}`;
@@ -709,6 +740,9 @@ function verifyAuthCookie(cookieHeader) {
     return null;
   }
   if (!payload || typeof payload.exp !== 'number' || payload.exp < Date.now()) return null;
+  if (payload.v !== 2 || typeof payload.household !== 'string' || !payload.household.trim()) {
+    return null;
+  }
   return payload;
 }
 
@@ -716,21 +750,46 @@ function requireApiAuth(req, res, next) {
   if (!req.path.startsWith('/api')) return next();
   if (req.method === 'GET' && req.path === '/api/auth') return next();
   if (req.method === 'GET' && req.path === '/api/version') return next();
+  if (req.method === 'GET' && req.path === '/api/register-info') return next();
   if (req.method === 'POST' && req.path === '/api/login') return next();
+  if (req.method === 'POST' && req.path === '/api/login/members') return next();
   if (req.method === 'POST' && req.path === '/api/logout') return next();
+  if (req.method === 'POST' && req.path === '/api/households') return next();
   const payload = verifyAuthCookie(req.headers.cookie);
   if (!payload) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
+  ensureRegistryLoaded();
+  const hid = String(payload.household).trim();
+  if (!householdRegistry.households[hid]) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   req.authPayload = payload;
+  req.householdId = hid;
   next();
 }
 
 app.use(requireApiAuth);
 
-function buildVersionPayload() {
+function buildVersionPayload(req) {
+  const base = {
+    version: pkg.version,
+    nodeVersion: process.version,
+    exportSchemaVersion: EXPORT_SCHEMA_VERSION,
+    multiHousehold: true,
+  };
+  const p = req && verifyAuthCookie(req.headers.cookie);
+  if (!p || p.v !== 2 || !p.household) {
+    return base;
+  }
+  ensureRegistryLoaded();
+  const hid = String(p.household).trim();
+  if (!householdRegistry.households[hid]) {
+    return base;
+  }
+  const sqliteStore = getSqliteStoreForHousehold(hid);
   const persistence = sqliteStore ? 'sqlite' : 'json';
-  const dbPath = sqliteStore ? SQLITE_DB_PATH : DATA_FILE;
+  const dbPath = sqliteStore ? householdSqlitePath(hid) : householdDataFile(hid);
   let databaseRelativePath = path.relative(__dirname, dbPath);
   if (!databaseRelativePath || databaseRelativePath.startsWith('..')) {
     databaseRelativePath = dbPath;
@@ -744,13 +803,12 @@ function buildVersionPayload() {
     if (info.journalMode) journalMode = info.journalMode;
   }
   return {
-    version: pkg.version,
-    nodeVersion: process.version,
+    ...base,
+    household: hid,
     persistence,
     databaseRelativePath,
     sqliteVersion,
     journalMode,
-    exportSchemaVersion: EXPORT_SCHEMA_VERSION,
   };
 }
 
@@ -764,17 +822,91 @@ app.get('/api/auth', (req, res) => {
     user:
       typeof payload.user === 'string' && payload.user.trim()
         ? payload.user.trim()
-        : process.env.CHORELOG_USER || 'house',
+        : 'member',
+    household:
+      typeof payload.household === 'string' && payload.household.trim()
+        ? payload.household.trim()
+        : 'default',
   });
 });
 
 app.get('/api/version', (req, res) => {
-  res.json(buildVersionPayload());
+  res.json(buildVersionPayload(req));
+});
+
+/** Public: which registration options the server allows (for login “Create account” UI). */
+app.get('/api/register-info', (req, res) => {
+  const open = process.env.CHORELOG_OPEN_REGISTRATION === '1';
+  const master = Boolean(process.env.CHORELOG_MASTER_PASSWORD);
+  res.json({
+    openRegistration: open,
+    hasMasterPassword: master,
+    allowCreateHousehold: open || master,
+  });
+});
+
+app.get('/api/account', (req, res) => {
+  try {
+    const p = req.authPayload;
+    if (!p || !p.household) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    res.json({
+      user: typeof p.user === 'string' && p.user.trim() ? p.user.trim() : 'member',
+      household: String(p.household).trim(),
+      sessionExpiresAt: new Date(p.exp).toISOString(),
+      canCreateHouseholds: Boolean(process.env.CHORELOG_MASTER_PASSWORD),
+      openRegistration: process.env.CHORELOG_OPEN_REGISTRATION === '1',
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to load account' });
+  }
+});
+
+app.put('/api/account/display-name', (req, res) => {
+  try {
+    const p = req.authPayload;
+    if (!p || !p.household) return res.status(401).json({ error: 'Unauthorized' });
+    const name = String(req.body && req.body.user != null ? req.body.user : '').trim().slice(0, 120);
+    if (!name) return res.status(400).json({ error: 'Display name is required' });
+    const token = createAuthToken(name, p.household);
+    const maxAgeSec = Math.floor(COOKIE_MAX_AGE_MS / 1000);
+    res.setHeader(
+      'Set-Cookie',
+      `${AUTH_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAgeSec}; HttpOnly; SameSite=Lax`,
+    );
+    res.json({ ok: true, user: name });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to update display name' });
+  }
+});
+
+app.post('/api/account/password', (req, res) => {
+  try {
+    ensureRegistryLoaded();
+    const hid = req.householdId;
+    const cur = String(req.body && req.body.currentPassword != null ? req.body.currentPassword : '');
+    const newPw = String(req.body && req.body.newPassword != null ? req.body.newPassword : '');
+    if (newPw.length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    }
+    const rec = householdReg.householdRecord(householdRegistry, hid);
+    if (!rec || !householdReg.verifyPassword(cur, rec.salt, rec.hash)) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+    householdReg.updateHouseholdPassword(DATA_DIR, householdRegistry, hid, newPw);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to update password' });
+  }
 });
 
 app.get('/api/audit', async (req, res) => {
   try {
-    const store = await readStore();
+    const store = await readStore(req.householdId);
     let limit = Number(req.query && req.query.limit);
     if (!Number.isFinite(limit) || limit < 1) limit = 100;
     if (limit > MAX_AUDIT_ENTRIES) limit = MAX_AUDIT_ENTRIES;
@@ -796,22 +928,83 @@ app.post('/api/login', (req, res) => {
       retryAfterSeconds: retry,
     });
   }
+  ensureRegistryLoaded();
+  let hidRaw = req.body && req.body.household != null ? req.body.household : '';
+  if (hidRaw === '' || hidRaw == null) hidRaw = 'default';
+  const hid = householdReg.sanitizeHouseholdId(hidRaw);
+  if (!hid) {
+    loginThrottle.recordFailure(ip);
+    return res.status(400).json({ error: 'Invalid household id' });
+  }
+  const rec = householdReg.householdRecord(householdRegistry, hid);
+  if (!rec) {
+    loginThrottle.recordFailure(ip);
+    return res.status(401).json({ error: 'Unknown household or wrong password' });
+  }
   const u = String(req.body && req.body.username != null ? req.body.username : '').trim();
   const p = String(req.body && req.body.password != null ? req.body.password : '');
-  const okUser = process.env.CHORELOG_USER || 'house';
-  const okPass = process.env.CHORELOG_PASSWORD || 'monkey';
-  if (u !== okUser || p !== okPass) {
+  if (!householdReg.verifyPassword(p, rec.salt, rec.hash)) {
     loginThrottle.recordFailure(ip);
-    return res.status(401).json({ error: 'Invalid username or password' });
+    return res.status(401).json({ error: 'Unknown household or wrong password' });
   }
   loginThrottle.recordSuccess(ip);
-  const token = createAuthToken(u);
+  const token = createAuthToken(u || 'member', hid);
   const maxAgeSec = Math.floor(COOKIE_MAX_AGE_MS / 1000);
   res.setHeader(
     'Set-Cookie',
     `${AUTH_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAgeSec}; HttpOnly; SameSite=Lax`,
   );
-  res.json({ ok: true });
+  res.json({ ok: true, household: hid });
+});
+
+/**
+ * List people names for a household after password check (login step 1 → step 2).
+ * Uses the same brute-force throttle as POST /api/login on failures; does not record success (session is created only by POST /api/login).
+ */
+app.post('/api/login/members', async (req, res) => {
+  const ip = clientIp(req);
+  const throttle = loginThrottle.check(ip);
+  if (!throttle.allowed) {
+    const retry = throttle.retryAfterSec || 60;
+    res.setHeader('Retry-After', String(retry));
+    return res.status(429).json({
+      error: `Too many sign-in attempts. Try again in ${retry} seconds.`,
+      retryAfterSeconds: retry,
+    });
+  }
+  try {
+    ensureRegistryLoaded();
+    let hidRaw = req.body && req.body.household != null ? req.body.household : '';
+    if (hidRaw === '' || hidRaw == null) hidRaw = 'default';
+    const hid = householdReg.sanitizeHouseholdId(hidRaw);
+    if (!hid) {
+      loginThrottle.recordFailure(ip);
+      return res.status(400).json({ error: 'Invalid household id' });
+    }
+    const rec = householdReg.householdRecord(householdRegistry, hid);
+    if (!rec) {
+      loginThrottle.recordFailure(ip);
+      return res.status(401).json({ error: 'Unknown household or wrong password' });
+    }
+    const p = String(req.body && req.body.password != null ? req.body.password : '');
+    if (!householdReg.verifyPassword(p, rec.salt, rec.hash)) {
+      loginThrottle.recordFailure(ip);
+      return res.status(401).json({ error: 'Unknown household or wrong password' });
+    }
+    const store = await readStore(hid);
+    let people = Array.isArray(store.people) ? store.people.slice() : [];
+    people = people
+      .filter((x) => typeof x === 'string' && x.trim())
+      .map((x) => x.trim());
+    if (people.length === 0) {
+      people = [...DEFAULT_PEOPLE];
+    }
+    people.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    res.json({ people });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to load household members' });
+  }
 });
 
 app.post('/api/logout', (req, res) => {
@@ -819,10 +1012,46 @@ app.post('/api/logout', (req, res) => {
   res.status(204).end();
 });
 
+/**
+ * Create a household (isolated store). No auth cookie required.
+ * — If `CHORELOG_OPEN_REGISTRATION=1`: body `{ id, password }` (min 8 chars).
+ * — Else if `CHORELOG_MASTER_PASSWORD` is set: body `{ id, password, masterPassword }`.
+ * — Otherwise: 403.
+ */
+app.post('/api/households', (req, res) => {
+  try {
+    ensureRegistryLoaded();
+    const master = process.env.CHORELOG_MASTER_PASSWORD;
+    const openReg = process.env.CHORELOG_OPEN_REGISTRATION === '1';
+    let allowed = false;
+    if (openReg) {
+      allowed = true;
+    } else if (master && String(req.body && req.body.masterPassword) === master) {
+      allowed = true;
+    }
+    if (!allowed) {
+      return res.status(403).json({ error: 'Household creation is disabled on this server.' });
+    }
+    const id = householdReg.sanitizeHouseholdId(req.body && (req.body.id || req.body.householdId));
+    const pw = req.body && req.body.password;
+    if (!id || typeof pw !== 'string' || pw.length < 8) {
+      return res.status(400).json({ error: 'Invalid household id or password (min 8 characters)' });
+    }
+    if (householdRegistry.households[id]) {
+      return res.status(409).json({ error: 'Household already exists' });
+    }
+    householdReg.addHousehold(DATA_DIR, householdRegistry, id, pw);
+    res.status(201).json({ ok: true, household: id });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to create household' });
+  }
+});
+
 app.get('/api/entries', async (req, res) => {
   try {
-    await ensureSeed();
-    const store = await readStore();
+    await ensureSeed(req.householdId);
+    const store = await readStore(req.householdId);
     res.json({
       entries: store.entries,
       people: store.people,
@@ -845,7 +1074,7 @@ app.post('/api/scheduled-chores', async (req, res) => {
     if (!title) return res.status(400).json({ error: 'title is required' });
     if (!Number.isFinite(intervalDays) || intervalDays < 1) intervalDays = 7;
     if (intervalDays > 3650) intervalDays = 3650;
-    const store = await readStore();
+    const store = await readStore(req.householdId);
     if (!store.scheduledChores) store.scheduledChores = [];
     const startsOn =
       parseCalendarDateParam(req.body && req.body.startsOn) ??
@@ -869,7 +1098,7 @@ app.post('/api/scheduled-chores', async (req, res) => {
       target: title,
       detail: `Every ${intervalDays} day(s); id ${row.id}`,
     });
-    await writeStore(store);
+    await writeStore(req.householdId, store);
     res.status(201).json({ scheduledChores: store.scheduledChores });
   } catch (e) {
     console.error(e);
@@ -880,7 +1109,7 @@ app.post('/api/scheduled-chores', async (req, res) => {
 app.put('/api/scheduled-chores/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const store = await readStore();
+    const store = await readStore(req.householdId);
     const list = store.scheduledChores || [];
     const idx = list.findIndex((s) => s.id === id);
     if (idx === -1) return res.status(404).json({ error: 'Not found' });
@@ -915,7 +1144,7 @@ app.put('/api/scheduled-chores/:id', async (req, res) => {
       target: ch.title,
       detail: changes.length ? changes.join(', ') : 'update',
     });
-    await writeStore(store);
+    await writeStore(req.householdId, store);
     res.json({ scheduledChores: store.scheduledChores });
   } catch (e) {
     console.error(e);
@@ -926,7 +1155,7 @@ app.put('/api/scheduled-chores/:id', async (req, res) => {
 app.delete('/api/scheduled-chores/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const store = await readStore();
+    const store = await readStore(req.householdId);
     const list = store.scheduledChores || [];
     const removed = list.find((s) => s.id === id);
     const next = list.filter((s) => s.id !== id);
@@ -939,7 +1168,7 @@ app.delete('/api/scheduled-chores/:id', async (req, res) => {
       action: 'scheduled.delete',
       target: removed ? removed.title : id,
     });
-    await writeStore(store);
+    await writeStore(req.householdId, store);
     res.status(204).end();
   } catch (e) {
     console.error(e);
@@ -952,7 +1181,7 @@ app.post('/api/scheduled-chores/:id/complete', async (req, res) => {
     const { id } = req.params;
     const person = String(req.body && req.body.person ? req.body.person : '').trim();
     if (!person) return res.status(400).json({ error: 'person is required' });
-    const store = await readStore();
+    const store = await readStore(req.householdId);
     if (!store.people.includes(person)) {
       return res.status(400).json({ error: 'Person must be in your household list' });
     }
@@ -990,7 +1219,7 @@ app.post('/api/scheduled-chores/:id/complete', async (req, res) => {
       target: chore.title,
       detail: `Logged for ${person} on ${completedDate}`,
     });
-    await writeStore(store);
+    await writeStore(req.householdId, store);
     res.json({
       scheduledChores: store.scheduledChores,
       entries: store.entries,
@@ -1004,7 +1233,7 @@ app.post('/api/scheduled-chores/:id/complete', async (req, res) => {
 app.put('/api/settings', async (req, res) => {
   try {
     const body = req.body || {};
-    const store = await readStore();
+    const store = await readStore(req.householdId);
     if (body.people != null) {
       const people = normalizePeople(body.people);
       if (people.length < 1) {
@@ -1050,7 +1279,7 @@ app.put('/api/settings', async (req, res) => {
         detail: touched.join(', '),
       });
     }
-    await writeStore(store);
+    await writeStore(req.householdId, store);
     res.json({
       people: store.people,
       locations: store.locations,
@@ -1224,41 +1453,45 @@ async function runDiscordReminders() {
   if (discordReminderJobRunning) return;
   discordReminderJobRunning = true;
   try {
-    const store = await readStore();
-    const w = store.discordWebhook;
-    if (!w || !w.enabled || !hasReminderDestination(w)) return;
-    if (isInReminderQuietHours(w)) return;
+    ensureRegistryLoaded();
+    const ids = householdReg.listHouseholdIds(householdRegistry);
+    for (const householdId of ids) {
+      const store = await readStore(householdId);
+      const w = store.discordWebhook;
+      if (!w || !w.enabled || !hasReminderDestination(w)) continue;
+      if (isInReminderQuietHours(w)) continue;
 
-    const today = localCalendarDateISO();
-    const intervalMs = w.reminderIntervalMinutes * 60 * 1000;
-    const now = Date.now();
-    const list = store.scheduledChores || [];
-    let sentMap = { ...store.discordReminderSentAt };
-    let changed = false;
+      const today = localCalendarDateISO();
+      const intervalMs = w.reminderIntervalMinutes * 60 * 1000;
+      const now = Date.now();
+      const list = store.scheduledChores || [];
+      let sentMap = { ...store.discordReminderSentAt };
+      let changed = false;
 
-    for (const s of list) {
-      if (s.reminderEnabled === false) continue;
-      const next = nextDueDateScheduled(s);
-      if (next >= today) {
-        if (sentMap[s.id]) {
-          delete sentMap[s.id];
+      for (const s of list) {
+        if (s.reminderEnabled === false) continue;
+        const next = nextDueDateScheduled(s);
+        if (next >= today) {
+          if (sentMap[s.id]) {
+            delete sentMap[s.id];
+            changed = true;
+          }
+          continue;
+        }
+        const last = sentMap[s.id] ? Date.parse(sentMap[s.id]) : 0;
+        if (last && now - last < intervalMs) continue;
+
+        const ok = await sendOverdueToAllWebhookChannels(w, s, next, today);
+        if (ok) {
+          sentMap[s.id] = new Date().toISOString();
           changed = true;
         }
-        continue;
       }
-      const last = sentMap[s.id] ? Date.parse(sentMap[s.id]) : 0;
-      if (last && now - last < intervalMs) continue;
 
-      const ok = await sendOverdueToAllWebhookChannels(w, s, next, today);
-      if (ok) {
-        sentMap[s.id] = new Date().toISOString();
-        changed = true;
+      if (changed) {
+        store.discordReminderSentAt = sentMap;
+        await writeStore(householdId, store);
       }
-    }
-
-    if (changed) {
-      store.discordReminderSentAt = sentMap;
-      await writeStore(store);
     }
   } catch (e) {
     console.error('Discord reminders:', e);
@@ -1269,7 +1502,7 @@ async function runDiscordReminders() {
 
 app.post('/api/discord-webhook/test', async (req, res) => {
   try {
-    const store = await readStore();
+    const store = await readStore(req.householdId);
     const w = store.discordWebhook || normalizeDiscordWebhook(null);
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const fromBody =
@@ -1292,7 +1525,7 @@ app.post('/api/discord-webhook/test', async (req, res) => {
       target: 'webhook',
       detail: 'Test message sent',
     });
-    await writeStore(store);
+    await writeStore(req.householdId, store);
     res.json({ ok: true });
   } catch (e) {
     console.error(e);
@@ -1302,7 +1535,7 @@ app.post('/api/discord-webhook/test', async (req, res) => {
 
 app.post('/api/discord-webhook/remind-now', async (req, res) => {
   try {
-    const store = await readStore();
+    const store = await readStore(req.householdId);
     const w = store.discordWebhook;
     if (!w || !hasReminderDestination(w)) {
       return res.status(400).json({
@@ -1326,7 +1559,7 @@ app.post('/api/discord-webhook/remind-now', async (req, res) => {
       target: 'webhook',
       detail: `Posted ${overdue.length} overdue chore(s)`,
     });
-    await writeStore(store);
+    await writeStore(req.householdId, store);
     res.json({ ok: true, sent: overdue.length });
   } catch (e) {
     console.error(e);
@@ -1399,8 +1632,8 @@ function buildEntriesCsv(store) {
 
 app.get('/api/export/entries.csv', async (req, res) => {
   try {
-    await ensureSeed();
-    const store = await readStore();
+    await ensureSeed(req.householdId);
+    const store = await readStore(req.householdId);
     const csv = buildEntriesCsv(store);
     const filename = `chorelog-entries-${localCalendarDateISO()}.csv`;
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -1414,8 +1647,8 @@ app.get('/api/export/entries.csv', async (req, res) => {
 
 app.get('/api/export', async (req, res) => {
   try {
-    await ensureSeed();
-    const store = await readStore();
+    await ensureSeed(req.householdId);
+    const store = await readStore(req.householdId);
     const payload = {
       version: EXPORT_SCHEMA_VERSION,
       exportedAt: new Date().toISOString(),
@@ -1451,7 +1684,7 @@ app.post('/api/import', async (req, res) => {
       return res.status(400).json({ error: 'Import must include at least one person' });
     }
 
-    const store = await readStore();
+    const store = await readStore(req.householdId);
 
     if (mode === 'replace') {
       const nextEntries = [];
@@ -1550,7 +1783,7 @@ app.post('/api/import', async (req, res) => {
       });
     }
 
-    await writeStore(store);
+    await writeStore(req.householdId, store);
     res.json({
       entries: store.entries,
       people: store.people,
@@ -1573,7 +1806,7 @@ app.post('/api/entries', async (req, res) => {
     if (!items || !items.length) {
       return res.status(400).json({ error: 'Expected { entries: [{ d, p, choreId? }, ...] }' });
     }
-    const store = await readStore();
+    const store = await readStore(req.householdId);
     const presets = store.chorePresets || [];
     const added = [];
     for (const row of items) {
@@ -1633,7 +1866,7 @@ app.post('/api/entries', async (req, res) => {
         ...(detail ? { detail } : {}),
       });
     }
-    await writeStore(store);
+    await writeStore(req.householdId, store);
     res.status(201).json({ entries: added });
   } catch (e) {
     console.error(e);
@@ -1649,7 +1882,7 @@ app.put('/api/entries/:id', async (req, res) => {
     if (!d || !p) {
       return res.status(400).json({ error: 'Valid d (YYYY-MM-DD) and p are required' });
     }
-    const store = await readStore();
+    const store = await readStore(req.householdId);
     if (!store.people.includes(p)) {
       return res.status(400).json({ error: 'Person must be in your household list' });
     }
@@ -1686,7 +1919,7 @@ app.put('/api/entries/:id', async (req, res) => {
       target: c.slice(0, 200),
       detail: `Was: ${prev.d} · ${prev.c.slice(0, 120)} · ${prev.p}`,
     });
-    await writeStore(store);
+    await writeStore(req.householdId, store);
     res.json({ entry: store.entries[idx] });
   } catch (e) {
     console.error(e);
@@ -1697,7 +1930,7 @@ app.put('/api/entries/:id', async (req, res) => {
 app.delete('/api/entries/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const store = await readStore();
+    const store = await readStore(req.householdId);
     const idx = store.entries.findIndex((e) => e.id === id);
     if (idx === -1) return res.status(404).json({ error: 'Not found' });
     const gone = store.entries[idx];
@@ -1707,7 +1940,7 @@ app.delete('/api/entries/:id', async (req, res) => {
       target: gone.c.slice(0, 200),
       detail: `${gone.d} · ${gone.p}`,
     });
-    await writeStore(store);
+    await writeStore(req.householdId, store);
     res.status(204).end();
   } catch (e) {
     console.error(e);

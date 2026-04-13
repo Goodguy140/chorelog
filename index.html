@@ -34,19 +34,131 @@
 
 <body>
   <div id="loginScreen" class="login-screen">
-    <form id="loginForm" class="login-card">
-      <h1 class="login-title" data-i18n="login.title">Chore tracker</h1>
+    <div class="login-backdrop" aria-hidden="true"></div>
+    <div class="login-card">
+      <div class="login-card-brand">
+        <h1 class="login-title" data-i18n="login.title">Chore tracker</h1>
+        <p class="login-tagline" data-i18n="login.tagline">Shared chores, clear credit.</p>
+      </div>
       <p id="loginError" class="login-error" role="alert" hidden></p>
-      <div class="login-field">
-        <label for="loginUser" data-i18n="login.username">Username</label>
-        <input type="text" id="loginUser" name="username" autocomplete="username" required>
+      <div class="login-mode-tabs" role="tablist" aria-label="Sign in or register">
+        <button type="button" class="login-tab is-active" id="loginTabSignIn" role="tab" aria-selected="true" aria-controls="loginFormSignIn" data-i18n="login.tabSignIn">Sign in</button>
+        <button type="button" class="login-tab" id="loginTabRegister" role="tab" aria-selected="false" aria-controls="loginFormRegister" data-i18n="login.tabRegister">Create account</button>
       </div>
-      <div class="login-field">
-        <label for="loginPass" data-i18n="login.password">Password</label>
-        <input type="password" id="loginPass" name="password" autocomplete="current-password" required>
-      </div>
-      <button type="submit" class="btn-add login-submit" data-i18n="login.submit">Sign in</button>
-    </form>
+
+      <form id="loginFormSignIn" class="login-panel" role="tabpanel" aria-labelledby="loginTabSignIn" novalidate>
+        <div class="login-progress" id="loginSignInProgress" aria-hidden="true">
+          <div class="login-progress-track">
+            <span class="login-progress-dot is-on" id="loginProgressDot1" aria-current="step">1</span>
+            <span class="login-progress-line" id="loginProgressLine"></span>
+            <span class="login-progress-dot" id="loginProgressDot2">2</span>
+          </div>
+          <div class="login-progress-labels">
+            <span data-i18n="login.progressAccess">Access</span>
+            <span data-i18n="login.progressMember">Your name</span>
+          </div>
+        </div>
+
+        <div id="loginSignInStep1" class="login-step">
+          <p class="login-step-heading" data-i18n="login.step1Heading">Sign in to your household</p>
+          <div class="login-field">
+            <label for="loginHousehold" data-i18n="login.household">Household id</label>
+            <input type="text" id="loginHousehold" name="household" autocomplete="organization" spellcheck="false" value="default" required maxlength="63" title="Household id (letters, numbers, underscore, hyphen)">
+          </div>
+          <div class="login-field">
+            <label for="loginPass" data-i18n="login.password">Password</label>
+            <input type="password" id="loginPass" name="password" autocomplete="current-password" required>
+          </div>
+          <button type="button" class="btn-add login-submit" id="btnLoginStep1Continue" data-i18n="login.continue">Continue</button>
+        </div>
+
+        <div id="loginSignInStep2" class="login-step" hidden>
+          <p class="login-step-heading" data-i18n="login.step2Heading">Who are you?</p>
+          <p class="login-step-sub" data-i18n="login.step2Sub">Choose the name you use for chores in this household.</p>
+          <div class="login-field">
+            <label for="loginMemberSelect" data-i18n="login.chooseMember">Your name</label>
+            <select id="loginMemberSelect" class="login-select" autocomplete="name" required></select>
+          </div>
+          <div class="login-actions-row">
+            <button type="button" class="btn-secondary login-btn-flex" id="btnLoginBack" data-i18n="login.back">Back</button>
+            <button type="submit" class="btn-add login-btn-flex" data-i18n="login.submit">Sign in</button>
+          </div>
+        </div>
+      </form>
+
+      <form id="loginFormRegister" class="login-panel" hidden role="tabpanel" aria-labelledby="loginTabRegister" novalidate>
+        <fieldset class="login-register-mode">
+          <legend class="login-register-legend" data-i18n="login.registerModeLegend">I want to</legend>
+          <label class="login-radio-label">
+            <input type="radio" name="registerFlow" id="registerFlowCreate" value="create" checked>
+            <span data-i18n="login.registerCreateHousehold">Create a new household</span>
+          </label>
+          <label class="login-radio-label">
+            <input type="radio" name="registerFlow" id="registerFlowJoin" value="join">
+            <span data-i18n="login.registerJoinHousehold">Join an existing household</span>
+          </label>
+        </fieldset>
+
+        <div id="registerCreateFields">
+          <div class="login-field">
+            <label for="regCreateHouseholdId" data-i18n="login.newHouseholdId">New household id</label>
+            <input type="text" id="regCreateHouseholdId" autocomplete="off" spellcheck="false" maxlength="63" title="Household id (letters, numbers, underscore, hyphen)">
+          </div>
+          <div class="login-field">
+            <label for="regCreatePassword" data-i18n="login.choosePassword">Choose a password</label>
+            <input type="password" id="regCreatePassword" autocomplete="new-password">
+          </div>
+          <div class="login-field">
+            <label for="regCreatePassword2" data-i18n="login.confirmPassword">Confirm password</label>
+            <input type="password" id="regCreatePassword2" autocomplete="new-password">
+          </div>
+          <div class="login-field" id="regMasterPasswordWrap" hidden>
+            <label for="regMasterPassword" data-i18n="settings.accountMasterPassword">Master password</label>
+            <input type="password" id="regMasterPassword" autocomplete="off">
+          </div>
+          <button type="button" class="btn-add login-submit" id="btnRegisterCreateContinue" data-i18n="login.createHouseholdCta">Create household</button>
+        </div>
+
+        <div id="registerCreateMemberPick" hidden>
+          <p class="login-step-heading" data-i18n="login.step2Heading">Who are you?</p>
+          <p class="login-step-sub" data-i18n="login.step2Sub">Choose the name you use for chores in this household.</p>
+          <div class="login-field">
+            <label for="regCreateMemberSelect" data-i18n="login.chooseMember">Your name</label>
+            <select id="regCreateMemberSelect" class="login-select"></select>
+          </div>
+          <button type="button" class="btn-add login-submit" id="btnRegisterCreateDone" data-i18n="login.registerSubmit">Continue</button>
+        </div>
+
+        <div id="registerJoinFields" hidden>
+          <div id="registerJoinStep1">
+            <p class="login-step-heading" data-i18n="login.joinStep1Heading">Join a household</p>
+            <div class="login-field">
+              <label for="regJoinHousehold" data-i18n="login.householdIdToJoin">Household id to join</label>
+              <input type="text" id="regJoinHousehold" autocomplete="organization" spellcheck="false" maxlength="63" title="Household id (letters, numbers, underscore, hyphen)">
+            </div>
+            <div class="login-field">
+              <label for="regJoinPassword" data-i18n="login.householdPassword">Household password</label>
+              <input type="password" id="regJoinPassword" autocomplete="current-password">
+            </div>
+            <button type="button" class="btn-add login-submit" id="btnRegisterJoinContinue" data-i18n="login.continue">Continue</button>
+          </div>
+          <div id="registerJoinStep2" hidden>
+            <p class="login-step-heading" data-i18n="login.step2Heading">Who are you?</p>
+            <p class="login-step-sub" data-i18n="login.step2Sub">Choose the name you use for chores in this household.</p>
+            <div class="login-field">
+              <label for="regJoinMemberSelect" data-i18n="login.chooseMember">Your name</label>
+              <select id="regJoinMemberSelect" class="login-select"></select>
+            </div>
+            <div class="login-actions-row">
+              <button type="button" class="btn-secondary login-btn-flex" id="btnRegisterJoinBack" data-i18n="login.back">Back</button>
+              <button type="button" class="btn-add login-btn-flex" id="btnRegisterJoinDone" data-i18n="login.registerSubmit">Continue</button>
+            </div>
+          </div>
+        </div>
+
+        <p id="registerCreateDisabledHint" class="login-hint login-hint--warn" hidden data-i18n="login.registerCreateDisabled">Creating households is disabled on this server. Ask an admin for a household id, then choose “Join an existing household”.</p>
+      </form>
+    </div>
   </div>
 
   <div id="appShell" class="app-shell" hidden>
@@ -311,7 +423,53 @@
 
           <div class="settings-panel" id="settingsPanelAccount" role="tabpanel" aria-labelledby="settingsTabAccount" data-settings-panel="account" hidden>
             <div class="settings-section settings-section--flat">
-              <div class="settings-section-body">
+              <div class="settings-section-body settings-section-body--account">
+                <div class="settings-subblock">
+                  <p class="settings-block-title" data-i18n="settings.accountSession">Session</p>
+                  <dl class="about-info account-session-dl" id="accountSessionDl"></dl>
+                  <p class="settings-hint audit-log-status" id="accountSessionError" hidden role="status"></p>
+                </div>
+                <div class="settings-subblock">
+                  <p class="settings-block-title" data-i18n="settings.accountDisplayName">Display name</p>
+                  <p class="settings-hint" data-i18n="settings.accountDisplayNameHint">Shown as the actor in the audit log.</p>
+                  <div class="add-person-row">
+                    <input type="text" id="accountDisplayNameInput" class="settings-full-width" maxlength="120" autocomplete="name" data-i18n-aria="settings.accountDisplayNameAria" aria-label="Display name">
+                    <button type="button" class="btn-secondary" id="btnSaveDisplayName" data-i18n="settings.save">Save</button>
+                  </div>
+                  <p class="settings-hint audit-log-status" id="accountDisplayNameStatus" hidden role="status"></p>
+                </div>
+                <div class="settings-subblock">
+                  <p class="settings-block-title" data-i18n="settings.accountChangePassword">Change household password</p>
+                  <p class="settings-hint" data-i18n="settings.accountChangePasswordHint">Updates the password for this household. Other households are unchanged.</p>
+                  <label class="analytics-filter-label" for="accountCurrentPassword" data-i18n="settings.accountCurrentPassword">Current password</label>
+                  <input type="password" id="accountCurrentPassword" class="settings-full-width discord-webhook-url" autocomplete="current-password">
+                  <label class="analytics-filter-label" for="accountNewPassword" data-i18n="settings.accountNewPassword">New password</label>
+                  <input type="password" id="accountNewPassword" class="settings-full-width discord-webhook-url" autocomplete="new-password">
+                  <label class="analytics-filter-label" for="accountConfirmPassword" data-i18n="settings.accountConfirmPassword">Confirm new password</label>
+                  <input type="password" id="accountConfirmPassword" class="settings-full-width discord-webhook-url" autocomplete="new-password">
+                  <div class="settings-actions">
+                    <button type="button" class="btn-secondary" id="btnAccountChangePassword" data-i18n="settings.accountApplyPassword">Update password</button>
+                  </div>
+                  <p class="settings-hint audit-log-status" id="accountPasswordStatus" hidden role="status"></p>
+                </div>
+                <div class="settings-subblock" id="accountCreateBlock" hidden>
+                  <p class="settings-block-title" data-i18n="settings.accountCreateHousehold">Create household</p>
+                  <p class="settings-hint" id="accountCreateHint" data-i18n="settings.accountCreateHintMaster">Add another isolated store. Requires the server master password.</p>
+                  <label class="analytics-filter-label" for="accountNewHouseholdId" data-i18n="settings.accountNewHouseholdId">Household id</label>
+                  <input type="text" id="accountNewHouseholdId" class="settings-full-width discord-webhook-url" maxlength="63" spellcheck="false" autocomplete="off" data-i18n-placeholder="settings.accountNewHouseholdIdPh" placeholder="e.g. upstairs">
+                  <label class="analytics-filter-label" for="accountNewHouseholdPassword" data-i18n="settings.accountNewHouseholdPassword">Password</label>
+                  <input type="password" id="accountNewHouseholdPassword" class="settings-full-width discord-webhook-url" autocomplete="new-password">
+                  <label class="analytics-filter-label" for="accountNewHouseholdPassword2" data-i18n="settings.accountConfirmHouseholdPassword">Confirm password</label>
+                  <input type="password" id="accountNewHouseholdPassword2" class="settings-full-width discord-webhook-url" autocomplete="new-password">
+                  <div id="accountMasterPasswordWrap">
+                    <label class="analytics-filter-label" for="accountMasterPassword" data-i18n="settings.accountMasterPassword">Master password</label>
+                    <input type="password" id="accountMasterPassword" class="settings-full-width discord-webhook-url" autocomplete="off">
+                  </div>
+                  <div class="settings-actions">
+                    <button type="button" class="btn-secondary" id="btnCreateHousehold" data-i18n="settings.accountCreateSubmit">Create household</button>
+                  </div>
+                  <p class="settings-hint audit-log-status" id="accountCreateStatus" hidden role="status"></p>
+                </div>
                 <div class="settings-actions">
                   <button type="button" class="btn-secondary" id="btnLogout" data-i18n="settings.logout">Log out</button>
                 </div>

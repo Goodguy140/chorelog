@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "households": {
+    "default": {
+      "salt": "1Y4qKDc8gb/aMpapQwlZfg==",
+      "hash": "Qh+X9FBNhp4eIkBJT4wxRr+roLuoLsZ+2uzpPTJeQkaRq3BQzEn1//a///YcOwP0nuRf2BiTD0QoXGz0r3HIlg==",
+      "createdAt": "2026-04-13T22:59:29.817Z"
+    }
+  }
+}

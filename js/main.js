@@ -1,5 +1,5 @@
 import { apiFetch } from './api-fetch.js';
-import { applyStaticDom, getLocale, setLocale, subscribeLocale, t } from './i18n.js';
+import { applyStaticDom, getLocale, getLocaleBcp47, setLocale, subscribeLocale, t } from './i18n.js';
 import { render } from './render-registry.js';
 import { switchMonth } from './render.js';
 import {
@@ -40,6 +40,72 @@ async function loadAppVersion() {
   }
 }
 
+function formatSessionExpiry(iso) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString(getLocaleBcp47(), { dateStyle: 'medium', timeStyle: 'short' });
+  } catch {
+    return String(iso);
+  }
+}
+
+async function loadAccountInfo() {
+  try {
+    const r = await apiFetch('/api/account');
+    if (!r.ok) {
+      app.account = null;
+      return;
+    }
+    app.account = await r.json();
+  } catch {
+    app.account = null;
+  }
+}
+
+async function loadAccountPanel() {
+  const dl = document.getElementById('accountSessionDl');
+  const errEl = document.getElementById('accountSessionError');
+  const nameInput = document.getElementById('accountDisplayNameInput');
+  const createBlock = document.getElementById('accountCreateBlock');
+  const masterWrap = document.getElementById('accountMasterPasswordWrap');
+  const createHint = document.getElementById('accountCreateHint');
+  if (!dl) return;
+  errEl.hidden = true;
+  errEl.textContent = '';
+  try {
+    const r = await apiFetch('/api/account');
+    if (!r.ok) throw new Error('unauthorized');
+    const d = await r.json();
+    app.account = d;
+    dl.innerHTML = [
+      [t('settings.accountHouseholdLabel'), d.household],
+      [t('settings.accountUserLabel'), d.user],
+      [t('settings.accountSessionExpires'), formatSessionExpiry(d.sessionExpiresAt)],
+    ]
+      .map(([label, val]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(val))}</dd>`)
+      .join('');
+    if (nameInput) nameInput.value = d.user;
+    const canCreate = d.canCreateHouseholds || d.openRegistration;
+    if (createBlock) {
+      createBlock.hidden = !canCreate;
+      if (masterWrap) masterWrap.hidden = !!d.openRegistration;
+      if (createHint) {
+        if (d.openRegistration && !d.canCreateHouseholds) {
+          createHint.textContent = t('settings.accountCreateHintOpen');
+        } else if (d.canCreateHouseholds && !d.openRegistration) {
+          createHint.textContent = t('settings.accountCreateHintMaster');
+        } else {
+          createHint.textContent = t('settings.accountCreateHintBoth');
+        }
+      }
+    }
+  } catch {
+    errEl.textContent = t('settings.accountLoadError');
+    errEl.hidden = false;
+    dl.innerHTML = '';
+  }
+}
+
 async function loadAboutPanel() {
   const dl = document.getElementById('aboutInfoDl');
   const errEl = document.getElementById('aboutInfoError');
@@ -53,15 +119,23 @@ async function loadAboutPanel() {
     const rows = [];
     rows.push([t('settings.aboutAppVersion'), d.version != null ? String(d.version) : '—']);
     rows.push([t('settings.aboutNode'), d.nodeVersion != null ? String(d.nodeVersion) : '—']);
-    const persistLabel =
-      d.persistence === 'sqlite' ? t('settings.aboutPersistenceSqlite') : t('settings.aboutPersistenceJson');
-    rows.push([t('settings.aboutPersistence'), persistLabel]);
-    rows.push([t('settings.aboutDbFile'), d.databaseRelativePath != null ? String(d.databaseRelativePath) : '—']);
-    if (d.persistence === 'sqlite' && d.sqliteVersion) {
-      rows.push([t('settings.aboutSqliteEngine'), String(d.sqliteVersion)]);
-      if (d.journalMode) {
-        rows.push([t('settings.aboutJournalMode'), String(d.journalMode)]);
+    if (d.household != null && String(d.household).trim()) {
+      rows.push([t('settings.aboutHousehold'), String(d.household).trim()]);
+    }
+    if (d.persistence) {
+      const persistLabel =
+        d.persistence === 'sqlite' ? t('settings.aboutPersistenceSqlite') : t('settings.aboutPersistenceJson');
+      rows.push([t('settings.aboutPersistence'), persistLabel]);
+      rows.push([t('settings.aboutDbFile'), d.databaseRelativePath != null ? String(d.databaseRelativePath) : '—']);
+      if (d.persistence === 'sqlite' && d.sqliteVersion) {
+        rows.push([t('settings.aboutSqliteEngine'), String(d.sqliteVersion)]);
+        if (d.journalMode) {
+          rows.push([t('settings.aboutJournalMode'), String(d.journalMode)]);
+        }
       }
+    } else {
+      rows.push([t('settings.aboutPersistence'), '—']);
+      rows.push([t('settings.aboutDbFile'), '—']);
     }
     rows.push([
       t('settings.aboutExportSchema'),
@@ -670,7 +744,8 @@ function openScheduledDialog() {
 
 function startApp() {
   document.getElementById('inDate').value = localDateISO();
-  return load().then(() => {
+  return load().then(async () => {
+    await loadAccountInfo();
     const months = [...new Set(app.entries.map((e) => getMonthKey(e.d)))].sort().reverse();
     if (months.length) app.currentMonth = months[0];
     else app.currentMonth = thisCalendarMonthKey();
@@ -952,6 +1027,9 @@ function setSettingsTab(id) {
   if (id === 'about') {
     void loadAboutPanel();
   }
+  if (id === 'account') {
+    void loadAccountPanel();
+  }
 }
 
 function initSettingsShell() {
@@ -1010,6 +1088,152 @@ document.getElementById('btnSettings').addEventListener('click', () => {
 });
 
 document.getElementById('btnRefreshAuditLog').addEventListener('click', () => loadAuditLogIntoSettings());
+
+document.getElementById('btnSaveDisplayName')?.addEventListener('click', async () => {
+  const input = document.getElementById('accountDisplayNameInput');
+  const status = document.getElementById('accountDisplayNameStatus');
+  if (!input || !status) return;
+  const user = input.value.trim();
+  if (!user) {
+    status.textContent = t('settings.accountDisplayNameRequired');
+    status.hidden = false;
+    return;
+  }
+  status.hidden = true;
+  try {
+    const r = await apiFetch('/api/account/display-name', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user }),
+    });
+    if (!r.ok) {
+      let msg = t('settings.accountDisplayNameErr');
+      try {
+        const j = await r.json();
+        if (j && j.error) msg = j.error;
+      } catch {
+        /* ignore */
+      }
+      status.textContent = msg;
+      status.hidden = false;
+      return;
+    }
+    status.textContent = t('settings.accountDisplayNameOk');
+    status.hidden = false;
+    await loadAccountInfo();
+  } catch {
+    status.textContent = t('settings.accountDisplayNameErr');
+    status.hidden = false;
+  }
+});
+
+document.getElementById('btnAccountChangePassword')?.addEventListener('click', async () => {
+  const cur = document.getElementById('accountCurrentPassword');
+  const n1 = document.getElementById('accountNewPassword');
+  const n2 = document.getElementById('accountConfirmPassword');
+  const status = document.getElementById('accountPasswordStatus');
+  if (!cur || !n1 || !n2 || !status) return;
+  const currentPassword = cur.value;
+  const newPassword = n1.value;
+  const confirm = n2.value;
+  status.hidden = true;
+  if (newPassword !== confirm) {
+    status.textContent = t('settings.accountPasswordMismatch');
+    status.hidden = false;
+    return;
+  }
+  if (newPassword.length < 8) {
+    status.textContent = t('settings.accountPasswordTooShort');
+    status.hidden = false;
+    return;
+  }
+  try {
+    const r = await apiFetch('/api/account/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    if (!r.ok) {
+      let msg = t('settings.accountPasswordErr');
+      try {
+        const j = await r.json();
+        if (j && j.error) msg = j.error;
+      } catch {
+        /* ignore */
+      }
+      status.textContent = msg;
+      status.hidden = false;
+      return;
+    }
+    status.textContent = t('settings.accountPasswordOk');
+    status.hidden = false;
+    cur.value = '';
+    n1.value = '';
+    n2.value = '';
+  } catch {
+    status.textContent = t('settings.accountPasswordErr');
+    status.hidden = false;
+  }
+});
+
+document.getElementById('btnCreateHousehold')?.addEventListener('click', async () => {
+  const idRaw = document.getElementById('accountNewHouseholdId')?.value.trim().toLowerCase() || '';
+  const pw = document.getElementById('accountNewHouseholdPassword')?.value || '';
+  const pw2 = document.getElementById('accountNewHouseholdPassword2')?.value || '';
+  const master = document.getElementById('accountMasterPassword')?.value || '';
+  const status = document.getElementById('accountCreateStatus');
+  if (!status) return;
+  status.hidden = true;
+  if (pw !== pw2) {
+    status.textContent = t('settings.accountPasswordMismatch');
+    status.hidden = false;
+    return;
+  }
+  if (pw.length < 8) {
+    status.textContent = t('settings.accountPasswordTooShort');
+    status.hidden = false;
+    return;
+  }
+  if (!app.account) await loadAccountInfo();
+  const body = { id: idRaw, password: pw };
+  if (app.account && !app.account.openRegistration) {
+    body.masterPassword = master;
+  }
+  try {
+    const r = await apiFetch('/api/households', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) {
+      let msg = t('settings.accountCreateErr');
+      try {
+        const j = await r.json();
+        if (j && j.error) msg = j.error;
+      } catch {
+        /* ignore */
+      }
+      status.textContent = msg;
+      status.hidden = false;
+      return;
+    }
+    status.textContent = t('settings.accountCreateOk');
+    status.hidden = false;
+    const idEl = document.getElementById('accountNewHouseholdId');
+    const p1 = document.getElementById('accountNewHouseholdPassword');
+    const p2 = document.getElementById('accountNewHouseholdPassword2');
+    const m = document.getElementById('accountMasterPassword');
+    if (idEl) idEl.value = '';
+    if (p1) p1.value = '';
+    if (p2) p2.value = '';
+    if (m) m.value = '';
+    await loadAccountInfo();
+    await loadAccountPanel();
+  } catch {
+    status.textContent = t('settings.accountCreateErr');
+    status.hidden = false;
+  }
+});
 
 document.getElementById('settingsLocale')?.addEventListener('change', async (e) => {
   const v = e.target && e.target.value;
@@ -1340,20 +1564,425 @@ document.getElementById('logList').addEventListener('click', (ev) => {
   if (id) openEditEntry(id);
 });
 
-document.getElementById('loginForm').addEventListener('submit', async (e) => {
+try {
+  const lastH = localStorage.getItem('chorelog-household');
+  const he = document.getElementById('loginHousehold');
+  if (lastH && he) he.value = lastH;
+  const rj = document.getElementById('regJoinHousehold');
+  if (lastH && rj) rj.value = lastH;
+} catch {
+  /* ignore */
+}
+
+/** @type {{ household: string, password: string } | null} */
+let pendingSignIn = null;
+/** @type {{ household: string, password: string } | null} */
+let pendingRegJoin = null;
+/** @type {{ id: string, password: string } | null} */
+let pendingRegCreate = null;
+
+let registerInfoCache = null;
+
+async function fetchRegisterInfo() {
+  try {
+    const r = await apiFetch('/api/register-info');
+    if (!r.ok) throw new Error('bad');
+    registerInfoCache = await r.json();
+    return registerInfoCache;
+  } catch {
+    registerInfoCache = {
+      openRegistration: false,
+      hasMasterPassword: false,
+      allowCreateHousehold: false,
+    };
+    return registerInfoCache;
+  }
+}
+
+function syncRegisterFlowPanels(flow) {
+  const createFields = document.getElementById('registerCreateFields');
+  const joinFields = document.getElementById('registerJoinFields');
+  const createPick = document.getElementById('registerCreateMemberPick');
+  const isJoin = flow === 'join';
+  resetRegisterJoinSteps();
+  if (isJoin) {
+    if (createFields) createFields.hidden = true;
+    if (createPick) createPick.hidden = true;
+    if (joinFields) joinFields.hidden = false;
+    pendingRegCreate = null;
+  } else {
+    if (joinFields) joinFields.hidden = true;
+    if (createPick) createPick.hidden = true;
+    if (createFields) createFields.hidden = false;
+  }
+}
+
+function resetRegisterJoinSteps() {
+  const s1 = document.getElementById('registerJoinStep1');
+  const s2 = document.getElementById('registerJoinStep2');
+  if (s1) s1.hidden = false;
+  if (s2) s2.hidden = true;
+  pendingRegJoin = null;
+}
+
+function fillMemberSelect(selectEl, people) {
+  if (!selectEl) return;
+  selectEl.innerHTML = '';
+  const ph = document.createElement('option');
+  ph.value = '';
+  ph.textContent = t('login.selectMemberPlaceholder');
+  ph.disabled = true;
+  ph.selected = true;
+  selectEl.appendChild(ph);
+  for (const name of people) {
+    const o = document.createElement('option');
+    o.value = name;
+    o.textContent = name;
+    selectEl.appendChild(o);
+  }
+}
+
+async function fetchHouseholdMembers(household, password) {
+  const r = await apiFetch('/api/login/members', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ household, password }),
+  });
+  let j = null;
+  try {
+    j = await r.json();
+  } catch {
+    /* ignore */
+  }
+  if (!r.ok) {
+    const err = new Error('members');
+    err.body = j;
+    throw err;
+  }
+  return Array.isArray(j.people) ? j.people : [];
+}
+
+function setLoginSignInStep(step) {
+  const s1 = document.getElementById('loginSignInStep1');
+  const s2 = document.getElementById('loginSignInStep2');
+  const d1 = document.getElementById('loginProgressDot1');
+  const d2 = document.getElementById('loginProgressDot2');
+  const line = document.getElementById('loginProgressLine');
+  const prog = document.getElementById('loginSignInProgress');
+  if (step === 2) {
+    if (s1) s1.hidden = true;
+    if (s2) s2.hidden = false;
+    if (d1) {
+      d1.classList.add('is-done');
+      d1.removeAttribute('aria-current');
+    }
+    if (d2) {
+      d2.classList.add('is-on');
+      d2.setAttribute('aria-current', 'step');
+    }
+    if (line) line.classList.add('is-done');
+    if (prog) prog.classList.add('login-progress--step2');
+  } else {
+    if (s1) s1.hidden = false;
+    if (s2) s2.hidden = true;
+    if (d1) {
+      d1.classList.remove('is-done');
+      d1.classList.add('is-on');
+      d1.setAttribute('aria-current', 'step');
+    }
+    if (d2) {
+      d2.classList.remove('is-on');
+      d2.classList.remove('is-done');
+      d2.removeAttribute('aria-current');
+    }
+    if (line) line.classList.remove('is-done');
+    if (prog) prog.classList.remove('login-progress--step2');
+    pendingSignIn = null;
+  }
+}
+
+function resetSignInToStep1() {
+  setLoginSignInStep(1);
+}
+
+function applyRegisterInfoToForm(info) {
+  const createRadio = document.getElementById('registerFlowCreate');
+  const joinRadio = document.getElementById('registerFlowJoin');
+  const hint = document.getElementById('registerCreateDisabledHint');
+  const masterWrap = document.getElementById('regMasterPasswordWrap');
+  const flow = document.querySelector('input[name="registerFlow"]:checked')?.value || 'create';
+  if (!info.allowCreateHousehold) {
+    if (createRadio) createRadio.disabled = true;
+    if (joinRadio) joinRadio.checked = true;
+    if (hint) hint.hidden = false;
+    syncRegisterFlowPanels('join');
+  } else {
+    if (createRadio) createRadio.disabled = false;
+    if (hint) hint.hidden = true;
+    const hasM = info.hasMasterPassword;
+    if (masterWrap) {
+      if (!hasM) masterWrap.hidden = true;
+      else masterWrap.hidden = false;
+    }
+    syncRegisterFlowPanels(flow);
+  }
+}
+
+async function completeLoginSession(household, username, password) {
+  const errEl = document.getElementById('loginError');
+  const r = await apiFetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ household, username, password }),
+  });
+  if (!r.ok) {
+    let msg = t('login.errorFailed');
+    try {
+      const j = await r.json();
+      if (j && j.error) msg = j.error;
+    } catch {
+      /* ignore */
+    }
+    errEl.textContent = msg;
+    errEl.hidden = false;
+    return false;
+  }
+  try {
+    localStorage.setItem('chorelog-household', String(household).toLowerCase());
+  } catch {
+    /* ignore */
+  }
+  document.getElementById('loginScreen').hidden = true;
+  document.getElementById('appShell').hidden = false;
+  await startApp();
+  return true;
+}
+
+async function submitLoginSignInStep1() {
+  const errEl = document.getElementById('loginError');
+  errEl.hidden = true;
+  const household = document.getElementById('loginHousehold')?.value.trim().toLowerCase() || 'default';
+  const password = document.getElementById('loginPass')?.value || '';
+  if (!household) {
+    errEl.textContent = t('login.householdIdRequired');
+    errEl.hidden = false;
+    return;
+  }
+  if (!password) {
+    errEl.textContent = t('login.passwordRequired');
+    errEl.hidden = false;
+    return;
+  }
+  try {
+    const people = await fetchHouseholdMembers(household, password);
+    pendingSignIn = { household, password };
+    fillMemberSelect(document.getElementById('loginMemberSelect'), people);
+    setLoginSignInStep(2);
+  } catch (e) {
+    let msg = t('login.errorFailed');
+    if (e && e.body && typeof e.body.error === 'string') msg = e.body.error;
+    errEl.textContent = msg;
+    errEl.hidden = false;
+  }
+}
+
+document.getElementById('btnLoginStep1Continue')?.addEventListener('click', () => {
+  void submitLoginSignInStep1();
+});
+
+document.getElementById('btnLoginBack')?.addEventListener('click', () => {
+  document.getElementById('loginError').hidden = true;
+  resetSignInToStep1();
+});
+
+document.getElementById('loginFormSignIn')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const errEl = document.getElementById('loginError');
   errEl.hidden = true;
-  const username = document.getElementById('loginUser').value.trim();
-  const password = document.getElementById('loginPass').value;
+  const step2 = document.getElementById('loginSignInStep2');
+  if (step2 && step2.hidden) {
+    await submitLoginSignInStep1();
+    return;
+  }
+  if (!pendingSignIn) {
+    errEl.textContent = t('login.sessionExpired');
+    errEl.hidden = false;
+    resetSignInToStep1();
+    return;
+  }
+  const username = document.getElementById('loginMemberSelect')?.value?.trim() || '';
+  if (!username) {
+    errEl.textContent = t('login.selectMemberRequired');
+    errEl.hidden = false;
+    return;
+  }
   try {
-    const r = await apiFetch('/api/login', {
+    await completeLoginSession(pendingSignIn.household, username, pendingSignIn.password);
+  } catch {
+    errEl.textContent = t('login.errorServer');
+    errEl.hidden = false;
+  }
+});
+
+document.querySelectorAll('input[name="registerFlow"]').forEach((el) => {
+  el.addEventListener('change', () => {
+    const v = document.querySelector('input[name="registerFlow"]:checked')?.value;
+    if (v) syncRegisterFlowPanels(v);
+  });
+});
+
+document.getElementById('loginTabSignIn')?.addEventListener('click', () => {
+  const signIn = document.getElementById('loginFormSignIn');
+  const reg = document.getElementById('loginFormRegister');
+  const t1 = document.getElementById('loginTabSignIn');
+  const t2 = document.getElementById('loginTabRegister');
+  if (signIn) signIn.hidden = false;
+  if (reg) reg.hidden = true;
+  if (t1) {
+    t1.classList.add('is-active');
+    t1.setAttribute('aria-selected', 'true');
+  }
+  if (t2) {
+    t2.classList.remove('is-active');
+    t2.setAttribute('aria-selected', 'false');
+  }
+  document.getElementById('loginError').hidden = true;
+  resetSignInToStep1();
+});
+
+document.getElementById('loginTabRegister')?.addEventListener('click', async () => {
+  const signIn = document.getElementById('loginFormSignIn');
+  const reg = document.getElementById('loginFormRegister');
+  const t1 = document.getElementById('loginTabSignIn');
+  const t2 = document.getElementById('loginTabRegister');
+  if (signIn) signIn.hidden = true;
+  if (reg) reg.hidden = false;
+  if (t1) {
+    t1.classList.remove('is-active');
+    t1.setAttribute('aria-selected', 'false');
+  }
+  if (t2) {
+    t2.classList.add('is-active');
+    t2.setAttribute('aria-selected', 'true');
+  }
+  registerInfoCache = null;
+  pendingRegCreate = null;
+  const info = await fetchRegisterInfo();
+  applyRegisterInfoToForm(info);
+  const flow = document.querySelector('input[name="registerFlow"]:checked')?.value || 'create';
+  syncRegisterFlowPanels(flow);
+});
+
+document.getElementById('loginFormRegister')?.addEventListener('submit', (e) => {
+  e.preventDefault();
+});
+
+document.getElementById('btnRegisterJoinContinue')?.addEventListener('click', async () => {
+  const errEl = document.getElementById('loginError');
+  errEl.hidden = true;
+  const householdRaw = document.getElementById('regJoinHousehold')?.value.trim().toLowerCase() || '';
+  const password = document.getElementById('regJoinPassword')?.value || '';
+  if (!householdRaw) {
+    errEl.textContent = t('login.householdIdRequired');
+    errEl.hidden = false;
+    return;
+  }
+  if (!password) {
+    errEl.textContent = t('login.passwordRequired');
+    errEl.hidden = false;
+    return;
+  }
+  try {
+    const people = await fetchHouseholdMembers(householdRaw, password);
+    pendingRegJoin = { household: householdRaw, password };
+    fillMemberSelect(document.getElementById('regJoinMemberSelect'), people);
+    document.getElementById('registerJoinStep1').hidden = true;
+    document.getElementById('registerJoinStep2').hidden = false;
+  } catch (e) {
+    let msg = t('login.errorFailed');
+    if (e && e.body && typeof e.body.error === 'string') msg = e.body.error;
+    errEl.textContent = msg;
+    errEl.hidden = false;
+  }
+});
+
+document.getElementById('btnRegisterJoinBack')?.addEventListener('click', () => {
+  document.getElementById('loginError').hidden = true;
+  resetRegisterJoinSteps();
+});
+
+document.getElementById('btnRegisterJoinDone')?.addEventListener('click', async () => {
+  const errEl = document.getElementById('loginError');
+  errEl.hidden = true;
+  const username = document.getElementById('regJoinMemberSelect')?.value?.trim() || '';
+  if (!username) {
+    errEl.textContent = t('login.selectMemberRequired');
+    errEl.hidden = false;
+    return;
+  }
+  if (!pendingRegJoin) {
+    errEl.textContent = t('login.sessionExpired');
+    errEl.hidden = false;
+    resetRegisterJoinSteps();
+    return;
+  }
+  try {
+    await completeLoginSession(pendingRegJoin.household, username, pendingRegJoin.password);
+  } catch {
+    errEl.textContent = t('login.errorServer');
+    errEl.hidden = false;
+  }
+});
+
+document.getElementById('btnRegisterCreateContinue')?.addEventListener('click', async () => {
+  const errEl = document.getElementById('loginError');
+  errEl.hidden = true;
+  const info = await fetchRegisterInfo();
+  if (!info.allowCreateHousehold) {
+    errEl.textContent = t('login.registerCreateDisabled');
+    errEl.hidden = false;
+    return;
+  }
+  const idRaw = document.getElementById('regCreateHouseholdId')?.value.trim().toLowerCase() || '';
+  const pw = document.getElementById('regCreatePassword')?.value || '';
+  const pw2 = document.getElementById('regCreatePassword2')?.value || '';
+  const master = document.getElementById('regMasterPassword')?.value || '';
+  if (!idRaw) {
+    errEl.textContent = t('login.newHouseholdIdRequired');
+    errEl.hidden = false;
+    return;
+  }
+  if (pw !== pw2) {
+    errEl.textContent = t('settings.accountPasswordMismatch');
+    errEl.hidden = false;
+    return;
+  }
+  if (pw.length < 8) {
+    errEl.textContent = t('settings.accountPasswordTooShort');
+    errEl.hidden = false;
+    return;
+  }
+  if (!info.openRegistration && info.hasMasterPassword && !master) {
+    errEl.textContent = t('login.masterPasswordRequired');
+    errEl.hidden = false;
+    return;
+  }
+  const body = { id: idRaw, password: pw };
+  if (info.openRegistration && !info.hasMasterPassword) {
+    /* no master */
+  } else if (!info.openRegistration && info.hasMasterPassword) {
+    body.masterPassword = master;
+  } else if (info.openRegistration && info.hasMasterPassword && master) {
+    body.masterPassword = master;
+  }
+  try {
+    const r = await apiFetch('/api/households', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify(body),
     });
     if (!r.ok) {
-      let msg = t('login.errorFailed');
+      let msg = t('settings.accountCreateErr');
       try {
         const j = await r.json();
         if (j && j.error) msg = j.error;
@@ -1364,9 +1993,35 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
       errEl.hidden = false;
       return;
     }
-    document.getElementById('loginScreen').hidden = true;
-    document.getElementById('appShell').hidden = false;
-    await startApp();
+    pendingRegCreate = { id: idRaw, password: pw };
+    const people = await fetchHouseholdMembers(idRaw, pw);
+    document.getElementById('registerCreateFields').hidden = true;
+    document.getElementById('registerCreateMemberPick').hidden = false;
+    fillMemberSelect(document.getElementById('regCreateMemberSelect'), people);
+  } catch (e) {
+    let msg = t('login.errorServer');
+    if (e && e.body && typeof e.body.error === 'string') msg = e.body.error;
+    errEl.textContent = msg;
+    errEl.hidden = false;
+  }
+});
+
+document.getElementById('btnRegisterCreateDone')?.addEventListener('click', async () => {
+  const errEl = document.getElementById('loginError');
+  errEl.hidden = true;
+  const username = document.getElementById('regCreateMemberSelect')?.value?.trim() || '';
+  if (!username) {
+    errEl.textContent = t('login.selectMemberRequired');
+    errEl.hidden = false;
+    return;
+  }
+  if (!pendingRegCreate) {
+    errEl.textContent = t('login.sessionExpired');
+    errEl.hidden = false;
+    return;
+  }
+  try {
+    await completeLoginSession(pendingRegCreate.id, username, pendingRegCreate.password);
   } catch {
     errEl.textContent = t('login.errorServer');
     errEl.hidden = false;
@@ -1382,6 +2037,21 @@ document.getElementById('btnLogout').addEventListener('click', async () => {
   document.getElementById('settingsDialog').close();
   document.getElementById('loginScreen').hidden = false;
   document.getElementById('appShell').hidden = true;
+  const signIn = document.getElementById('loginFormSignIn');
+  const reg = document.getElementById('loginFormRegister');
+  const t1 = document.getElementById('loginTabSignIn');
+  const t2 = document.getElementById('loginTabRegister');
+  if (signIn) signIn.hidden = false;
+  if (reg) reg.hidden = true;
+  if (t1) {
+    t1.classList.add('is-active');
+    t1.setAttribute('aria-selected', 'true');
+  }
+  if (t2) {
+    t2.classList.remove('is-active');
+    t2.setAttribute('aria-selected', 'false');
+  }
+  resetSignInToStep1();
 });
 
 window.addEntry = addEntry;
@@ -1415,6 +2085,10 @@ subscribeLocale(() => {
   const aboutPanel = document.getElementById('settingsPanelAbout');
   if (aboutPanel && !aboutPanel.hidden) {
     void loadAboutPanel();
+  }
+  const accountPanel = document.getElementById('settingsPanelAccount');
+  if (accountPanel && !accountPanel.hidden) {
+    void loadAccountPanel();
   }
 });
 

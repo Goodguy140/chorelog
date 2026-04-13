@@ -10,7 +10,7 @@
 
 | Area | Primary files |
 |------|----------------|
-| HTTP API + persistence (`data/chores.json` or optional SQLite) | `server.js`, `lib/login-throttle.cjs`, `lib/sqlite-store.cjs` |
+| HTTP API + multi-household persistence | `server.js`, `lib/households-registry.cjs`, `lib/login-throttle.cjs`, `lib/sqlite-store.cjs` |
 | HTML shell + ids | `index.html` |
 | Events, auth, mutations | `js/main.js` |
 | i18n (`t`, locales, language in Settings) | `js/i18n.js`, `locales/en.json`, `locales/de.json` |
@@ -23,7 +23,7 @@
 
 ---
 
-`server.js` — API + persistence + import/export/store normalization; **`module.exports = { normalizeStore }`** when required (tests); **`if (require.main === module)`** wraps listen + Discord reminder interval (so `npm test` does not bind a port or start the timer).
+`server.js` — API + multi-household persistence + import/export/store normalization; **`module.exports = { normalizeStore, buildEntriesCsv }`** for tests; **`if (require.main === module)`** wraps listen + Discord reminder interval (so `npm test` does not bind a port or start the timer).
 - `135` `normalizeEntry(row)` — entry shape, `choreId`, `locationIds`.
 - `163` `normalizeChorePreset(row)` — validates title/points/color/scoringMode.
 - `178` `normalizeChorePresets(arr)` — array normalization for presets.
@@ -105,11 +105,11 @@
 
 `css/chore-tracker-scheduled.css` — scheduled dashboard + dialogs + start-date editor (`.scheduled-start-edit`) + **`.scheduled-log-suggestions`** / `.scheduled-suggest-btn`.
 
-`css/chore-tracker-auth.css` — login screen visibility and card.
+`css/chore-tracker-auth.css` — login screen visibility, card, **Sign in / Create account** tabs.
 
 `css/chore-tracker-extras.css` — chore suggest, preset editors, `#inLocations`, `.log-chore-points`.
 
-`data/chores.json` — persisted store (`entries`, `people`, `chorePresets`, `quickChoreIds`, `locations`, `scheduledChores`, …).
+**`data/households/registry.db`** — SQLite **`household_registry`** table (per-household **scrypt** credentials); legacy **`registry.json`** is imported once then renamed. **`data/households/<id>/chores.json`** (or **`chores.db`** when per-household SQLite is enabled) — persisted store (`entries`, `people`, …). Legacy root **`data/chores.json`** is migrated into **`households/default/`** on first run.
 
 ---
 
@@ -137,12 +137,16 @@
 
 ### Auth and server
 
-- **Login** — `POST /api/login` with env `CHORELOG_USER` / `CHORELOG_PASSWORD` (defaults documented in code); **logout** `POST /api/logout`.
+- **Households (multi-tenant)** — isolated stores under **`data/households/<id>/`**; **scrypt** password hashes per household slug (`[a-z0-9][a-z0-9_-]{0,62}`) live in SQLite **`data/households/registry.db`** (Node **22+**). Legacy **`registry.json`** is imported once then renamed to **`registry.json.migrated`**. On first start, legacy **`data/chores.json`** is moved to **`data/households/default/chores.json`** and the registry seeds household **`default`** with password from **`CHORELOG_PASSWORD`** (default `monkey`). **`POST /api/households`** (no auth cookie) creates a household when **`CHORELOG_OPEN_REGISTRATION=1`** (body **`id`**, **`password`** ≥8 chars) **or** when **`CHORELOG_MASTER_PASSWORD`** is set and **`masterPassword`** in the body matches; otherwise **`403`** JSON. **`409`** if the id already exists.
+- **Login** — `POST /api/login` with **`household`**, **`username`** (display name for audit), **`password`**; **logout** `POST /api/logout`. Session cookie payload **`v:2`** includes **`household`** + **`user`**.
+- **Login members (unauthenticated)** — **`POST /api/login/members`** with **`household`**, **`password`** — same password check as login; returns **`{ people: string[] }`** from the household store’s **People** list (sorted). Same brute-force throttle as login on failures; used by the login UI **step 1 → step 2** (pick a person from a dropdown). Does not set a session.
+- **Registration (unauthenticated)** — **`GET /api/register-info`** — `{ openRegistration, hasMasterPassword, allowCreateHousehold }` for the login **Create account** tab (create vs join household, master field visibility). Login UI: **Sign in** vs **Create account**; join = household + password then member dropdown; create = **`POST /api/households`** then member dropdown then **`POST /api/login`**.
+- **Account (authenticated)** — **`GET /api/account`** — `{ user, household, sessionExpiresAt, canCreateHouseholds (master password set), openRegistration }`. **`PUT /api/account/display-name`** — JSON **`{ user }`**; re-issues cookie with updated display name. **`POST /api/account/password`** — JSON **`{ currentPassword, newPassword }`** (≥8); updates **this household’s** registry password after verifying the current password.
 - **Brute-force protection** — failed sign-ins are tracked **per client IP** (`lib/login-throttle.cjs`); after `CHORELOG_LOGIN_MAX_FAILURES` (default 8) failures within `CHORELOG_LOGIN_WINDOW_MS` (default 15 min), the IP is locked out for `CHORELOG_LOGIN_LOCKOUT_MS` (default 15 min). State in **`data/login-throttle.json`** (survives restarts). **`429`** with `Retry-After` and JSON `{ error, retryAfterSeconds }` when locked out. **`CHORELOG_TRUST_PROXY=1`** sets Express `trust proxy` so `req.ip` reflects `X-Forwarded-For` behind a reverse proxy.
-- **Session** — signed HMAC cookie (`chorelog_auth`) includes **`user`** (username) for audit actor; ~30-day expiry; secret from `CHORELOG_SECRET` (dev default in code). **`GET /api/auth`** returns `{ authenticated, user }` when valid.
-- **API guard** — all `/api/*` except auth/version/login require a valid cookie (`requireApiAuth` sets `req.authPayload`).
-- **Persistence** — default: JSON file **`data/chores.json`**; **atomic write** (temp + rename). **Optional SQLite**: set **`CHORELOG_SQLITE_PATH`** — bare filename (e.g. `chores.db`) → **`data/chores.db`**; paths starting with **`data/`** (e.g. `./data/chores.db`) → from **project root**; absolute paths as-is. Parent dirs are created if missing. Uses Node built-in **`node:sqlite`** (`DatabaseSync`, WAL). If the DB has no row yet, the server **one-time imports** existing `data/chores.json` then serves from SQLite. **`ensureSeed`** unchanged (demo rows if empty).
-- **Version** — **`GET /api/version`** returns `version`, `nodeVersion`, `persistence` (`json`|`sqlite`), `databaseRelativePath`, optional `sqliteVersion` / `journalMode`, `exportSchemaVersion` (matches export JSON `version`); footer + Settings **About** tab.
+- **Session** — signed HMAC cookie (`chorelog_auth`) includes **`user`** and **`household`**; ~30-day expiry; secret from `CHORELOG_SECRET` (dev default in code). **`GET /api/auth`** returns `{ authenticated, user, household }` when valid.
+- **API guard** — unauthenticated: **`GET /api/auth`**, **`GET /api/version`**, **`GET /api/register-info`**, **`POST /api/login`**, **`POST /api/login/members`**, **`POST /api/logout`**, **`POST /api/households`**. Everything else under **`/api/*`** requires a valid cookie tied to a known household (`requireApiAuth` sets `req.authPayload`, `req.householdId`).
+- **Persistence (per household)** — JSON **`data/households/<id>/chores.json`** (atomic write). **Optional SQLite**: if **`CHORELOG_SQLITE_PATH`** is set (any non-empty value), each household uses **`data/households/<id>/chores.db`** (`node:sqlite`, WAL); empty DB imports sibling **`chores.json`** once. **`ensureSeed`** seeds demo data per household when empty.
+- **Version** — **`GET /api/version`** — without auth: `version`, `nodeVersion`, `exportSchemaVersion`, `multiHousehold`. With cookie: also **`household`**, **`persistence`**, **`databaseRelativePath`**, optional SQLite engine fields. Footer + Settings **About** tab.
 
 ### Data model (store)
 
@@ -194,6 +198,7 @@
 ### Settings and data lifecycle
 
 - **Settings layout** — tabbed **nav** (`#settingsNav`, categories: Interface, Household, Chores, Integrations, Account, Audit, Data, **About**); **About** loads **`GET /api/version`** (app version, Node, storage type, data file path, SQLite engine + journal mode when applicable, export schema version); scrollable **panel** content; hamburger + backdrop on small viewports; last tab in `sessionStorage` (`chorelog-settings-tab`).
+- **Account** — **`GET /api/account`** on open; session summary (household id, display name, expiry), edit display name (**`PUT /api/account/display-name`**), change household password (**`POST /api/account/password`**), optional **create household** (**`POST /api/households`**) when **`CHORELOG_OPEN_REGISTRATION=1`** and/or **`CHORELOG_MASTER_PASSWORD`** is set; **Log out** (**`POST /api/logout`**). `js/main.js`: `loadAccountPanel` / `loadAccountInfo`.
 - **Integrations** — overdue webhook reminders: Discord URL, reminder interval, **quiet hours**, optional **Slack** + **generic HTTPS** URLs; Save / Send test / Post overdue now (`js/main.js` + `server.js` as above).
 - **Appearance** — theme **system / light / dark** (`localStorage` + inline head script to prevent flash); **`syncThemeMeta`** for `theme-color`.
 - **People / locations / presets / quick bar** — CRUD in UI; **`PUT /api/settings`** batches updates.
@@ -208,7 +213,14 @@
 - **Render registry** — breaks import cycles between render and main.
 - **Responsive shell** — `--layout-max-width` steps at ~820px / 1100px / 1440px; log + MoM side-by-side on wide layouts.
 - **i18n** — `localStorage` key `chorelog-locale` (`en` | `de`); nested JSON flattened to dotted keys; `t(key, vars)`; `initI18n()` in `chore-tracker.js` before `main.js`; Settings → Language; month names and dates use `getLocaleBcp47()` (`en-US` / `de-DE`).
-- **Automated tests** — `npm test` runs **`node --test`** on `test/*.test.cjs`: `normalizeStore` (via `module.exports` from `server.js`, no listen/timer when required), **next due** math (mirrors `js/utils/date.js`), **semicolon resolve** rules (mirrors `resolveChorePayloadRows`). GitHub Actions: `.github/workflows/ci.yml` on push/PR to `main`/`master`. Further ideas: HTTP import-merge, `scheduledStatus` labels with i18n stubs.
+- **Automated tests** — `npm test` runs **`node --test`** on `test/*.test.cjs`: `normalizeStore` (via `module.exports` from `server.js`, no listen/timer when required), **next due** math (mirrors `js/utils/date.js`), **semicolon resolve** rules (mirrors `resolveChorePayloadRows`), **household registry** JSON→SQLite migration (`test/households-registry.test.cjs`). GitHub Actions: `.github/workflows/ci.yml` on push/PR to `main`/`master`. Further ideas: HTTP import-merge, `scheduledStatus` labels with i18n stubs.
+
+## Completed future ideas
+
+- **Brute-force protection** — lockout on failed `POST /api/login` (`lib/login-throttle.cjs`, `data/login-throttle.json`). Details: **Auth and server**.
+- **Optional SQLite backend** — `CHORELOG_SQLITE_PATH`, `lib/sqlite-store.cjs`, migration from JSON. Details: **Auth and server** (Persistence).
+- **CSV / spreadsheet export** — `GET /api/export/entries.csv`, Settings → Data **Export CSV**.
+- **Multi-household accounts** — isolated stores (`data/households/`), registry + login **`household`** field; **`POST /api/households`** with open registration and/or **`CHORELOG_MASTER_PASSWORD`**. Details: **Auth and server**.
 
 ## Future ideas (implementation-oriented)
 
@@ -218,8 +230,6 @@
 - **True offline mode** — cache static assets + read-only queue in SW; conflict rules for writes.
 - **Push notifications** (PWA) as an alternative to Discord for mobile users.
 - **Calendar-native recurrence** — e.g. “every second Tuesday” vs fixed day intervals only.
-- ~~**CSV / spreadsheet export** for entries.~~ **Done** — `GET /api/export/entries.csv`, Settings → **Export CSV**.
-- **Multi-household or multi-user** accounts with isolated stores.
 - **Read-only or guest** role (view stats, no edit).
 - **Tags or categories** orthogonal to presets.
 - **Streaks / goals** — weekly targets, gentle nudges in UI.

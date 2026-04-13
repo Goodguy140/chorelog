@@ -54,4 +54,6 @@ export const app = {
     slackWebhookUrl: '',
     genericWebhookUrl: '',
   },
+  /** From `GET /api/account` after sign-in. */
+  account: null,
 };
