@@ -277,12 +277,15 @@ function normalizeScheduledChores(arr) {
     if (lastCompletedAt != null && typeof lastCompletedAt === 'string') lastCompletedAt = lastCompletedAt.slice(0, 10);
     else lastCompletedAt = null;
 
+    const reminderEnabled = row.reminderEnabled === false ? false : true;
+
     out.push({
       id,
       title,
       intervalDays,
       startsOn,
       lastCompletedAt,
+      reminderEnabled,
       createdAt,
       updatedAt,
     });
@@ -333,8 +336,70 @@ function isDiscordWebhookUrl(url) {
   );
 }
 
+function isSlackIncomingWebhookUrl(url) {
+  return typeof url === 'string' && /^https:\/\/hooks\.slack\.com\/services\//i.test(url.trim());
+}
+
+/** Any HTTPS URL except Discord/Slack (e.g. Zapier, custom receiver). Same JSON body as Discord. */
+function isGenericHttpsWebhookUrl(url) {
+  if (typeof url !== 'string' || !url.trim()) return false;
+  try {
+    const u = new URL(url.trim());
+    if (u.protocol !== 'https:') return false;
+    if (isDiscordWebhookUrl(url) || isSlackIncomingWebhookUrl(url)) return false;
+    return Boolean(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function hasReminderDestination(w) {
+  if (!w || typeof w !== 'object') return false;
+  if (w.url && isDiscordWebhookUrl(w.url)) return true;
+  if (w.slackWebhookUrl && isSlackIncomingWebhookUrl(w.slackWebhookUrl)) return true;
+  if (w.genericWebhookUrl && isGenericHttpsWebhookUrl(w.genericWebhookUrl)) return true;
+  return false;
+}
+
+/** Normalize "H:MM" or "HH:MM" to HH:MM */
+function normalizeTimeHHMM(s) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || '').trim());
+  if (!m) return '22:00';
+  let h = Number(m[1]);
+  let min = Number(m[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(min) || h > 23 || min > 59) return '22:00';
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+}
+
+function timeStringToMinutes(s) {
+  const t = normalizeTimeHHMM(s);
+  const [h, min] = t.split(':').map(Number);
+  return h * 60 + min;
+}
+
+/** Server local clock; quiet range may span midnight (e.g. 22:00–08:00). */
+function isInReminderQuietHours(w) {
+  if (!w || !w.quietHoursEnabled) return false;
+  const start = timeStringToMinutes(w.quietHoursStart || '22:00');
+  const end = timeStringToMinutes(w.quietHoursEnd || '08:00');
+  const d = new Date();
+  const mins = d.getHours() * 60 + d.getMinutes();
+  if (start === end) return false;
+  if (start < end) return mins >= start && mins < end;
+  return mins >= start || mins < end;
+}
+
 function normalizeDiscordWebhook(raw) {
-  const defaults = { enabled: false, url: '', reminderIntervalMinutes: 1440 };
+  const defaults = {
+    enabled: false,
+    url: '',
+    reminderIntervalMinutes: 1440,
+    quietHoursEnabled: false,
+    quietHoursStart: '22:00',
+    quietHoursEnd: '08:00',
+    slackWebhookUrl: '',
+    genericWebhookUrl: '',
+  };
   if (!raw || typeof raw !== 'object') return { ...defaults };
   const enabled = Boolean(raw.enabled);
   let url = typeof raw.url === 'string' ? raw.url.trim() : '';
@@ -342,7 +407,30 @@ function normalizeDiscordWebhook(raw) {
   let reminderIntervalMinutes = Number(raw.reminderIntervalMinutes);
   if (!Number.isFinite(reminderIntervalMinutes)) reminderIntervalMinutes = defaults.reminderIntervalMinutes;
   reminderIntervalMinutes = Math.min(10080, Math.max(15, Math.round(reminderIntervalMinutes)));
-  return { enabled, url, reminderIntervalMinutes };
+
+  const quietHoursEnabled = Boolean(raw.quietHoursEnabled);
+  let quietHoursStart = normalizeTimeHHMM(
+    typeof raw.quietHoursStart === 'string' ? raw.quietHoursStart : defaults.quietHoursStart,
+  );
+  let quietHoursEnd = normalizeTimeHHMM(
+    typeof raw.quietHoursEnd === 'string' ? raw.quietHoursEnd : defaults.quietHoursEnd,
+  );
+
+  let slackWebhookUrl = typeof raw.slackWebhookUrl === 'string' ? raw.slackWebhookUrl.trim() : '';
+  if (slackWebhookUrl && !isSlackIncomingWebhookUrl(slackWebhookUrl)) slackWebhookUrl = '';
+  let genericWebhookUrl = typeof raw.genericWebhookUrl === 'string' ? raw.genericWebhookUrl.trim() : '';
+  if (genericWebhookUrl && !isGenericHttpsWebhookUrl(genericWebhookUrl)) genericWebhookUrl = '';
+
+  return {
+    enabled,
+    url,
+    reminderIntervalMinutes,
+    quietHoursEnabled,
+    quietHoursStart,
+    quietHoursEnd,
+    slackWebhookUrl,
+    genericWebhookUrl,
+  };
 }
 
 function normalizeDiscordReminderSentAt(raw) {
@@ -660,12 +748,14 @@ app.post('/api/scheduled-chores', async (req, res) => {
       parseCalendarDateParam(req.body && req.body.createdAt) ??
       localCalendarDateISO();
     const ts = nowISO();
+    const reminderEnabled = req.body && req.body.reminderEnabled === false ? false : true;
     const row = {
       id: newId(),
       title,
       intervalDays,
       startsOn,
       lastCompletedAt: null,
+      reminderEnabled,
       createdAt: ts,
       updatedAt: ts,
     };
@@ -705,6 +795,9 @@ app.put('/api/scheduled-chores/:id', async (req, res) => {
       }
       list[idx].startsOn = nextStart;
     }
+    if (req.body.reminderEnabled != null) {
+      list[idx].reminderEnabled = Boolean(req.body.reminderEnabled);
+    }
     list[idx].updatedAt = nowISO();
     store.scheduledChores = list;
     const ch = list[idx];
@@ -712,6 +805,7 @@ app.put('/api/scheduled-chores/:id', async (req, res) => {
     if (req.body.title != null) changes.push('title');
     if (req.body.intervalDays != null) changes.push('interval');
     if (req.body.startsOn != null) changes.push('startsOn');
+    if (req.body.reminderEnabled != null) changes.push('reminderEnabled');
     appendAudit(store, req, {
       action: 'scheduled.update',
       target: ch.title,
@@ -880,8 +974,15 @@ async function postDiscordWebhook(url, payload) {
   }
 }
 
-async function sendDiscordTestMessage(url) {
-  return postDiscordWebhook(url, {
+async function sendTestToAllWebhookChannels(w, urlOverrides = {}) {
+  const discordUrl = urlOverrides.url != null ? String(urlOverrides.url).trim() : w.url;
+  const slackUrl =
+    urlOverrides.slackWebhookUrl != null ? String(urlOverrides.slackWebhookUrl).trim() : w.slackWebhookUrl;
+  const genericUrl =
+    urlOverrides.genericWebhookUrl != null
+      ? String(urlOverrides.genericWebhookUrl).trim()
+      : w.genericWebhookUrl;
+  const payload = {
     embeds: [
       {
         title: 'Chorelog',
@@ -889,16 +990,31 @@ async function sendDiscordTestMessage(url) {
         color: 0x1d9e75,
       },
     ],
-  });
+  };
+  const tasks = [];
+  if (discordUrl && isDiscordWebhookUrl(discordUrl)) {
+    tasks.push(() => postDiscordWebhook(discordUrl, payload));
+  }
+  if (slackUrl && isSlackIncomingWebhookUrl(slackUrl)) {
+    tasks.push(() =>
+      postSlackIncomingWebhook(slackUrl, 'Chorelog — test notification; webhook is configured correctly.'),
+    );
+  }
+  if (genericUrl && isGenericHttpsWebhookUrl(genericUrl)) {
+    tasks.push(() => postDiscordWebhook(genericUrl, payload));
+  }
+  if (!tasks.length) return false;
+  const results = await Promise.all(tasks.map((fn) => fn()));
+  return results.some(Boolean);
 }
 
-async function sendDiscordOverdueMessage(url, chore, nextDue, today) {
+function buildOverdueDiscordPayload(chore, nextDue, today) {
   const daysPast = Math.floor(
     (new Date(`${today}T12:00:00`).getTime() - new Date(`${nextDue}T12:00:00`).getTime()) / 864e5,
   );
   const title = String(chore.title || 'Chore').replace(/\*/g, '');
   const dueWhen = formatCalendarDateHuman(nextDue);
-  return postDiscordWebhook(url, {
+  return {
     embeds: [
       {
         title: 'Scheduled chore overdue',
@@ -906,10 +1022,52 @@ async function sendDiscordOverdueMessage(url, chore, nextDue, today) {
         color: 0xe24b4a,
       },
     ],
-  });
+  };
 }
 
-async function sendDiscordOverdueDigest(url, chores, today) {
+function buildOverdueSlackPlainText(chore, nextDue, today) {
+  const daysPast = Math.floor(
+    (new Date(`${today}T12:00:00`).getTime() - new Date(`${nextDue}T12:00:00`).getTime()) / 864e5,
+  );
+  const title = String(chore.title || 'Chore').replace(/\*/g, '');
+  const dueWhen = formatCalendarDateHuman(nextDue);
+  return `Scheduled chore overdue: *${title}* was due ${dueWhen} (${daysPast} day${daysPast === 1 ? '' : 's'} overdue).`;
+}
+
+async function postSlackIncomingWebhook(url, text) {
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    return r.ok || r.status === 204;
+  } catch (e) {
+    console.error('Slack webhook:', e.message || e);
+    return false;
+  }
+}
+
+/** Sends the same overdue notification to every configured channel; succeeds if at least one delivery works. */
+async function sendOverdueToAllWebhookChannels(w, chore, nextDue, today) {
+  const discordPayload = buildOverdueDiscordPayload(chore, nextDue, today);
+  const slackText = buildOverdueSlackPlainText(chore, nextDue, today);
+  const tasks = [];
+  if (w.url && isDiscordWebhookUrl(w.url)) {
+    tasks.push(() => postDiscordWebhook(w.url, discordPayload));
+  }
+  if (w.slackWebhookUrl && isSlackIncomingWebhookUrl(w.slackWebhookUrl)) {
+    tasks.push(() => postSlackIncomingWebhook(w.slackWebhookUrl, slackText));
+  }
+  if (w.genericWebhookUrl && isGenericHttpsWebhookUrl(w.genericWebhookUrl)) {
+    tasks.push(() => postDiscordWebhook(w.genericWebhookUrl, discordPayload));
+  }
+  if (!tasks.length) return false;
+  const results = await Promise.all(tasks.map((fn) => fn()));
+  return results.some(Boolean);
+}
+
+function buildDiscordOverdueDigestPayload(chores, today) {
   const lines = chores.map((s) => {
     const next = nextDueDateScheduled(s);
     const daysPast = Math.floor(
@@ -920,10 +1078,41 @@ async function sendDiscordOverdueDigest(url, chores, today) {
     return `• **${title}** — due ${dueWhen} (${daysPast}d overdue)`;
   });
   const desc = lines.join('\n').slice(0, 3900);
-  return postDiscordWebhook(url, {
+  return {
     content: `**${chores.length} overdue scheduled chore(s)**`,
     embeds: [{ description: desc, color: 0xe24b4a }],
+  };
+}
+
+function buildSlackOverdueDigestPlainText(chores, today) {
+  const lines = chores.map((s) => {
+    const next = nextDueDateScheduled(s);
+    const daysPast = Math.floor(
+      (new Date(`${today}T12:00:00`).getTime() - new Date(`${next}T12:00:00`).getTime()) / 864e5,
+    );
+    const title = String(s.title || 'Chore').replace(/\*/g, '');
+    const dueWhen = formatCalendarDateHuman(next);
+    return `• ${title} — due ${dueWhen} (${daysPast}d overdue)`;
   });
+  return `*${chores.length} overdue scheduled chore(s)*\n${lines.join('\n')}`.slice(0, 3900);
+}
+
+async function sendDigestToAllWebhookChannels(w, chores, today) {
+  const discordPayload = buildDiscordOverdueDigestPayload(chores, today);
+  const slackText = buildSlackOverdueDigestPlainText(chores, today);
+  const tasks = [];
+  if (w.url && isDiscordWebhookUrl(w.url)) {
+    tasks.push(() => postDiscordWebhook(w.url, discordPayload));
+  }
+  if (w.slackWebhookUrl && isSlackIncomingWebhookUrl(w.slackWebhookUrl)) {
+    tasks.push(() => postSlackIncomingWebhook(w.slackWebhookUrl, slackText));
+  }
+  if (w.genericWebhookUrl && isGenericHttpsWebhookUrl(w.genericWebhookUrl)) {
+    tasks.push(() => postDiscordWebhook(w.genericWebhookUrl, discordPayload));
+  }
+  if (!tasks.length) return false;
+  const results = await Promise.all(tasks.map((fn) => fn()));
+  return results.some(Boolean);
 }
 
 let discordReminderJobRunning = false;
@@ -933,7 +1122,8 @@ async function runDiscordReminders() {
   try {
     const store = await readStore();
     const w = store.discordWebhook;
-    if (!w || !w.enabled || !w.url) return;
+    if (!w || !w.enabled || !hasReminderDestination(w)) return;
+    if (isInReminderQuietHours(w)) return;
 
     const today = localCalendarDateISO();
     const intervalMs = w.reminderIntervalMinutes * 60 * 1000;
@@ -943,6 +1133,7 @@ async function runDiscordReminders() {
     let changed = false;
 
     for (const s of list) {
+      if (s.reminderEnabled === false) continue;
       const next = nextDueDateScheduled(s);
       if (next >= today) {
         if (sentMap[s.id]) {
@@ -954,7 +1145,7 @@ async function runDiscordReminders() {
       const last = sentMap[s.id] ? Date.parse(sentMap[s.id]) : 0;
       if (last && now - last < intervalMs) continue;
 
-      const ok = await sendDiscordOverdueMessage(w.url, s, next, today);
+      const ok = await sendOverdueToAllWebhookChannels(w, s, next, today);
       if (ok) {
         sentMap[s.id] = new Date().toISOString();
         changed = true;
@@ -975,14 +1166,22 @@ async function runDiscordReminders() {
 app.post('/api/discord-webhook/test', async (req, res) => {
   try {
     const store = await readStore();
-    const fromBody = req.body && typeof req.body.url === 'string' ? req.body.url.trim() : '';
-    const url = fromBody || (store.discordWebhook && store.discordWebhook.url);
-    if (!url || !isDiscordWebhookUrl(url)) {
-      return res.status(400).json({ error: 'Enter a valid Discord webhook URL' });
-    }
-    const ok = await sendDiscordTestMessage(url);
+    const w = store.discordWebhook || normalizeDiscordWebhook(null);
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const fromBody =
+      typeof body.url === 'string' || typeof body.slackWebhookUrl === 'string' || typeof body.genericWebhookUrl === 'string';
+    const overrides = fromBody
+      ? {
+          url: typeof body.url === 'string' ? body.url : undefined,
+          slackWebhookUrl: typeof body.slackWebhookUrl === 'string' ? body.slackWebhookUrl : undefined,
+          genericWebhookUrl: typeof body.genericWebhookUrl === 'string' ? body.genericWebhookUrl : undefined,
+        }
+      : {};
+    const ok = await sendTestToAllWebhookChannels(w, overrides);
     if (!ok) {
-      return res.status(502).json({ error: 'Discord did not accept the webhook (check URL)' });
+      return res.status(400).json({
+        error: 'Enter a valid webhook URL (Discord, Slack hooks.slack.com, or generic HTTPS)',
+      });
     }
     appendAudit(store, req, {
       action: 'discord.test',
@@ -1001,17 +1200,23 @@ app.post('/api/discord-webhook/remind-now', async (req, res) => {
   try {
     const store = await readStore();
     const w = store.discordWebhook;
-    const url = w && w.url;
-    if (!url || !isDiscordWebhookUrl(url)) {
-      return res.status(400).json({ error: 'Save a valid Discord webhook URL first' });
+    if (!w || !hasReminderDestination(w)) {
+      return res.status(400).json({
+        error: 'Configure at least one webhook URL (Discord, Slack, or generic HTTPS)',
+      });
     }
     const today = localCalendarDateISO();
-    const overdue = (store.scheduledChores || []).filter((s) => nextDueDateScheduled(s) < today);
+    const overdue = (store.scheduledChores || []).filter(
+      (s) => s.reminderEnabled !== false && nextDueDateScheduled(s) < today,
+    );
     if (!overdue.length) {
       return res.json({ ok: true, sent: 0, message: 'No overdue scheduled chores' });
     }
-    const ok = await sendDiscordOverdueDigest(url, overdue, today);
-    if (!ok) return res.status(502).json({ error: 'Discord did not accept the webhook' });
+    if (isInReminderQuietHours(w)) {
+      return res.status(400).json({ error: 'Quiet hours are active; reminders are not sent' });
+    }
+    const ok = await sendDigestToAllWebhookChannels(w, overdue, today);
+    if (!ok) return res.status(502).json({ error: 'Webhook endpoint did not accept the message' });
     appendAudit(store, req, {
       action: 'discord.remind_now',
       target: 'webhook',
@@ -1343,10 +1548,15 @@ app.get('/favicon.ico', (req, res) => {
 
 app.use(express.static(__dirname));
 
-setInterval(() => {
-  runDiscordReminders().catch((e) => console.error(e));
-}, 60 * 1000);
+/** Exported for `npm test` / CI only (`normalizeStore` is otherwise internal). */
+module.exports = { normalizeStore };
 
-app.listen(PORT, () => {
-  console.log(`Chore tracker: http://127.0.0.1:${PORT}/`);
-});
+if (require.main === module) {
+  setInterval(() => {
+    runDiscordReminders().catch((e) => console.error(e));
+  }, 60 * 1000);
+
+  app.listen(PORT, () => {
+    console.log(`Chore tracker: http://127.0.0.1:${PORT}/`);
+  });
+}

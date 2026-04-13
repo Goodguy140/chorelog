@@ -173,123 +173,187 @@
 
   <dialog class="settings-dialog" id="settingsDialog" aria-labelledby="settingsTitle">
     <div class="settings-inner">
-      <div class="settings-header">
+      <div class="settings-header settings-header--with-nav">
+        <button type="button" class="settings-nav-toggle" id="settingsNavToggle" aria-expanded="false" aria-controls="settingsNav" data-i18n-aria="settings.navOpen" aria-label="Open section menu">
+          <span class="settings-nav-toggle-bars" aria-hidden="true"></span>
+        </button>
         <h2 id="settingsTitle" data-i18n="settings.title">Settings</h2>
         <button type="button" class="settings-close" id="settingsClose" data-i18n-aria="settings.closeAria" aria-label="Close">&times;</button>
       </div>
 
-      <div>
-        <p class="settings-block-title" data-i18n="settings.appearance">Appearance</p>
-        <div class="theme-options" id="themeOptions">
-          <label><input type="radio" name="theme" value="system"> <span data-i18n="settings.themeSystem">System</span></label>
-          <label><input type="radio" name="theme" value="light"> <span data-i18n="settings.themeLight">Light</span></label>
-          <label><input type="radio" name="theme" value="dark"> <span data-i18n="settings.themeDark">Dark</span></label>
+      <div class="settings-layout">
+        <button type="button" class="settings-nav-backdrop" id="settingsNavBackdrop" hidden data-i18n-aria="settings.navClose" aria-label="Close section menu"></button>
+        <nav class="settings-nav" id="settingsNav" role="tablist" data-i18n-aria="settings.navMenuAria">
+          <button type="button" class="settings-nav-item is-active" id="settingsTabInterface" role="tab" aria-selected="true" aria-controls="settingsPanelInterface" data-settings-tab="interface" data-i18n="settings.sectionInterface">Interface</button>
+          <button type="button" class="settings-nav-item" id="settingsTabHousehold" role="tab" aria-selected="false" aria-controls="settingsPanelHousehold" data-settings-tab="household" data-i18n="settings.sectionHousehold">Household</button>
+          <button type="button" class="settings-nav-item" id="settingsTabChores" role="tab" aria-selected="false" aria-controls="settingsPanelChores" data-settings-tab="chores" data-i18n="settings.sectionChores">Chores</button>
+          <button type="button" class="settings-nav-item" id="settingsTabIntegrations" role="tab" aria-selected="false" aria-controls="settingsPanelIntegrations" data-settings-tab="integrations" data-i18n="settings.sectionIntegrations">Integrations</button>
+          <button type="button" class="settings-nav-item" id="settingsTabAccount" role="tab" aria-selected="false" aria-controls="settingsPanelAccount" data-settings-tab="account" data-i18n="settings.sectionAccount">Account</button>
+          <button type="button" class="settings-nav-item" id="settingsTabAudit" role="tab" aria-selected="false" aria-controls="settingsPanelAudit" data-settings-tab="audit" data-i18n="settings.sectionAudit">Audit</button>
+          <button type="button" class="settings-nav-item" id="settingsTabData" role="tab" aria-selected="false" aria-controls="settingsPanelData" data-settings-tab="data" data-i18n="settings.sectionData">Data & backup</button>
+        </nav>
+
+        <div class="settings-content">
+          <div class="settings-panel is-active" id="settingsPanelInterface" role="tabpanel" aria-labelledby="settingsTabInterface" data-settings-panel="interface">
+            <div class="settings-section settings-section--flat">
+              <div class="settings-section-body settings-section-body--interface">
+                <div class="settings-subblock">
+                  <p class="settings-block-title" data-i18n="settings.appearance">Appearance</p>
+                  <div class="theme-options" id="themeOptions">
+                    <label><input type="radio" name="theme" value="system"> <span data-i18n="settings.themeSystem">System</span></label>
+                    <label><input type="radio" name="theme" value="light"> <span data-i18n="settings.themeLight">Light</span></label>
+                    <label><input type="radio" name="theme" value="dark"> <span data-i18n="settings.themeDark">Dark</span></label>
+                  </div>
+                </div>
+                <div class="settings-subblock">
+                  <p class="settings-block-title" data-i18n="settings.language">Language</p>
+                  <p class="settings-hint" data-i18n="settings.languageHint">Interface language. Data (chore names, people) is not translated.</p>
+                  <select id="settingsLocale" class="month-select settings-full-width" data-i18n-aria="settings.languageAria" aria-label="Language">
+                    <option value="en" data-i18n="settings.langEn">English</option>
+                    <option value="de" data-i18n="settings.langDe">Deutsch</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel" id="settingsPanelHousehold" role="tabpanel" aria-labelledby="settingsTabHousehold" data-settings-panel="household" hidden>
+            <div class="settings-section settings-section--flat">
+              <div class="settings-section-body settings-section-body--household">
+                <div class="settings-subblock">
+                  <p class="settings-block-title" data-i18n="settings.people">People</p>
+                  <ul class="people-list" id="peopleList"></ul>
+                  <div class="add-person-row">
+                    <input type="text" id="newPersonName" data-i18n-placeholder="settings.namePh" placeholder="Name" maxlength="80" autocomplete="off">
+                    <button type="button" class="btn-secondary" id="btnAddPerson" data-i18n="settings.add">Add</button>
+                  </div>
+                </div>
+                <div class="settings-subblock">
+                  <p class="settings-block-title" data-i18n="settings.locations">Locations</p>
+                  <ul class="people-list" id="locationsList"></ul>
+                  <div class="add-person-row">
+                    <input type="text" id="newLocationName" data-i18n-placeholder="settings.locationPh" placeholder="Location name" maxlength="80" autocomplete="off">
+                    <button type="button" class="btn-secondary" id="btnAddLocation" data-i18n="settings.add">Add</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel" id="settingsPanelChores" role="tabpanel" aria-labelledby="settingsTabChores" data-settings-panel="chores" hidden>
+            <div class="settings-section settings-section--flat">
+              <div class="settings-section-body settings-section-body--chores">
+                <div class="settings-subblock settings-subblock--stretch">
+                  <p class="settings-block-title" data-i18n="settings.chorePresets">Chore presets</p>
+                  <p class="settings-hint" data-i18n="settings.presetsHint">Title, points, and color for each selectable chore.</p>
+                  <ul class="chore-presets-editor" id="chorePresetsList"></ul>
+                  <button type="button" class="btn-secondary" id="btnAddChorePreset" data-i18n="settings.addChore">Add chore</button>
+                </div>
+                <div class="settings-subblock settings-subblock--stretch">
+                  <p class="settings-block-title" data-i18n="settings.quickLog">Quick log</p>
+                  <p class="settings-hint" data-i18n="settings.quickLogHint">Buttons under “Log a chore” — order matches the list below.</p>
+                  <ul class="quick-chores-editor" id="quickChoresList"></ul>
+                  <div class="add-quick-chore-row">
+                    <select id="quickChorePresetSelect" data-i18n-aria="settings.quickPresetAria" aria-label="Add preset to quick bar"></select>
+                    <button type="button" class="btn-secondary" id="btnAddQuickChore" data-i18n="settings.add">Add</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel" id="settingsPanelIntegrations" role="tabpanel" aria-labelledby="settingsTabIntegrations" data-settings-panel="integrations" hidden>
+            <div class="settings-section settings-section--flat">
+              <div class="settings-section-body">
+                <div class="discord-webhook-block">
+                  <p class="settings-block-title" data-i18n="settings.discordTitle">Discord reminders</p>
+                  <p class="settings-hint" data-i18n="settings.discordHint" data-i18n-html>When a <strong>scheduled</strong> chore is overdue, the server can POST to a Discord incoming webhook (channel settings → Integrations → Webhooks).</p>
+                  <label class="discord-webhook-enable"><input type="checkbox" id="discordWebhookEnabled"> <span data-i18n="settings.discordEnable">Send overdue reminders automatically</span></label>
+                  <label class="analytics-filter-label" for="discordWebhookUrl" data-i18n="settings.webhookUrl">Webhook URL</label>
+                  <input type="url" id="discordWebhookUrl" class="discord-webhook-url" data-i18n-placeholder="settings.webhookPh" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false">
+                  <label class="analytics-filter-label" for="discordReminderInterval" data-i18n="settings.remindInterval">Remind again every (same overdue chore)</label>
+                  <select id="discordReminderInterval" class="month-select discord-webhook-interval" data-i18n-aria="settings.remindIntervalAria" aria-label="Minimum time between Discord reminders per chore">
+                    <option value="15">15 minutes</option>
+                    <option value="30">30 minutes</option>
+                    <option value="60">1 hour</option>
+                    <option value="120">2 hours</option>
+                    <option value="360">6 hours</option>
+                    <option value="720">12 hours</option>
+                    <option value="1440">24 hours</option>
+                    <option value="2880">48 hours</option>
+                    <option value="10080">7 days</option>
+                  </select>
+                  <label class="discord-webhook-enable"><input type="checkbox" id="discordQuietHoursEnabled"> <span data-i18n="settings.quietHoursEnable">Quiet hours (no automatic reminders)</span></label>
+                  <p class="settings-hint" data-i18n="settings.quietHoursHint">Uses the server’s local clock. Crosses midnight (e.g. 22:00–08:00).</p>
+                  <div class="discord-quiet-hours-row">
+                    <label class="analytics-filter-label" for="discordQuietHoursStart" data-i18n="settings.quietHoursFrom">From</label>
+                    <input type="time" id="discordQuietHoursStart" class="discord-webhook-time" value="22:00" aria-label="Quiet hours start">
+                    <label class="analytics-filter-label" for="discordQuietHoursEnd" data-i18n="settings.quietHoursTo">To</label>
+                    <input type="time" id="discordQuietHoursEnd" class="discord-webhook-time" value="08:00" aria-label="Quiet hours end">
+                  </div>
+                  <p class="settings-block-title settings-block-title--sub" data-i18n="settings.extraChannelsTitle">More channels</p>
+                  <p class="settings-hint" data-i18n="settings.extraChannelsHint">Optional. Overdue alerts are sent to every URL you configure. Slack uses plain text; generic URLs receive the same JSON payload as Discord.</p>
+                  <label class="analytics-filter-label" for="slackWebhookUrl" data-i18n="settings.slackWebhookUrl">Slack incoming webhook</label>
+                  <input type="url" id="slackWebhookUrl" class="discord-webhook-url" data-i18n-placeholder="settings.slackWebhookPh" placeholder="https://hooks.slack.com/services/…" autocomplete="off" spellcheck="false">
+                  <label class="analytics-filter-label" for="genericWebhookUrl" data-i18n="settings.genericWebhookUrl">Generic HTTPS webhook</label>
+                  <input type="url" id="genericWebhookUrl" class="discord-webhook-url" data-i18n-placeholder="settings.genericWebhookPh" placeholder="https://…" autocomplete="off" spellcheck="false">
+                  <div class="settings-actions discord-webhook-actions">
+                    <button type="button" class="btn-secondary" id="btnSaveDiscordWebhook" data-i18n="settings.save">Save</button>
+                    <button type="button" class="btn-secondary" id="btnTestDiscordWebhook" data-i18n="settings.sendTest">Send test</button>
+                    <button type="button" class="btn-secondary" id="btnDiscordRemindNow" data-i18n="settings.postOverdue">Post overdue now</button>
+                  </div>
+                  <p class="settings-hint discord-webhook-status" id="discordWebhookStatus" hidden role="status"></p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel" id="settingsPanelAccount" role="tabpanel" aria-labelledby="settingsTabAccount" data-settings-panel="account" hidden>
+            <div class="settings-section settings-section--flat">
+              <div class="settings-section-body">
+                <div class="settings-actions">
+                  <button type="button" class="btn-secondary" id="btnLogout" data-i18n="settings.logout">Log out</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel" id="settingsPanelAudit" role="tabpanel" aria-labelledby="settingsTabAudit" data-settings-panel="audit" hidden>
+            <div class="settings-section settings-section--flat">
+              <div class="settings-section-body">
+                <p class="settings-hint settings-hint--tight" data-i18n="settings.auditHint">Changes to the activity log and household settings (newest first). The signed-in account name is stored as the actor.</p>
+                <p class="settings-hint audit-log-status" id="auditLogStatus" hidden role="status"></p>
+                <div class="audit-log-wrap audit-log-wrap--settings-panel">
+                  <ul class="audit-log-list" id="auditLogList" data-i18n-aria="settings.auditAria" aria-label="Audit log"></ul>
+                </div>
+                <button type="button" class="btn-secondary" id="btnRefreshAuditLog" data-i18n="settings.auditRefresh">Refresh audit log</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel" id="settingsPanelData" role="tabpanel" aria-labelledby="settingsTabData" data-settings-panel="data" hidden>
+            <div class="settings-section settings-section--flat">
+              <div class="settings-section-body settings-section-body--data">
+                <div class="settings-subblock">
+                  <p class="settings-block-title" data-i18n="settings.data">Data</p>
+                  <div class="settings-actions">
+                    <button type="button" class="btn-secondary" id="btnExport" data-i18n="settings.export">Export JSON</button>
+                    <label class="btn-secondary" style="cursor:pointer;display:inline-block;">
+                      <span data-i18n="settings.import">Import JSON</span>
+                      <input type="file" id="importFile" accept="application/json,.json" hidden>
+                    </label>
+                  </div>
+                  <p class="settings-hint" data-i18n="settings.dataHint" data-i18n-html>Import can <strong>replace</strong> everything or <strong>merge</strong> with a prompt. Export includes people, log entries, and scheduled chores.</p>
+                </div>
+                <div class="settings-subblock">
+                  <p class="settings-block-title" data-i18n="settings.scheduledBlock">Scheduled chores</p>
+                  <button type="button" class="btn-secondary" id="btnOpenScheduledFromSettings" data-i18n="scheduled.manageFromSettings">Manage scheduled chores</button>
+                  <p class="settings-hint" data-i18n="scheduled.settingsHint">Recurring tasks (weekly, every 2 weeks, etc.). Due dates reset only when you mark them done.</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-
-      <div>
-        <p class="settings-block-title" data-i18n="settings.language">Language</p>
-        <p class="settings-hint" data-i18n="settings.languageHint">Interface language. Data (chore names, people) is not translated.</p>
-        <select id="settingsLocale" class="month-select" data-i18n-aria="settings.languageAria" aria-label="Language">
-          <option value="en" data-i18n="settings.langEn">English</option>
-          <option value="de" data-i18n="settings.langDe">Deutsch</option>
-        </select>
-      </div>
-
-      <div>
-        <p class="settings-block-title" data-i18n="settings.people">People</p>
-        <ul class="people-list" id="peopleList"></ul>
-        <div class="add-person-row">
-          <input type="text" id="newPersonName" data-i18n-placeholder="settings.namePh" placeholder="Name" maxlength="80" autocomplete="off">
-          <button type="button" class="btn-secondary" id="btnAddPerson" data-i18n="settings.add">Add</button>
-        </div>
-      </div>
-
-      <div>
-        <p class="settings-block-title" data-i18n="settings.locations">Locations</p>
-        <ul class="people-list" id="locationsList"></ul>
-        <div class="add-person-row">
-          <input type="text" id="newLocationName" data-i18n-placeholder="settings.locationPh" placeholder="Location name" maxlength="80" autocomplete="off">
-          <button type="button" class="btn-secondary" id="btnAddLocation" data-i18n="settings.add">Add</button>
-        </div>
-      </div>
-
-      <div>
-        <p class="settings-block-title" data-i18n="settings.chorePresets">Chore presets</p>
-        <p class="settings-hint" data-i18n="settings.presetsHint">Title, points, and color for each selectable chore.</p>
-        <ul class="chore-presets-editor" id="chorePresetsList"></ul>
-        <button type="button" class="btn-secondary" id="btnAddChorePreset" data-i18n="settings.addChore">Add chore</button>
-      </div>
-
-      <div>
-        <p class="settings-block-title" data-i18n="settings.quickLog">Quick log</p>
-        <p class="settings-hint" data-i18n="settings.quickLogHint">Buttons under “Log a chore” — order matches the list below.</p>
-        <ul class="quick-chores-editor" id="quickChoresList"></ul>
-        <div class="add-quick-chore-row">
-          <select id="quickChorePresetSelect" data-i18n-aria="settings.quickPresetAria" aria-label="Add preset to quick bar"></select>
-          <button type="button" class="btn-secondary" id="btnAddQuickChore" data-i18n="settings.add">Add</button>
-        </div>
-      </div>
-
-      <div class="discord-webhook-block">
-        <p class="settings-block-title" data-i18n="settings.discordTitle">Discord reminders</p>
-        <p class="settings-hint" data-i18n="settings.discordHint" data-i18n-html>When a <strong>scheduled</strong> chore is overdue, the server can POST to a Discord incoming webhook (channel settings → Integrations → Webhooks).</p>
-        <label class="discord-webhook-enable"><input type="checkbox" id="discordWebhookEnabled"> <span data-i18n="settings.discordEnable">Send overdue reminders automatically</span></label>
-        <label class="analytics-filter-label" for="discordWebhookUrl" data-i18n="settings.webhookUrl">Webhook URL</label>
-        <input type="url" id="discordWebhookUrl" class="discord-webhook-url" data-i18n-placeholder="settings.webhookPh" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false">
-        <label class="analytics-filter-label" for="discordReminderInterval" data-i18n="settings.remindInterval">Remind again every (same overdue chore)</label>
-        <select id="discordReminderInterval" class="month-select discord-webhook-interval" data-i18n-aria="settings.remindIntervalAria" aria-label="Minimum time between Discord reminders per chore">
-          <option value="15">15 minutes</option>
-          <option value="30">30 minutes</option>
-          <option value="60">1 hour</option>
-          <option value="120">2 hours</option>
-          <option value="360">6 hours</option>
-          <option value="720">12 hours</option>
-          <option value="1440">24 hours</option>
-          <option value="2880">48 hours</option>
-          <option value="10080">7 days</option>
-        </select>
-        <div class="settings-actions discord-webhook-actions">
-          <button type="button" class="btn-secondary" id="btnSaveDiscordWebhook" data-i18n="settings.save">Save</button>
-          <button type="button" class="btn-secondary" id="btnTestDiscordWebhook" data-i18n="settings.sendTest">Send test</button>
-          <button type="button" class="btn-secondary" id="btnDiscordRemindNow" data-i18n="settings.postOverdue">Post overdue now</button>
-        </div>
-        <p class="settings-hint discord-webhook-status" id="discordWebhookStatus" hidden role="status"></p>
-      </div>
-
-      <div>
-        <p class="settings-block-title" data-i18n="settings.account">Account</p>
-        <div class="settings-actions">
-          <button type="button" class="btn-secondary" id="btnLogout" data-i18n="settings.logout">Log out</button>
-        </div>
-      </div>
-
-      <div>
-        <p class="settings-block-title" data-i18n="settings.auditTitle">Audit log</p>
-        <p class="settings-hint" data-i18n="settings.auditHint">Changes to the activity log and household settings (newest first). The signed-in account name is stored as the actor.</p>
-        <p class="settings-hint audit-log-status" id="auditLogStatus" hidden role="status"></p>
-        <div class="audit-log-wrap">
-          <ul class="audit-log-list" id="auditLogList" data-i18n-aria="settings.auditAria" aria-label="Audit log"></ul>
-        </div>
-        <button type="button" class="btn-secondary" id="btnRefreshAuditLog" data-i18n="settings.auditRefresh">Refresh audit log</button>
-      </div>
-
-      <div>
-        <p class="settings-block-title" data-i18n="settings.data">Data</p>
-        <div class="settings-actions">
-          <button type="button" class="btn-secondary" id="btnExport" data-i18n="settings.export">Export JSON</button>
-          <label class="btn-secondary" style="cursor:pointer;display:inline-block;">
-            <span data-i18n="settings.import">Import JSON</span>
-            <input type="file" id="importFile" accept="application/json,.json" hidden>
-          </label>
-        </div>
-        <p class="settings-hint" style="margin-top:8px;" data-i18n="settings.dataHint" data-i18n-html>Import can <strong>replace</strong> everything or <strong>merge</strong> with a prompt. Export includes people, log entries, and scheduled chores.</p>
-      </div>
-
-      <div>
-        <p class="settings-block-title" data-i18n="settings.scheduledBlock">Scheduled chores</p>
-        <button type="button" class="btn-secondary" id="btnOpenScheduledFromSettings" data-i18n="scheduled.manageFromSettings">Manage scheduled chores</button>
-        <p class="settings-hint" style="margin-top:8px;" data-i18n="scheduled.settingsHint">Recurring tasks (weekly, every 2 weeks, etc.). Due dates reset only when you mark them done.</p>
       </div>
 
       <p class="settings-version" id="settingsAppVersion" hidden aria-live="polite"></p>

@@ -19,10 +19,11 @@
 | Shared state | `js/state.js` |
 | Styles (split by feature) | `css/chore-tracker-*.css` |
 | Docker (prod image, compose, GitHub clone / auto-pull) | `Dockerfile`, `docker-compose.yml`, `Dockerfile.gitclone`, `Dockerfile.autopull`, `docker-compose.autopull.yml`, `docker/entrypoint-sync.sh`, `.github/workflows/docker-image.yml` |
+| Automated tests (Node built-in runner, CI) | `test/*.test.cjs`, `npm test`, `.github/workflows/ci.yml` |
 
 ---
 
-`server.js` — API + persistence + import/export/store normalization.
+`server.js` — API + persistence + import/export/store normalization; **`module.exports = { normalizeStore }`** when required (tests); **`if (require.main === module)`** wraps listen + Discord reminder interval (so `npm test` does not bind a port or start the timer).
 - `135` `normalizeEntry(row)` — entry shape, `choreId`, `locationIds`.
 - `163` `normalizeChorePreset(row)` — validates title/points/color/scoringMode.
 - `178` `normalizeChorePresets(arr)` — array normalization for presets.
@@ -30,16 +31,16 @@
 - `291` `normalizeStore(raw)` — canonicalizes store object read from disk (`discordWebhook`, `discordReminderSentAt`, **`auditLog`**).
 - `GET /api/audit` — recent audit events (auth required); **`appendAudit`** on entry/settings/scheduled/import/discord user actions.
 - `451` `app.get('/api/entries', ...)` — list entries + `discordWebhook` for settings UI.
-- Discord: `POST /api/discord-webhook/test`, `POST /api/discord-webhook/remind-now`; background timer sends overdue scheduled-chore reminders per `discordReminderSentAt`.
-- `469`–`542` scheduled chore routes; `PUT /api/scheduled-chores/:id` supports title/interval/**startsOn** updates; `542` `POST .../complete` writes completion entry.
-- `588` `app.put('/api/settings', ...)` — settings write (people/presets/quick ids/locations).
+- Discord / Slack / generic webhooks: `POST /api/discord-webhook/test`, `POST /api/discord-webhook/remind-now`; background timer sends overdue reminders per `discordReminderSentAt`; **quiet hours** skip sends; `discordWebhook` holds `quietHours*`, `slackWebhookUrl`, `genericWebhookUrl`.
+- `469`–`542` scheduled chore routes; `PUT /api/scheduled-chores/:id` supports title/interval/**startsOn**/**reminderEnabled** updates; `542` `POST .../complete` writes completion entry.
+- `588` `app.put('/api/settings', ...)` — settings write (people/presets/quick ids/locations/**discordWebhook** with quiet hours + extra webhook URLs).
 - `657` `app.post('/api/import', ...)` — import handler (replace/merge modes).
 - `634` `app.get('/api/export', ...)` — export.
 - `768` `app.post('/api/entries', ...)` — add entry (supports `choreId`, locations).
 - `830` `app.put('/api/entries/:id', ...)` — update entry.
 
 `index.html` — app shell, dialogs, script bootstrap.
-- Settings: **Audit log** (`#auditLogList`, `#btnRefreshAuditLog`, `#auditLogStatus`); **Discord reminders** (`#discordWebhookEnabled`, `#discordWebhookUrl`, `#discordReminderInterval`, test / post-now buttons).
+- Settings: **Audit log** (`#auditLogList`, …); **Integrations** tab — **Discord reminders** + quiet hours + Slack/generic URLs (`#discordWebhookEnabled`, `#discordWebhookUrl`, `#discordReminderInterval`, `#discordQuietHours*`, `#slackWebhookUrl`, `#genericWebhookUrl`, test / post-now); **nav** (`#settingsNav`, tab panels).
 - `62`–`74` **analytics filters** `#analyticsPersonFilter`, `#analyticsLocationFilter`, hint `#analyticsFilterHint`; then `analytics-stats-row` / `statsGrid`, `statsGridPoints`.
 - `76`–`94` `section-pair`: contributions (`barsArea`, `barsAreaPoints`) + heatmap `taskHeatmap`.
 - `114`–`145` log form: `inChore`, `#scheduledLogSuggestionsWrap` / `#scheduledLogSuggestions` (due soon / overdue, preset title match), `inLocations`, quick log.
@@ -55,6 +56,8 @@
 - `quickLogChore(presetId)` — `fillChoreFromPreset` then `addEntry()`.
 - `initScheduledLogSuggestions()` — delegated click on `#scheduledLogSuggestions` → fill + focus chore field.
 - `saveScheduledStartDate(id, domKey)` — updates scheduled chore `startsOn` from manage-list date input.
+- `setScheduledReminderEnabled` — toggles per-chore **`reminderEnabled`** via `PUT /api/scheduled-chores/:id`.
+- Settings shell — **`initSettingsShell`**, **`setSettingsTab`**, sessionStorage tab key; mobile nav toggle + backdrop for `#settingsNav`.
 - `524` `startApp()` — init date field, load, pick month, `render()`.
 - `534` `bootstrap()` — session check + app/login visibility.
 - `#monthSelect` → `switchMonth` (clears log search only).
@@ -146,7 +149,8 @@
 - **People & locations** — editable lists; at least one each enforced in UI.
 - **Chore presets** — `title`, `points` (clamped), hex `color`, `scoringMode` `flat` | **`per_location`**.
 - **Quick bar** — up to **24** preset ids validated against presets.
-- **Scheduled chores** — `intervalDays`, `startsOn`, `lastCompletedAt`, timestamps; next due from last completion or start date.
+- **Scheduled chores** — `intervalDays`, `startsOn`, `lastCompletedAt`, **`reminderEnabled`** (omit or true = include in overdue webhook reminders), timestamps; next due from last completion or start date.
+- **`discordWebhook`** — `enabled`, `url` (Discord), `reminderIntervalMinutes`, **`quietHoursEnabled`**, **`quietHoursStart`/`End`** (server local `HH:MM`), **`slackWebhookUrl`** (`hooks.slack.com`), **`genericWebhookUrl`** (HTTPS, Discord-shaped JSON); see `normalizeDiscordWebhook` in `server.js`.
 - **Audit log** — `auditLog[]` (`id`, `at`, `actor`, `action`, `target`, optional `detail`); newest first; capped (e.g. 500); one household store = one audit stream.
 
 ### Chore logging
@@ -181,13 +185,15 @@
 - **Intervals** — day, week, 2–3 weeks, ~month, 2–3 months (stored as `intervalDays`).
 - **Due logic** — overdue / today / soon (≤3 days) / later (`scheduled-logic.js`); human-readable next due.
 - **Main dashboard strip** — cards with status + **Mark done**; section **hidden** when there are no scheduled chores.
-- **Manage dialog** — add (title + interval), list with **start date** edits, remove; **`PUT`/`DELETE`** routes.
+- **Manage dialog** — add (title + interval), list with **start date** edits, **per-chore “Remind when overdue (webhooks)”** checkbox (`reminderEnabled`), remove; **`PUT`/`DELETE`** routes.
 - **Mark done flow** — dialog picks person; **`POST .../complete`** adds log line with scheduled title and resets timer; optional **`completedDate`** (calendar day).
-- **Discord reminders** — optional webhook URL + enable; **server timer** posts overdue reminders; **minimum interval** between posts per chore (`discordReminderSentAt`); **test** and **post overdue now** endpoints.
+- **Overdue reminders** — optional **Discord**, **Slack** (`hooks.slack.com`), and/or **generic HTTPS** URLs (same payload as Discord where applicable); **quiet hours** (server local clock, can span midnight); per-chore **`reminderEnabled`**; **server timer** + min interval per chore (`discordReminderSentAt`); **test** and **post overdue now** endpoints.
 - **Log-form suggestions** — buttons for urgent scheduled titles that **match a preset** (exact/fuzzy); fill chore + locations only; does not complete scheduled item (use Mark done for timer).
 
 ### Settings and data lifecycle
 
+- **Settings layout** — tabbed **nav** (`#settingsNav`, categories: Interface, Household, Chores, Integrations, Account, Audit, Data); scrollable **panel** content; hamburger + backdrop on small viewports; last tab in `sessionStorage` (`chorelog-settings-tab`).
+- **Integrations** — overdue webhook reminders: Discord URL, reminder interval, **quiet hours**, optional **Slack** + **generic HTTPS** URLs; Save / Send test / Post overdue now (`js/main.js` + `server.js` as above).
 - **Appearance** — theme **system / light / dark** (`localStorage` + inline head script to prevent flash); **`syncThemeMeta`** for `theme-color`.
 - **People / locations / presets / quick bar** — CRUD in UI; **`PUT /api/settings`** batches updates.
 - **Export** — **`GET /api/export`** / download button.
@@ -201,13 +207,12 @@
 - **Render registry** — breaks import cycles between render and main.
 - **Responsive shell** — `--layout-max-width` steps at ~820px / 1100px / 1440px; log + MoM side-by-side on wide layouts.
 - **i18n** — `localStorage` key `chorelog-locale` (`en` | `de`); nested JSON flattened to dotted keys; `t(key, vars)`; `initI18n()` in `chore-tracker.js` before `main.js`; Settings → Language; month names and dates use `getLocaleBcp47()` (`en-US` / `de-DE`).
+- **Automated tests** — `npm test` runs **`node --test`** on `test/*.test.cjs`: `normalizeStore` (via `module.exports` from `server.js`, no listen/timer when required), **next due** math (mirrors `js/utils/date.js`), **semicolon resolve** rules (mirrors `resolveChorePayloadRows`). GitHub Actions: `.github/workflows/ci.yml` on push/PR to `main`/`master`. Further ideas: HTTP import-merge, `scheduledStatus` labels with i18n stubs.
 
 ## Future ideas (implementation-oriented)
 
 - **Soft delete** or archive for presets and log rows.
 - **Fuzzy / typo-tolerant** matching for each `;` segment in the chore field (beyond current suggest list).
-- **Richer reminders** — optional per-scheduled-chore toggles, quiet hours, or channels besides Discord.
-- **Automated tests** — API import merge, `normalizeStore`, `resolveChorePayloadRows`, `scheduledStatus` / next due edge cases.
 - **Backup snapshots** — timestamped copy of `chores.json` before destructive import or on a schedule.
 - **Brute-force protection** — rate limit or lockout on `POST /api/login`.
 - **SQLite (or other) backend** — optional migration path from flat JSON for concurrency and scale.
@@ -223,5 +228,4 @@
 - **More locales** — extend `locales/*.json` and `SUPPORTED_LOCALES` in `js/i18n.js`.
 - **OpenAPI** or short route doc generated from `server.js` for integrators.
 - **Helm chart** or raw Kubernetes manifests for multi-replica deploys.
-- **Slack / generic webhooks** alongside Discord.
 

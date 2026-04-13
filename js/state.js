@@ -43,6 +43,15 @@ export const app = {
   analyticsPersonFilter: '',
   /** Empty = all locations. Matches entries whose `locationIds` includes this name. */
   analyticsLocationFilter: '',
-  /** Server: optional Discord webhook for overdue scheduled chore reminders. */
-  discordWebhook: { enabled: false, url: '', reminderIntervalMinutes: 1440 },
+  /** Server: Discord / Slack / generic webhooks, quiet hours, reminder interval. */
+  discordWebhook: {
+    enabled: false,
+    url: '',
+    reminderIntervalMinutes: 1440,
+    quietHoursEnabled: false,
+    quietHoursStart: '22:00',
+    quietHoursEnd: '08:00',
+    slackWebhookUrl: '',
+    genericWebhookUrl: '',
+  },
 };

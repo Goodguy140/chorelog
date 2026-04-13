@@ -244,11 +244,7 @@ async function load() {
     app.chorePresets = Array.isArray(data.chorePresets) ? data.chorePresets : [];
     app.quickChoreIds = Array.isArray(data.quickChoreIds) ? data.quickChoreIds : [];
     app.scheduledChores = Array.isArray(data.scheduledChores) ? data.scheduledChores : [];
-    app.discordWebhook = data.discordWebhook || {
-      enabled: false,
-      url: '',
-      reminderIntervalMinutes: 1440,
-    };
+    app.discordWebhook = data.discordWebhook || { ...app.discordWebhook };
     syncPersonSelect();
     syncLocationSelect();
     syncChoreDatalists();
@@ -259,7 +255,16 @@ async function load() {
     app.chorePresets = [];
     app.quickChoreIds = [];
     app.scheduledChores = [];
-    app.discordWebhook = { enabled: false, url: '', reminderIntervalMinutes: 1440 };
+    app.discordWebhook = {
+      enabled: false,
+      url: '',
+      reminderIntervalMinutes: 1440,
+      quietHoursEnabled: false,
+      quietHoursStart: '22:00',
+      quietHoursEnd: '08:00',
+      slackWebhookUrl: '',
+      genericWebhookUrl: '',
+    };
     syncPersonSelect();
     syncLocationSelect();
     syncChoreDatalists();
@@ -498,6 +503,7 @@ function renderScheduledManageList() {
       const safeId = String(s.id).replace(/'/g, "\\'");
       const domKey = String(s.id).replace(/[^a-zA-Z0-9_-]/g, '_');
       const startInputId = `scheduledStart_${domKey}`;
+      const remindOn = s.reminderEnabled !== false;
       return `<li>
   <div class="scheduled-manage-main">
     <span>${escapeHtml(s.title)} · ${intervalLabel(s.intervalDays)} · <span class="scheduled-status ${st.cls}" style="display:inline;padding:2px 8px;">${st.label}</span></span>
@@ -506,6 +512,7 @@ function renderScheduledManageList() {
       <input id="${startInputId}" type="date" value="${escapeHtml(s.startsOn || '')}" aria-label="${escapeAttr(t('scheduled.startAria', { title: s.title }))}">
       <button type="button" onclick="saveScheduledStartDate('${safeId}','${domKey}')">${escapeHtml(t('scheduled.saveStart'))}</button>
     </div>
+    <label class="scheduled-remind-label"><input type="checkbox" ${remindOn ? 'checked' : ''} onchange="setScheduledReminderEnabled('${safeId}',this.checked)"> ${escapeHtml(t('scheduled.remindForOverdue'))}</label>
   </div>
   <div class="scheduled-manage-actions">
     <button type="button" onclick="markScheduledDone('${safeId}')">${escapeHtml(t('scheduled.markDone'))}</button>
@@ -583,6 +590,24 @@ async function saveScheduledStartDate(id, domKey) {
     renderScheduledManageList();
   } catch {
     app.loadError = t('errors.scheduledStartUpdate');
+    render();
+  }
+}
+
+async function setScheduledReminderEnabled(id, reminderEnabled) {
+  try {
+    const r = await apiFetch(`/api/scheduled-chores/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reminderEnabled }),
+    });
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+    app.scheduledChores = Array.isArray(data.scheduledChores) ? data.scheduledChores : app.scheduledChores;
+    renderScheduledManageList();
+    render();
+  } catch {
+    app.loadError = t('errors.scheduledReminderUpdate');
     render();
   }
 }
@@ -674,10 +699,15 @@ async function loadAuditLogIntoSettings() {
 }
 
 function syncDiscordWebhookForm() {
-  const w = app.discordWebhook || { enabled: false, url: '', reminderIntervalMinutes: 1440 };
+  const w = app.discordWebhook || {};
   const en = document.getElementById('discordWebhookEnabled');
   const urlEl = document.getElementById('discordWebhookUrl');
   const intervalEl = document.getElementById('discordReminderInterval');
+  const qhEn = document.getElementById('discordQuietHoursEnabled');
+  const qhStart = document.getElementById('discordQuietHoursStart');
+  const qhEnd = document.getElementById('discordQuietHoursEnd');
+  const slackEl = document.getElementById('slackWebhookUrl');
+  const genEl = document.getElementById('genericWebhookUrl');
   const status = document.getElementById('discordWebhookStatus');
   if (en) en.checked = Boolean(w.enabled);
   if (urlEl) urlEl.value = typeof w.url === 'string' ? w.url : '';
@@ -686,6 +716,11 @@ function syncDiscordWebhookForm() {
     const v = Number.isFinite(m) ? String(m) : '1440';
     intervalEl.value = [...intervalEl.options].some((o) => o.value === v) ? v : '1440';
   }
+  if (qhEn) qhEn.checked = Boolean(w.quietHoursEnabled);
+  if (qhStart) qhStart.value = typeof w.quietHoursStart === 'string' ? w.quietHoursStart : '22:00';
+  if (qhEnd) qhEnd.value = typeof w.quietHoursEnd === 'string' ? w.quietHoursEnd : '08:00';
+  if (slackEl) slackEl.value = typeof w.slackWebhookUrl === 'string' ? w.slackWebhookUrl : '';
+  if (genEl) genEl.value = typeof w.genericWebhookUrl === 'string' ? w.genericWebhookUrl : '';
   if (status) {
     status.textContent = '';
     status.hidden = true;
@@ -705,11 +740,27 @@ async function saveDiscordWebhookSettings() {
   const enabled = document.getElementById('discordWebhookEnabled')?.checked;
   const url = document.getElementById('discordWebhookUrl')?.value.trim() ?? '';
   const reminderIntervalMinutes = Number(document.getElementById('discordReminderInterval')?.value);
+  const quietHoursEnabled = document.getElementById('discordQuietHoursEnabled')?.checked;
+  const quietHoursStart = document.getElementById('discordQuietHoursStart')?.value ?? '22:00';
+  const quietHoursEnd = document.getElementById('discordQuietHoursEnd')?.value ?? '08:00';
+  const slackWebhookUrl = document.getElementById('slackWebhookUrl')?.value.trim() ?? '';
+  const genericWebhookUrl = document.getElementById('genericWebhookUrl')?.value.trim() ?? '';
   try {
     const r = await apiFetch('/api/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ discordWebhook: { enabled, url, reminderIntervalMinutes } }),
+      body: JSON.stringify({
+        discordWebhook: {
+          enabled,
+          url,
+          reminderIntervalMinutes,
+          quietHoursEnabled,
+          quietHoursStart,
+          quietHoursEnd,
+          slackWebhookUrl,
+          genericWebhookUrl,
+        },
+      }),
     });
     if (!r.ok) throw new Error();
     const data = await r.json();
@@ -722,13 +773,18 @@ async function saveDiscordWebhookSettings() {
 }
 
 async function testDiscordWebhook() {
-  const url =
-    document.getElementById('discordWebhookUrl')?.value.trim() || app.discordWebhook?.url || '';
+  const payload = {};
+  const u = document.getElementById('discordWebhookUrl')?.value.trim();
+  const s = document.getElementById('slackWebhookUrl')?.value.trim();
+  const g = document.getElementById('genericWebhookUrl')?.value.trim();
+  if (u) payload.url = u;
+  if (s) payload.slackWebhookUrl = s;
+  if (g) payload.genericWebhookUrl = g;
   try {
     const r = await apiFetch('/api/discord-webhook/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify(Object.keys(payload).length ? payload : {}),
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.error || 'Request failed');
@@ -742,7 +798,10 @@ async function discordRemindOverdueNow() {
   try {
     const r = await apiFetch('/api/discord-webhook/remind-now', { method: 'POST' });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.error || 'Request failed');
+    if (!r.ok) {
+      setDiscordStatus(data.error || t('settings.discordPostErr'), true);
+      return;
+    }
     if (data.sent === 0) {
       setDiscordStatus(data.message || t('settings.discordNoOverdue'), false);
     } else {
@@ -796,6 +855,96 @@ document.getElementById('themeOptions').addEventListener('change', (e) => {
   if (t && t.name === 'theme' && t.checked) applyTheme(t.value);
 });
 
+const SETTINGS_TAB_KEY = 'chorelog-settings-tab';
+const VALID_SETTINGS_TABS = new Set([
+  'interface',
+  'household',
+  'chores',
+  'integrations',
+  'account',
+  'audit',
+  'data',
+]);
+
+function closeSettingsMobileNav() {
+  const nav = document.getElementById('settingsNav');
+  const backdrop = document.getElementById('settingsNavBackdrop');
+  const toggle = document.getElementById('settingsNavToggle');
+  nav?.classList.remove('is-open');
+  if (backdrop) {
+    backdrop.hidden = true;
+    backdrop.setAttribute('aria-hidden', 'true');
+  }
+  toggle?.setAttribute('aria-expanded', 'false');
+  toggle?.setAttribute('aria-label', t('settings.navOpen'));
+}
+
+function openSettingsMobileNav() {
+  const nav = document.getElementById('settingsNav');
+  const backdrop = document.getElementById('settingsNavBackdrop');
+  const toggle = document.getElementById('settingsNavToggle');
+  nav?.classList.add('is-open');
+  if (backdrop) {
+    backdrop.hidden = false;
+    backdrop.setAttribute('aria-hidden', 'false');
+  }
+  toggle?.setAttribute('aria-expanded', 'true');
+  toggle?.setAttribute('aria-label', t('settings.navClose'));
+}
+
+function setSettingsTab(id) {
+  if (!VALID_SETTINGS_TABS.has(id)) id = 'interface';
+  const dialog = document.getElementById('settingsDialog');
+  if (!dialog) return;
+  dialog.querySelectorAll('[data-settings-tab]').forEach((btn) => {
+    const on = btn.dataset.settingsTab === id;
+    btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    btn.classList.toggle('is-active', on);
+  });
+  dialog.querySelectorAll('[data-settings-panel]').forEach((p) => {
+    const on = p.dataset.settingsPanel === id;
+    p.hidden = !on;
+    p.classList.toggle('is-active', on);
+  });
+  try {
+    sessionStorage.setItem(SETTINGS_TAB_KEY, id);
+  } catch {
+    /* ignore */
+  }
+  closeSettingsMobileNav();
+}
+
+function initSettingsShell() {
+  const dialog = document.getElementById('settingsDialog');
+  const toggle = document.getElementById('settingsNavToggle');
+  const backdrop = document.getElementById('settingsNavBackdrop');
+  if (!dialog || !toggle || !backdrop) return;
+
+  dialog.querySelectorAll('[data-settings-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => setSettingsTab(btn.dataset.settingsTab));
+  });
+
+  toggle.addEventListener('click', () => {
+    if (document.getElementById('settingsNav')?.classList.contains('is-open')) {
+      closeSettingsMobileNav();
+    } else {
+      openSettingsMobileNav();
+    }
+  });
+
+  backdrop.addEventListener('click', () => closeSettingsMobileNav());
+
+  dialog.addEventListener('close', () => closeSettingsMobileNav());
+
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (window.innerWidth >= 768) closeSettingsMobileNav();
+    }, 120);
+  });
+}
+
 document.getElementById('btnSettings').addEventListener('click', () => {
   renderPeopleEditor();
   renderLocationsEditor();
@@ -809,6 +958,14 @@ document.getElementById('btnSettings').addEventListener('click', () => {
   document.querySelectorAll('#themeOptions input[name="theme"]').forEach((el) => {
     el.checked = el.value === mode;
   });
+  let tab = 'interface';
+  try {
+    const s = sessionStorage.getItem(SETTINGS_TAB_KEY);
+    if (s && VALID_SETTINGS_TABS.has(s)) tab = s;
+  } catch {
+    /* ignore */
+  }
+  setSettingsTab(tab);
   document.getElementById('settingsDialog').showModal();
 });
 
@@ -1177,11 +1334,17 @@ window.quickLogChore = quickLogChore;
 window.markScheduledDone = markScheduledDone;
 window.deleteScheduledChore = deleteScheduledChore;
 window.saveScheduledStartDate = saveScheduledStartDate;
+window.setScheduledReminderEnabled = setScheduledReminderEnabled;
 
 subscribeLocale(() => {
   applyStaticDom(document.body);
   fillTranslatedSelectOptions();
   syncSettingsLocaleSelect();
+  const navOpen = document.getElementById('settingsNav')?.classList.contains('is-open');
+  const toggle = document.getElementById('settingsNavToggle');
+  if (toggle) {
+    toggle.setAttribute('aria-label', navOpen ? t('settings.navClose') : t('settings.navOpen'));
+  }
   const shell = document.getElementById('appShell');
   if (shell && !shell.hidden) {
     render();
@@ -1189,12 +1352,15 @@ subscribeLocale(() => {
     renderLocationsEditor();
     renderChorePresetsEditor();
     renderQuickChoresEditor();
+    renderScheduledManageList();
     syncDiscordWebhookForm();
   }
 });
 
 fillTranslatedSelectOptions();
 syncSettingsLocaleSelect();
+
+initSettingsShell();
 
 bootstrap();
 

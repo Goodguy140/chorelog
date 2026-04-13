@@ -178,8 +178,8 @@ body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: min(420px, calc(100vw - 2rem));
-  max-height: min(90vh, 640px);
+  width: min(420px, calc(100vw - 1.25rem));
+  max-height: min(92vh, 720px);
   margin: 0;
   padding: 0;
   border: 0.5px solid var(--color-border-secondary);
@@ -194,23 +194,35 @@ body {
 }
 
 .settings-inner {
-  padding: 1rem 1.1rem 1.1rem;
+  padding: 0.75rem 0.85rem 0.9rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  max-height: min(86vh, 600px);
-  overflow-y: auto;
+  gap: 0;
+  max-height: min(88vh, 680px);
+  overflow: hidden;
 }
 
-@media (min-width: 700px) {
+@media (min-width: 560px) {
   .settings-dialog {
-    width: min(560px, calc(100vw - 2rem));
-    max-height: min(92vh, 780px);
+    width: min(520px, calc(100vw - 2rem));
+    max-height: min(92vh, 800px);
   }
 
   .settings-inner {
-    max-height: min(88vh, 720px);
-    padding: 1.15rem 1.25rem 1.25rem;
+    max-height: min(90vh, 760px);
+    padding: 0.85rem 1rem 1rem;
+  }
+}
+
+@media (min-width: 900px) {
+  .settings-dialog {
+    width: min(920px, calc(100vw - 2.5rem));
+    max-height: min(94vh, 900px);
+  }
+
+  .settings-inner {
+    max-height: min(92vh, 860px);
+    padding: 0.9rem 1.15rem 1.15rem;
   }
 }
 
@@ -219,11 +231,316 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  flex-shrink: 0;
+  margin-bottom: 0;
 }
 
-.settings-header h2 {
+.settings-header--with-nav {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+  margin-bottom: 0;
+}
+
+.settings-header--with-nav h2 {
+  margin: 0;
+  text-align: center;
   font-size: 16px;
   font-weight: 600;
+}
+
+.settings-nav-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.settings-nav-toggle:hover {
+  border-color: var(--color-text-tertiary);
+}
+
+.settings-nav-toggle-bars {
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  box-shadow: 0 6px 0 currentColor, 0 -6px 0 currentColor;
+}
+
+@media (min-width: 768px) {
+  .settings-nav-toggle {
+    display: none;
+  }
+
+  .settings-header--with-nav {
+    grid-template-columns: 1fr auto;
+  }
+
+  .settings-header--with-nav h2 {
+    text-align: left;
+    grid-column: 1;
+  }
+
+  .settings-header--with-nav .settings-close {
+    grid-column: 2;
+  }
+}
+
+.settings-layout {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: 10px;
+}
+
+@media (min-width: 768px) {
+  .settings-layout {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0;
+    border: 0.5px solid var(--color-border-tertiary);
+    border-radius: var(--border-radius-md);
+    overflow: hidden;
+    margin-top: 12px;
+  }
+}
+
+.settings-nav-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: block;
+  background: rgba(0, 0, 0, 0.35);
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.settings-nav-backdrop[hidden] {
+  display: none !important;
+}
+
+@media (min-width: 768px) {
+  .settings-nav-backdrop {
+    display: none !important;
+  }
+}
+
+.settings-nav {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 3;
+  width: min(280px, 88vw);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  margin: 0;
+  list-style: none;
+  background: var(--color-background-secondary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-md);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
+  transform: translateX(-105%);
+  transition: transform 0.2s ease;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.settings-nav.is-open {
+  transform: translateX(0);
+}
+
+@media (min-width: 768px) {
+  .settings-nav {
+    position: relative;
+    transform: none;
+    width: 200px;
+    flex: 0 0 200px;
+    border-radius: 0;
+    border: none;
+    border-right: 0.5px solid var(--color-border-tertiary);
+    box-shadow: none;
+    align-self: stretch;
+    min-height: min(56vh, 520px);
+    max-height: none;
+  }
+}
+
+@media (min-width: 900px) {
+  .settings-nav {
+    width: 220px;
+    flex-basis: 220px;
+  }
+}
+
+.settings-nav-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  line-height: 1.3;
+}
+
+.settings-nav-item:hover {
+  background: var(--color-background-tertiary);
+  color: var(--color-text-primary);
+}
+
+.settings-nav-item.is-active {
+  background: color-mix(in srgb, var(--color-background-tertiary) 80%, var(--color-border-secondary));
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.settings-content {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: min(52vh, 420px);
+  max-height: min(58vh, 480px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 10px 14px 14px;
+}
+
+@media (min-width: 768px) {
+  .settings-content {
+    min-height: min(56vh, 520px);
+    max-height: min(62vh, 560px);
+    padding: 14px 22px 20px;
+  }
+}
+
+@media (min-width: 900px) {
+  .settings-content {
+    max-height: min(65vh, 640px);
+    padding: 16px 26px 22px;
+  }
+}
+
+.settings-panel {
+  outline: none;
+}
+
+.settings-panel[hidden] {
+  display: none !important;
+}
+
+/* Card-style body inside the right-hand panel */
+.settings-section--flat {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.settings-panel .settings-section--flat .settings-section-body {
+  padding: 10px 10px 12px;
+}
+
+@media (min-width: 768px) {
+  .settings-panel .settings-section--flat .settings-section-body {
+    padding: 12px 14px 16px;
+  }
+}
+
+.settings-section {
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-secondary);
+  overflow: hidden;
+}
+
+.settings-section-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-section-body--interface,
+.settings-section-body--household,
+.settings-section-body--chores,
+.settings-section-body--data {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.settings-section-body--chores {
+  gap: 20px;
+}
+
+@media (min-width: 520px) {
+  .settings-section-body--interface,
+  .settings-section-body--household {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 640px) {
+  .settings-section-body--data {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.settings-subblock {
+  min-width: 0;
+}
+
+.settings-subblock--stretch {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-full-width {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.settings-hint--tight {
+  margin: 0 0 6px;
+}
+
+.audit-log-wrap--settings-panel {
+  max-height: min(40vh, 320px);
+}
+
+@media (min-width: 768px) {
+  .audit-log-wrap--settings-panel {
+    max-height: min(42vh, 360px);
+  }
 }
 
 .settings-close {
@@ -378,6 +695,29 @@ body {
 
 .discord-webhook-interval {
   max-width: 100%;
+}
+
+.discord-quiet-hours-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.discord-webhook-time {
+  padding: 6px 8px;
+  font-size: 13px;
+  border-radius: var(--border-radius-md);
+  border: 0.5px solid var(--color-border-secondary);
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+}
+
+.settings-block-title--sub {
+  margin-top: 10px;
+  margin-bottom: 0;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .discord-webhook-actions {
