@@ -17,6 +17,12 @@ import { getMonthKey, localDateISO, thisCalendarMonthKey } from './utils/date.js
 import { escapeAttr, escapeHtml } from './utils/html.js';
 import { intervalLabel, scheduledStatus } from './scheduled-logic.js';
 import { initChoreInputSuggest } from './chore-input-suggest.js';
+import {
+  disableBrowserPush,
+  enableBrowserPush,
+  refreshPushNotificationsPanel,
+  testBrowserPush,
+} from './push-notifications.js';
 
 async function loadAppVersion() {
   try {
@@ -358,6 +364,7 @@ async function load() {
     syncPersonSelect();
     syncLocationSelect();
     syncChoreDatalists();
+    void refreshPushNotificationsPanel();
   } catch (e) {
     app.entries = [];
     app.people = [...DEFAULT_PEOPLE];
@@ -616,7 +623,7 @@ function renderScheduledManageList() {
       const remindOn = s.reminderEnabled !== false;
       return `<li>
   <div class="scheduled-manage-main">
-    <span>${escapeHtml(s.title)} · ${intervalLabel(s.intervalDays)} · <span class="scheduled-status ${st.cls}" style="display:inline;padding:2px 8px;">${st.label}</span></span>
+    <span>${escapeHtml(s.title)} · ${escapeHtml(intervalLabel(s))} · <span class="scheduled-status ${st.cls}" style="display:inline;padding:2px 8px;">${st.label}</span></span>
     <div class="scheduled-start-edit">
       <label for="${startInputId}">${escapeHtml(t('scheduled.startDate'))}</label>
       <input id="${startInputId}" type="date" value="${escapeHtml(s.startsOn || '')}" aria-label="${escapeAttr(t('scheduled.startAria', { title: s.title }))}">
@@ -738,6 +745,7 @@ async function deleteScheduledChore(id) {
 
 function openScheduledDialog() {
   fillTranslatedSelectOptions();
+  syncScheduledRecurrenceUi();
   renderScheduledManageList();
   document.getElementById('scheduledDialog').showModal();
 }
@@ -949,6 +957,22 @@ function fillTranslatedSelectOptions() {
   }
 }
 
+function syncScheduledRecurrenceUi() {
+  const modeEl = document.getElementById('scheduledRecurrenceMode');
+  const intervalWrap = document.getElementById('scheduledIntervalWrap');
+  const monthlyWrap = document.getElementById('scheduledMonthlyWrap');
+  const intSel = document.getElementById('scheduledNewInterval');
+  const ordSel = document.getElementById('scheduledMonthOrdinal');
+  const wdSel = document.getElementById('scheduledWeekday');
+  if (!modeEl || !intervalWrap || !monthlyWrap) return;
+  const monthly = modeEl.value === 'monthlyWeekday';
+  if (intSel) intSel.disabled = monthly;
+  if (ordSel) ordSel.disabled = !monthly;
+  if (wdSel) wdSel.disabled = !monthly;
+  intervalWrap.classList.toggle('scheduled-add-row--muted', monthly);
+  monthlyWrap.classList.toggle('scheduled-add-row--muted', !monthly);
+}
+
 function syncSettingsLocaleSelect() {
   const sel = document.getElementById('settingsLocale');
   if (sel) sel.value = getLocale();
@@ -1069,6 +1093,7 @@ document.getElementById('btnSettings').addEventListener('click', () => {
   renderChorePresetsEditor();
   renderQuickChoresEditor();
   syncDiscordWebhookForm();
+  void refreshPushNotificationsPanel();
   loadAuditLogIntoSettings();
   fillTranslatedSelectOptions();
   syncSettingsLocaleSelect();
@@ -1266,6 +1291,9 @@ document.getElementById('newLocationName').addEventListener('keydown', (e) => {
 document.getElementById('btnSaveDiscordWebhook').addEventListener('click', () => saveDiscordWebhookSettings());
 document.getElementById('btnTestDiscordWebhook').addEventListener('click', () => testDiscordWebhook());
 document.getElementById('btnDiscordRemindNow').addEventListener('click', () => discordRemindOverdueNow());
+document.getElementById('btnPushSubscribe')?.addEventListener('click', () => enableBrowserPush());
+document.getElementById('btnPushUnsubscribe')?.addEventListener('click', () => disableBrowserPush());
+document.getElementById('btnPushTest')?.addEventListener('click', () => testBrowserPush());
 
 document.getElementById('btnExport').addEventListener('click', async () => {
   try {
@@ -1445,13 +1473,29 @@ document.getElementById('deleteEntryDialog').addEventListener('close', () => {
 document.getElementById('addScheduledForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const title = document.getElementById('scheduledNewTitle').value.trim();
-  const intervalDays = Number(document.getElementById('scheduledNewInterval').value);
   if (!title) return;
+  const mode = document.getElementById('scheduledRecurrenceMode')?.value || 'interval';
+  const startsOn = localDateISO();
+  const body =
+    mode === 'monthlyWeekday'
+      ? {
+          title,
+          startsOn,
+          recurrence: 'monthlyWeekday',
+          monthOrdinal: Number(document.getElementById('scheduledMonthOrdinal').value),
+          weekday: Number(document.getElementById('scheduledWeekday').value),
+        }
+      : {
+          title,
+          startsOn,
+          recurrence: 'interval',
+          intervalDays: Number(document.getElementById('scheduledNewInterval').value),
+        };
   try {
     const r = await apiFetch('/api/scheduled-chores', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, intervalDays, startsOn: localDateISO() }),
+      body: JSON.stringify(body),
     });
     if (!r.ok) throw new Error();
     await load();
@@ -1461,6 +1505,10 @@ document.getElementById('addScheduledForm').addEventListener('submit', async (e)
   } catch {
     alert(t('scheduled.addFailed'));
   }
+});
+
+document.getElementById('scheduledRecurrenceMode')?.addEventListener('change', () => {
+  syncScheduledRecurrenceUi();
 });
 
 document.getElementById('monthSelect').addEventListener('change', (e) => {
@@ -2066,6 +2114,8 @@ window.setScheduledReminderEnabled = setScheduledReminderEnabled;
 subscribeLocale(() => {
   applyStaticDom(document.body);
   fillTranslatedSelectOptions();
+  syncScheduledRecurrenceUi();
+  void refreshPushNotificationsPanel();
   syncSettingsLocaleSelect();
   const navOpen = document.getElementById('settingsNav')?.classList.contains('is-open');
   const toggle = document.getElementById('settingsNavToggle');
@@ -2081,6 +2131,7 @@ subscribeLocale(() => {
     renderQuickChoresEditor();
     renderScheduledManageList();
     syncDiscordWebhookForm();
+    void refreshPushNotificationsPanel();
   }
   const aboutPanel = document.getElementById('settingsPanelAbout');
   if (aboutPanel && !aboutPanel.hidden) {
@@ -2093,6 +2144,7 @@ subscribeLocale(() => {
 });
 
 fillTranslatedSelectOptions();
+syncScheduledRecurrenceUi();
 syncSettingsLocaleSelect();
 
 initSettingsShell();

@@ -417,6 +417,18 @@
                   </div>
                   <p class="settings-hint discord-webhook-status" id="discordWebhookStatus" hidden role="status"></p>
                 </div>
+                <div class="push-notifications-block">
+                  <p class="settings-block-title" data-i18n="settings.pushTitle">Browser push</p>
+                  <p class="settings-hint" data-i18n="settings.pushHint">Overdue reminders on this device when the app is closed (PWA). Turn on “Send overdue reminders automatically” above (no webhook URL required for push-only). Same reminder interval and quiet hours. Each device subscribes separately.</p>
+                  <p class="settings-hint" id="pushServerOffHint" hidden data-i18n="settings.pushServerOff">Push is not configured on this server (administrator must set VAPID keys).</p>
+                  <p class="settings-hint" id="pushHttpsHint" hidden data-i18n="settings.pushRequiresHttps">Use HTTPS (or localhost) for push notifications.</p>
+                  <div class="settings-actions discord-webhook-actions">
+                    <button type="button" class="btn-secondary" id="btnPushSubscribe" data-i18n="settings.pushEnable">Enable on this device</button>
+                    <button type="button" class="btn-secondary" id="btnPushUnsubscribe" hidden data-i18n="settings.pushDisable">Turn off on this device</button>
+                    <button type="button" class="btn-secondary" id="btnPushTest" data-i18n="settings.pushTest">Send test push</button>
+                  </div>
+                  <p class="settings-hint discord-webhook-status" id="pushNotificationStatus" hidden role="status"></p>
+                </div>
               </div>
             </div>
           </div>
@@ -539,15 +551,45 @@
       <p class="settings-hint" data-i18n="scheduled.dialogHint">Next due is computed from the last time you marked done, or from the start date if never done. You can edit start date per chore below.</p>
       <form class="scheduled-add-form" id="addScheduledForm">
         <input type="text" name="title" id="scheduledNewTitle" data-i18n-placeholder="scheduled.choreNamePh" placeholder="Chore name" maxlength="120" required autocomplete="off">
-        <select name="intervalDays" id="scheduledNewInterval" data-i18n-aria="scheduled.intervalAria" aria-label="Interval">
-          <option value="1">Every day</option>
-          <option value="7" selected>Every week</option>
-          <option value="14">Every 2 weeks</option>
-          <option value="21">Every 3 weeks</option>
-          <option value="30">Every month (~30 days)</option>
-          <option value="60">Every 2 months</option>
-          <option value="90">Every 3 months</option>
-        </select>
+        <div class="scheduled-add-row">
+          <label for="scheduledRecurrenceMode" class="scheduled-add-label" data-i18n="scheduled.recurrenceKind">Repeat</label>
+          <select id="scheduledRecurrenceMode" data-i18n-aria="scheduled.recurrenceModeAria" aria-label="Repeat type">
+            <option value="interval" selected data-i18n="scheduled.recurrenceInterval">Every N days</option>
+            <option value="monthlyWeekday" data-i18n="scheduled.recurrenceMonthly">Monthly (calendar)</option>
+          </select>
+        </div>
+        <div class="scheduled-add-row" id="scheduledIntervalWrap">
+          <label for="scheduledNewInterval" class="scheduled-add-label" data-i18n="scheduled.intervalEveryLabel">How often</label>
+          <select name="intervalDays" id="scheduledNewInterval" data-i18n-aria="scheduled.intervalAria" aria-label="Interval">
+            <option value="1">Every day</option>
+            <option value="7" selected>Every week</option>
+            <option value="14">Every 2 weeks</option>
+            <option value="21">Every 3 weeks</option>
+            <option value="30">Every month (~30 days)</option>
+            <option value="60">Every 2 months</option>
+            <option value="90">Every 3 months</option>
+          </select>
+        </div>
+        <div class="scheduled-add-row scheduled-add-row--monthly" id="scheduledMonthlyWrap">
+          <label for="scheduledMonthOrdinal" class="scheduled-add-label" data-i18n="scheduled.monthOrdinalLabel">Week</label>
+          <select id="scheduledMonthOrdinal" data-i18n-aria="scheduled.monthOrdinalAria" aria-label="Week of month">
+            <option value="1" data-i18n="scheduled.monthOrd1">First</option>
+            <option value="2" selected data-i18n="scheduled.monthOrd2">Second</option>
+            <option value="3" data-i18n="scheduled.monthOrd3">Third</option>
+            <option value="4" data-i18n="scheduled.monthOrd4">Fourth</option>
+            <option value="5" data-i18n="scheduled.monthOrd5">Last</option>
+          </select>
+          <label for="scheduledWeekday" class="scheduled-add-label" data-i18n="scheduled.weekdayLabel">Day</label>
+          <select id="scheduledWeekday" data-i18n-aria="scheduled.weekdayAria" aria-label="Day of week">
+            <option value="0" data-i18n="scheduled.weekdayLong0">Sunday</option>
+            <option value="1" data-i18n="scheduled.weekdayLong1">Monday</option>
+            <option value="2" selected data-i18n="scheduled.weekdayLong2">Tuesday</option>
+            <option value="3" data-i18n="scheduled.weekdayLong3">Wednesday</option>
+            <option value="4" data-i18n="scheduled.weekdayLong4">Thursday</option>
+            <option value="5" data-i18n="scheduled.weekdayLong5">Friday</option>
+            <option value="6" data-i18n="scheduled.weekdayLong6">Saturday</option>
+          </select>
+        </div>
         <button type="submit" class="btn-secondary" data-i18n="scheduled.add">Add</button>
       </form>
       <ul class="scheduled-manage-list" id="scheduledManageList"></ul>

@@ -89,6 +89,34 @@
   margin-bottom: 12px;
 }
 
+.scheduled-add-row {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.scheduled-add-row--monthly {
+  align-items: flex-start;
+}
+
+.scheduled-add-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.scheduled-add-row--muted {
+  opacity: 0.48;
+}
+
+.scheduled-add-row--muted select:disabled {
+  cursor: not-allowed;
+}
+
 .scheduled-add-form input[type="text"] {
   flex: 1;
   min-width: 140px;

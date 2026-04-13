@@ -1,8 +1,9 @@
 /**
- * Mirrors `js/utils/date.js` — keep in sync when editing scheduled due logic.
+ * Scheduled next-due logic — must match `lib/scheduled-recurrence.cjs` (and browser `js/scheduled-recurrence.js`).
  */
 const { test } = require('node:test');
 const assert = require('node:assert');
+const { nextDueDateForScheduled } = require('../lib/scheduled-recurrence.cjs');
 
 function localDateISO(d = new Date()) {
   const y = d.getFullYear();
@@ -32,8 +33,7 @@ function scheduledStartsOnCalendar(s) {
 }
 
 function nextDueDate(s) {
-  const anchor = s.lastCompletedAt || scheduledStartsOnCalendar(s);
-  return addDays(anchor, s.intervalDays);
+  return nextDueDateForScheduled(s, { addDays, scheduledStartsOnCalendar });
 }
 
 test('next due uses lastCompletedAt when set', () => {
@@ -58,4 +58,41 @@ test('next due uses startsOn when never completed', () => {
 test('month boundary crossing', () => {
   const s = { startsOn: '2026-01-28', intervalDays: 7, createdAt: '2026-01-28T12:00:00.000Z' };
   assert.strictEqual(nextDueDate(s), '2026-02-04');
+});
+
+test('monthlyWeekday: second Tuesday from start of year', () => {
+  const s = {
+    recurrence: 'monthlyWeekday',
+    monthOrdinal: 2,
+    weekday: 2,
+    intervalDays: 30,
+    startsOn: '2026-01-01',
+    createdAt: '2026-01-01T12:00:00.000Z',
+  };
+  assert.strictEqual(nextDueDate(s), '2026-01-13');
+});
+
+test('monthlyWeekday: after completion same month advances to next month', () => {
+  const s = {
+    recurrence: 'monthlyWeekday',
+    monthOrdinal: 2,
+    weekday: 2,
+    intervalDays: 30,
+    startsOn: '2026-01-01',
+    lastCompletedAt: '2026-01-13',
+    createdAt: '2026-01-01T12:00:00.000Z',
+  };
+  assert.strictEqual(nextDueDate(s), '2026-02-10');
+});
+
+test('monthlyWeekday: last Monday of month', () => {
+  const s = {
+    recurrence: 'monthlyWeekday',
+    monthOrdinal: 5,
+    weekday: 1,
+    intervalDays: 30,
+    startsOn: '2026-01-01',
+    createdAt: '2026-01-01T12:00:00.000Z',
+  };
+  assert.strictEqual(nextDueDate(s), '2026-01-26');
 });

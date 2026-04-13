@@ -18,6 +18,7 @@ test('normalizeStore fills default people/locations when missing', () => {
   });
   assert.ok(s.people.length >= 1);
   assert.ok(s.locations.length >= 1);
+  assert.deepStrictEqual(s.pushSubscriptions, []);
 });
 
 test('scheduled chore gets reminderEnabled true by default', () => {

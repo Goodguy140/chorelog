@@ -38,8 +38,19 @@ export function scheduledStatus(s) {
   return { next, nextHuman, label, cls };
 }
 
-export function intervalLabel(days) {
-  const d = Number(days);
+/** Pass a scheduled chore object, or legacy `intervalDays` number only. */
+export function intervalLabel(schedOrDays) {
+  const s = schedOrDays && typeof schedOrDays === 'object' ? schedOrDays : null;
+  if (s && s.recurrence === 'monthlyWeekday') {
+    const mo = Number(s.monthOrdinal);
+    const wd = Number(s.weekday);
+    if (Number.isFinite(mo) && mo >= 1 && mo <= 5 && Number.isFinite(wd) && wd >= 0 && wd <= 6) {
+      const ordKey = `scheduled.monthOrd${mo}`;
+      const wdKey = `scheduled.weekdayLong${wd}`;
+      return t('scheduled.intervalMonthlyPattern', { ordinal: t(ordKey), weekday: t(wdKey) });
+    }
+  }
+  const d = Number(s ? s.intervalDays : schedOrDays);
   if (d === 1) return t('scheduled.intervalDaily');
   if (d === 7) return t('scheduled.intervalWeekly');
   if (d === 14) return t('scheduled.interval2w');

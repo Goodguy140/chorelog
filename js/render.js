@@ -387,7 +387,7 @@ function fullRender() {
         return `<div class="scheduled-card">
   <div>
     <div class="scheduled-card-title">${escapeHtml(s.title)}</div>
-    <div class="scheduled-card-meta">${escapeHtml(t('scheduled.metaLine', { interval: intervalLabel(s.intervalDays), nextDue: st.nextHuman }))}</div>
+    <div class="scheduled-card-meta">${escapeHtml(t('scheduled.metaLine', { interval: intervalLabel(s), nextDue: st.nextHuman }))}</div>
   </div>
   <span class="scheduled-status ${st.cls}">${escapeHtml(st.label)}</span>
   <div class="scheduled-card-actions">

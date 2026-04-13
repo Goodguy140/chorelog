@@ -753,6 +753,15 @@ body {
   color: var(--color-text-secondary);
 }
 
+.push-notifications-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 0.5px solid var(--color-border-tertiary);
+}
+
 .title {
   font-size: 18px;
   font-weight: 500;

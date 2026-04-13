@@ -11,7 +11,7 @@
 | Area | Primary files |
 |------|----------------|
 | HTTP API + multi-household persistence | `server.js`, `lib/households-registry.cjs`, `lib/login-throttle.cjs`, `lib/sqlite-store.cjs` |
-| **OpenAPI 3** (integrators) | Live: **`GET /api/openapi.json`** · static snapshot: `docs/openapi.json` (`npm run docs:openapi`) · source: `lib/openapi-spec.cjs` · drift check: `npm run docs:check-api-routes` (also runs after `npm test`) |
+| **OpenAPI 3** (integrators) | **`lib/openapi-spec.cjs`** (source of truth) · live **`GET /api/openapi.json`** · committed snapshot **`docs/openapi.json`** (`npm run docs:openapi`) · drift vs `server.js`: **`scripts/check-api-routes.cjs`** (runs after **`npm test`**) — see **When changing HTTP routes** below |
 | HTML shell + ids | `index.html` |
 | Events, auth, mutations | `js/main.js` |
 | i18n (`t`, locales, language in Settings) | `js/i18n.js`, `locales/en.json`, `locales/de.json` |
@@ -24,15 +24,15 @@
 
 ---
 
-`server.js` — API + multi-household persistence + import/export/store normalization; **`module.exports = { normalizeStore, buildEntriesCsv }`** for tests; **`if (require.main === module)`** wraps listen + Discord reminder interval (so `npm test` does not bind a port or start the timer).
+`server.js` — API + multi-household persistence + import/export/store normalization; **`module.exports = { normalizeStore, buildEntriesCsv }`** for tests; **`if (require.main === module)`** wraps listen + Discord reminder interval (so `npm test` does not bind a port or start the timer). Imports **`buildOpenApiDocument`** from **`lib/openapi-spec.cjs`**; **`GET /api/openapi.json`** is public (see **`requireApiAuth`** bypass list).
 - `135` `normalizeEntry(row)` — entry shape, `choreId`, `locationIds`.
 - `163` `normalizeChorePreset(row)` — validates title/points/color/scoringMode.
 - `178` `normalizeChorePresets(arr)` — array normalization for presets.
 - `188` `normalizeQuickChoreIds(ids, presets)` — validates quick bar ids against presets.
-- `291` `normalizeStore(raw)` — canonicalizes store object read from disk (`discordWebhook`, `discordReminderSentAt`, **`auditLog`**).
+- `291` `normalizeStore(raw)` — canonicalizes store object read from disk (`discordWebhook`, `discordReminderSentAt`, **`pushSubscriptions`**, **`auditLog`**).
 - `GET /api/audit` — recent audit events (auth required); **`appendAudit`** on entry/settings/scheduled/import/discord user actions.
 - `451` `app.get('/api/entries', ...)` — list entries + `discordWebhook` for settings UI.
-- Discord / Slack / generic webhooks: `POST /api/discord-webhook/test`, `POST /api/discord-webhook/remind-now`; background timer sends overdue reminders per `discordReminderSentAt`; **quiet hours** skip sends; `discordWebhook` holds `quietHours*`, `slackWebhookUrl`, `genericWebhookUrl`.
+- Discord / Slack / generic webhooks + **Web Push (VAPID)**: `POST /api/discord-webhook/test`, `POST /api/discord-webhook/remind-now` (digest to webhooks and/or push); **`GET /api/push/vapid-public`**, **`GET/POST /api/push/subscriptions|subscribe|unsubscribe`**, **`POST /api/push/test`**; background timer sends overdue reminders per `discordReminderSentAt` to webhooks and/or registered push endpoints; **quiet hours** skip both; `discordWebhook` holds `quietHours*`, `slackWebhookUrl`, `genericWebhookUrl`; store **`pushSubscriptions`** (per household, max 24). Env **`CHORELOG_VAPID_PUBLIC_KEY`**, **`CHORELOG_VAPID_PRIVATE_KEY`**, optional **`CHORELOG_VAPID_SUBJECT`**; `npm run vapid:keys` generates keys.
 - `469`–`542` scheduled chore routes; `PUT /api/scheduled-chores/:id` supports title/interval/**startsOn**/**reminderEnabled** updates; `542` `POST .../complete` writes completion entry.
 - `588` `app.put('/api/settings', ...)` — settings write (people/presets/quick ids/locations/**discordWebhook** with quiet hours + extra webhook URLs).
 - `657` `app.post('/api/import', ...)` — import handler (replace/merge modes).
@@ -41,7 +41,7 @@
 - `830` `app.put('/api/entries/:id', ...)` — update entry.
 
 `index.html` — app shell, dialogs, script bootstrap.
-- Settings: **Audit log** (`#auditLogList`, …); **Integrations** tab — **Discord reminders** + quiet hours + Slack/generic URLs (`#discordWebhookEnabled`, `#discordWebhookUrl`, `#discordReminderInterval`, `#discordQuietHours*`, `#slackWebhookUrl`, `#genericWebhookUrl`, test / post-now); **nav** (`#settingsNav`, tab panels).
+- Settings: **Audit log** (`#auditLogList`, …); **Integrations** tab — **Discord reminders** + quiet hours + Slack/generic URLs (`#discordWebhookEnabled`, …, test / post-now) + **browser push** (`#btnPushSubscribe`, `#btnPushUnsubscribe`, `#btnPushTest`, `js/push-notifications.js`, **`sw.js`** `push` / `notificationclick`); **nav** (`#settingsNav`, tab panels).
 - `62`–`74` **analytics filters** `#analyticsPersonFilter`, `#analyticsLocationFilter`, hint `#analyticsFilterHint`; then `analytics-stats-row` / `statsGrid`, `statsGridPoints`.
 - `76`–`94` `section-pair`: contributions (`barsArea`, `barsAreaPoints`) + heatmap `taskHeatmap`.
 - `114`–`145` log form: `inChore`, `#scheduledLogSuggestionsWrap` / `#scheduledLogSuggestions` (due soon / overdue, preset title match), `inLocations`, quick log.
@@ -146,7 +146,8 @@
 - **Brute-force protection** — failed sign-ins are tracked **per client IP** (`lib/login-throttle.cjs`); after `CHORELOG_LOGIN_MAX_FAILURES` (default 8) failures within `CHORELOG_LOGIN_WINDOW_MS` (default 15 min), the IP is locked out for `CHORELOG_LOGIN_LOCKOUT_MS` (default 15 min). State in **`data/login-throttle.json`** (survives restarts). **`429`** with `Retry-After` and JSON `{ error, retryAfterSeconds }` when locked out. **`CHORELOG_TRUST_PROXY=1`** sets Express `trust proxy` so `req.ip` reflects `X-Forwarded-For` behind a reverse proxy.
 - **Session** — signed HMAC cookie (`chorelog_auth`) includes **`user`** and **`household`**; ~30-day expiry; secret from `CHORELOG_SECRET` (dev default in code). **`GET /api/auth`** returns `{ authenticated, user, household }` when valid.
 - **API guard** — unauthenticated: **`GET /api/auth`**, **`GET /api/version`**, **`GET /api/register-info`**, **`GET /api/openapi.json`**, **`POST /api/login`**, **`POST /api/login/members`**, **`POST /api/logout`**, **`POST /api/households`**. Everything else under **`/api/*`** requires a valid cookie tied to a known household (`requireApiAuth` sets `req.authPayload`, `req.householdId`).
-- **OpenAPI** — **`GET /api/openapi.json`** returns OpenAPI **3.0.3** JSON (`lib/openapi-spec.cjs`); `servers[0].url` reflects the request host. Regenerate committed snapshot: **`npm run docs:openapi`** → **`docs/openapi.json`**. **`scripts/check-api-routes.cjs`** compares Express routes in **`server.js`** to the spec (run via **`npm test`**).
+- **OpenAPI (integrators)** — **`GET /api/openapi.json`** returns OpenAPI **3.0.3** JSON; `servers[0].url` reflects the request host. Source: **`lib/openapi-spec.cjs`** (`buildOpenApiDocument`). Committed snapshot: **`docs/openapi.json`** (regenerate with **`npm run docs:openapi`** after spec edits). **`scripts/check-api-routes.cjs`** ensures every `app.(get|post|put|delete)('/api/…')` in **`server.js`** matches a path+method in the spec (also runs at end of **`npm test`**; CI fails on drift).
+- **When changing HTTP routes** — (1) implement in **`server.js`** (and **`requireApiAuth`** bypass list if public). (2) Update **`lib/openapi-spec.cjs`** (`paths`, `components`, `tags` as needed). (3) Run **`npm run docs:openapi`** to refresh **`docs/openapi.json`**. (4) Run **`npm test`** (includes route check). (5) Adjust **`.rctx`** Feature map / API guard bullets if behavior or auth changed.
 - **Persistence (per household)** — JSON **`data/households/<id>/chores.json`** (atomic write). **Optional SQLite**: if **`CHORELOG_SQLITE_PATH`** is set (any non-empty value), each household uses **`data/households/<id>/chores.db`** (`node:sqlite`, WAL); empty DB imports sibling **`chores.json`** once. **`ensureSeed`** seeds demo data per household when empty.
 - **Version** — **`GET /api/version`** — without auth: `version`, `nodeVersion`, `exportSchemaVersion`, `multiHousehold`. With cookie: also **`household`**, **`persistence`**, **`databaseRelativePath`**, optional SQLite engine fields. Footer + Settings **About** tab.
 
@@ -194,14 +195,14 @@
 - **Main dashboard strip** — cards with status + **Mark done**; section **hidden** when there are no scheduled chores.
 - **Manage dialog** — add (title + interval), list with **start date** edits, **per-chore “Remind when overdue (webhooks)”** checkbox (`reminderEnabled`), remove; **`PUT`/`DELETE`** routes.
 - **Mark done flow** — dialog picks person; **`POST .../complete`** adds log line with scheduled title and resets timer; optional **`completedDate`** (calendar day).
-- **Overdue reminders** — optional **Discord**, **Slack** (`hooks.slack.com`), and/or **generic HTTPS** URLs (same payload as Discord where applicable); **quiet hours** (server local clock, can span midnight); per-chore **`reminderEnabled`**; **server timer** + min interval per chore (`discordReminderSentAt`); **test** and **post overdue now** endpoints.
+- **Overdue reminders** — optional **Discord**, **Slack** (`hooks.slack.com`), **generic HTTPS** URLs, and/or **Web Push** to subscribed PWA devices (VAPID); **quiet hours** (server local clock, can span midnight); per-chore **`reminderEnabled`**; **server timer** + min interval per chore (`discordReminderSentAt`); **test** and **post overdue now** endpoints.
 - **Log-form suggestions** — buttons for urgent scheduled titles that **match a preset** (exact/fuzzy); fill chore + locations only; does not complete scheduled item (use Mark done for timer).
 
 ### Settings and data lifecycle
 
 - **Settings layout** — tabbed **nav** (`#settingsNav`, categories: Interface, Household, Chores, Integrations, Account, Audit, Data, **About**); **About** loads **`GET /api/version`** (app version, Node, storage type, data file path, SQLite engine + journal mode when applicable, export schema version); scrollable **panel** content; hamburger + backdrop on small viewports; last tab in `sessionStorage` (`chorelog-settings-tab`).
 - **Account** — **`GET /api/account`** on open; session summary (household id, display name, expiry), edit display name (**`PUT /api/account/display-name`**), change household password (**`POST /api/account/password`**), optional **create household** (**`POST /api/households`**) when **`CHORELOG_OPEN_REGISTRATION=1`** and/or **`CHORELOG_MASTER_PASSWORD`** is set; **Log out** (**`POST /api/logout`**). `js/main.js`: `loadAccountPanel` / `loadAccountInfo`.
-- **Integrations** — overdue webhook reminders: Discord URL, reminder interval, **quiet hours**, optional **Slack** + **generic HTTPS** URLs; Save / Send test / Post overdue now (`js/main.js` + `server.js` as above).
+- **Integrations** — overdue reminders: Discord URL, reminder interval, **quiet hours**, optional **Slack** + **generic HTTPS** URLs; **browser push** on each device (Settings); Save / Send test / Post overdue now (`js/main.js`, `js/push-notifications.js`, `server.js`, `lib/push-send.cjs`).
 - **Appearance** — theme **system / light / dark** (`localStorage` + inline head script to prevent flash); **`syncThemeMeta`** for `theme-color`.
 - **People / locations / presets / quick bar** — CRUD in UI; **`PUT /api/settings`** batches updates.
 - **Export** — **`GET /api/export`** (full JSON backup) and **`GET /api/export/entries.csv`** (log rows only, UTF-8 BOM, RFC 4180-style quoting); Settings → Data **Export JSON** / **Export CSV**.
@@ -215,7 +216,7 @@
 - **Render registry** — breaks import cycles between render and main.
 - **Responsive shell** — `--layout-max-width` steps at ~820px / 1100px / 1440px; log + MoM side-by-side on wide layouts.
 - **i18n** — `localStorage` key `chorelog-locale` (`en` | `de`); nested JSON flattened to dotted keys; `t(key, vars)`; `initI18n()` in `chore-tracker.js` before `main.js`; Settings → Language; month names and dates use `getLocaleBcp47()` (`en-US` / `de-DE`).
-- **Automated tests** — `npm test` runs **`node --test`** on `test/*.test.cjs`: `normalizeStore` (via `module.exports` from `server.js`, no listen/timer when required), **next due** math (mirrors `js/utils/date.js`), **semicolon resolve** rules (mirrors `resolveChorePayloadRows`), **household registry** JSON→SQLite migration (`test/households-registry.test.cjs`). GitHub Actions: `.github/workflows/ci.yml` on push/PR to `main`/`master`. Further ideas: HTTP import-merge, `scheduledStatus` labels with i18n stubs.
+- **Automated tests** — `npm test` runs **`node --test`** on `test/*.test.cjs`, then **`scripts/check-api-routes.cjs`** (OpenAPI vs `server.js`). Tests: `normalizeStore` (via `module.exports` from `server.js`, no listen/timer when required), **next due** for scheduled chores (**`lib/scheduled-recurrence.cjs`**, mirrored in **`js/utils/date.js`**), **semicolon resolve** rules (mirrors `resolveChorePayloadRows`), **household registry** JSON→SQLite migration (`test/households-registry.test.cjs`). GitHub Actions: `.github/workflows/ci.yml` on push/PR to `main`/`master`. Further ideas: HTTP import-merge, `scheduledStatus` labels with i18n stubs.
 
 ## Completed future ideas
 
@@ -223,6 +224,9 @@
 - **Optional SQLite backend** — `CHORELOG_SQLITE_PATH`, `lib/sqlite-store.cjs`, migration from JSON. Details: **Auth and server** (Persistence).
 - **CSV / spreadsheet export** — `GET /api/export/entries.csv`, Settings → Data **Export CSV**.
 - **Multi-household accounts** — isolated stores (`data/households/`), registry + login **`household`** field; **`POST /api/households`** with open registration and/or **`CHORELOG_MASTER_PASSWORD`**. Details: **Auth and server**.
+- **OpenAPI for integrators** — **`GET /api/openapi.json`**, **`lib/openapi-spec.cjs`**, **`docs/openapi.json`**, route drift check. Details: **Auth and server** (OpenAPI bullet) and **When changing HTTP routes**.
+- **Calendar-native recurrence** — scheduled chores support **`recurrence`**: `interval` (rolling **`intervalDays`**) or **`monthlyWeekday`** with **`monthOrdinal`** 1–4 (first–fourth weekday in month) or **5** (last such weekday), **`weekday`** 0–6 (Sun–Sat). Shared logic: **`lib/scheduled-recurrence.cjs`** / **`js/scheduled-recurrence.js`**; UI in scheduled dialog (**Repeat** + week/day). Server normalizes monthly rows with **`intervalDays`** 30 for legacy fields.
+- **Web Push (PWA)** — alternative to Discord for overdue reminders: **`web-push`** + VAPID env keys; **`pushSubscriptions`** in household store; **`sw.js`** shows notifications; Integrations UI enables per device.
 
 ## Future ideas (implementation-oriented)
 
@@ -230,13 +234,10 @@
 - **Fuzzy / typo-tolerant** matching for each `;` segment in the chore field (beyond current suggest list).
 - **Backup snapshots** — timestamped copy of `chores.json` before destructive import or on a schedule.
 - **True offline mode** — cache static assets + read-only queue in SW; conflict rules for writes.
-- **Push notifications** (PWA) as an alternative to Discord for mobile users.
-- **Calendar-native recurrence** — e.g. “every second Tuesday” vs fixed day intervals only.
 - **Read-only or guest** role (view stats, no edit).
 - **Tags or categories** orthogonal to presets.
 - **Streaks / goals** — weekly targets, gentle nudges in UI.
 - **Attachments** — optional photo per log entry (storage + privacy policy).
 - **More locales** — extend `locales/*.json` and `SUPPORTED_LOCALES` in `js/i18n.js`.
-- **OpenAPI** or short route doc generated from `server.js` for integrators.
 - **Helm chart** or raw Kubernetes manifests for multi-replica deploys.
 

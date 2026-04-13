@@ -1,3 +1,5 @@
+import { nextDueDateForScheduled } from '../scheduled-recurrence.js';
+
 /** YYYY-MM-DD for the user's local calendar (matches addDays / stored dates, not UTC). */
 export function localDateISO(d = new Date()) {
   const y = d.getFullYear();
@@ -27,10 +29,9 @@ export function scheduledStartsOnCalendar(s) {
   return localDateISO();
 }
 
-/** Next due date: lastCompleted + interval, or schedule start + interval if never completed. */
+/** Next due: interval days, or calendar monthly nth weekday when `recurrence === 'monthlyWeekday'`. */
 export function nextDueDate(s) {
-  const anchor = s.lastCompletedAt || scheduledStartsOnCalendar(s);
-  return addDays(anchor, s.intervalDays);
+  return nextDueDateForScheduled(s, { addDays, scheduledStartsOnCalendar });
 }
 
 export function getMonthKey(d) {

@@ -22,6 +22,8 @@ const { createLoginThrottle } = require('./lib/login-throttle.cjs');
 const { openSqliteStore } = require('./lib/sqlite-store.cjs');
 const householdReg = require('./lib/households-registry.cjs');
 const { buildOpenApiDocument } = require('./lib/openapi-spec.cjs');
+const scheduledRecurrence = require('./lib/scheduled-recurrence.cjs');
+const pushSend = require('./lib/push-send.cjs');
 
 const USE_SQLITE_PER_HOUSEHOLD = Boolean(
   process.env.CHORELOG_SQLITE_PATH && String(process.env.CHORELOG_SQLITE_PATH).trim(),
@@ -331,10 +333,25 @@ function normalizeScheduledChores(arr) {
 
     const reminderEnabled = row.reminderEnabled === false ? false : true;
 
+    let recurrence = row.recurrence === 'monthlyWeekday' ? 'monthlyWeekday' : 'interval';
+    let monthOrdinal = Number(row.monthOrdinal);
+    let weekday = Number(row.weekday);
+    if (recurrence === 'monthlyWeekday') {
+      if (!Number.isFinite(monthOrdinal) || monthOrdinal < 1 || monthOrdinal > 5) monthOrdinal = 2;
+      if (!Number.isFinite(weekday) || weekday < 0 || weekday > 6) weekday = 2;
+      intervalDays = 30;
+    } else {
+      recurrence = 'interval';
+      monthOrdinal = undefined;
+      weekday = undefined;
+    }
+
     out.push({
       id,
       title,
       intervalDays,
+      recurrence,
+      ...(recurrence === 'monthlyWeekday' ? { monthOrdinal, weekday } : {}),
       startsOn,
       lastCompletedAt,
       reminderEnabled,
@@ -367,8 +384,10 @@ function scheduledStartsOnCalendar(s) {
 }
 
 function nextDueDateScheduled(s) {
-  const anchor = s.lastCompletedAt || scheduledStartsOnCalendar(s);
-  return addDaysIso(anchor, s.intervalDays);
+  return scheduledRecurrence.nextDueDateForScheduled(s, {
+    addDays: addDaysIso,
+    scheduledStartsOnCalendar,
+  });
 }
 
 /** YYYY-MM-DD → locale medium date for Discord (matches client “Due Mon D, YYYY” style). */
@@ -505,6 +524,35 @@ function pruneDiscordReminderSentAt(sentMap, scheduledIds) {
   return out;
 }
 
+const MAX_PUSH_SUBSCRIPTIONS = 24;
+
+function normalizePushSubscription(row) {
+  if (!row || typeof row !== 'object') return null;
+  const endpoint = typeof row.endpoint === 'string' ? row.endpoint.trim() : '';
+  if (!endpoint.startsWith('https://')) return null;
+  const keys = row.keys && typeof row.keys === 'object' ? row.keys : {};
+  const p256dh = typeof keys.p256dh === 'string' ? keys.p256dh.trim() : '';
+  const auth = typeof keys.auth === 'string' ? keys.auth.trim() : '';
+  if (!p256dh || !auth) return null;
+  const id = typeof row.id === 'string' && row.id ? row.id : newId();
+  let createdAt = typeof row.createdAt === 'string' ? row.createdAt : nowISO();
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(createdAt)) createdAt = nowISO();
+  return { id, endpoint, keys: { p256dh, auth }, createdAt };
+}
+
+function normalizePushSubscriptions(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const row of raw) {
+    const n = normalizePushSubscription(row);
+    if (!n || seen.has(n.endpoint)) continue;
+    seen.add(n.endpoint);
+    out.push(n);
+  }
+  return out.slice(0, MAX_PUSH_SUBSCRIPTIONS);
+}
+
 const MAX_AUDIT_ENTRIES = 500;
 
 function normalizeAuditEntry(row) {
@@ -591,6 +639,7 @@ function normalizeStore(raw) {
     scheduledChores.map((s) => s.id),
   );
   const auditLog = normalizeAuditLog(raw.auditLog);
+  const pushSubscriptions = normalizePushSubscriptions(raw.pushSubscriptions);
   return {
     entries,
     people,
@@ -600,6 +649,7 @@ function normalizeStore(raw) {
     quickChoreIds,
     discordWebhook,
     discordReminderSentAt,
+    pushSubscriptions,
     auditLog,
   };
 }
@@ -753,6 +803,7 @@ function requireApiAuth(req, res, next) {
   if (req.method === 'GET' && req.path === '/api/version') return next();
   if (req.method === 'GET' && req.path === '/api/register-info') return next();
   if (req.method === 'GET' && req.path === '/api/openapi.json') return next();
+  if (req.method === 'GET' && req.path === '/api/push/vapid-public') return next();
   if (req.method === 'POST' && req.path === '/api/login') return next();
   if (req.method === 'POST' && req.path === '/api/login/members') return next();
   if (req.method === 'POST' && req.path === '/api/logout') return next();
@@ -851,6 +902,117 @@ app.get('/api/register-info', (req, res) => {
 app.get('/api/openapi.json', (req, res) => {
   res.type('application/json');
   res.json(buildOpenApiDocument(req));
+});
+
+app.get('/api/push/vapid-public', (req, res) => {
+  const pub = pushSend.getPublicVapidKey();
+  if (!pub) return res.status(503).json({ error: 'Push is not configured on this server' });
+  res.json({ publicKey: pub });
+});
+
+app.get('/api/push/subscriptions', async (req, res) => {
+  try {
+    const store = await readStore(req.householdId);
+    const list = normalizePushSubscriptions(store.pushSubscriptions);
+    if (list.length !== (store.pushSubscriptions || []).length) {
+      store.pushSubscriptions = list;
+      await writeStore(req.householdId, store);
+    }
+    res.json({
+      serverEnabled: pushSend.vapidKeysPresent(),
+      subscriptions: list.map((s) => ({ id: s.id, endpoint: s.endpoint })),
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to load push subscriptions' });
+  }
+});
+
+app.post('/api/push/subscribe', async (req, res) => {
+  try {
+    if (!pushSend.vapidKeysPresent()) {
+      return res.status(503).json({ error: 'Push is not configured on this server' });
+    }
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const row = normalizePushSubscription({
+      endpoint: body.endpoint,
+      keys: body.keys,
+      createdAt: nowISO(),
+    });
+    if (!row) return res.status(400).json({ error: 'Invalid subscription' });
+    const store = await readStore(req.householdId);
+    let list = normalizePushSubscriptions(store.pushSubscriptions || []);
+    const idx = list.findIndex((x) => x.endpoint === row.endpoint);
+    if (idx >= 0) list[idx] = { ...list[idx], keys: row.keys, createdAt: row.createdAt };
+    else {
+      list.push(row);
+      list = list.slice(-MAX_PUSH_SUBSCRIPTIONS);
+    }
+    store.pushSubscriptions = normalizePushSubscriptions(list);
+    appendAudit(store, req, {
+      action: 'push.subscribe',
+      target: 'web-push',
+      detail: `Browser push subscription registered`,
+    });
+    await writeStore(req.householdId, store);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to save subscription' });
+  }
+});
+
+app.post('/api/push/unsubscribe', async (req, res) => {
+  try {
+    const endpoint = typeof req.body && req.body.endpoint ? String(req.body.endpoint).trim() : '';
+    if (!endpoint) return res.status(400).json({ error: 'endpoint is required' });
+    const store = await readStore(req.householdId);
+    const before = (store.pushSubscriptions || []).length;
+    store.pushSubscriptions = (store.pushSubscriptions || []).filter((s) => s.endpoint !== endpoint);
+    if (store.pushSubscriptions.length === before) {
+      return res.json({ ok: true, removed: false });
+    }
+    appendAudit(store, req, {
+      action: 'push.unsubscribe',
+      target: 'web-push',
+      detail: 'Browser push subscription removed',
+    });
+    await writeStore(req.householdId, store);
+    res.json({ ok: true, removed: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to remove subscription' });
+  }
+});
+
+app.post('/api/push/test', async (req, res) => {
+  try {
+    if (!pushSend.vapidKeysPresent()) {
+      return res.status(503).json({ error: 'Push is not configured on this server' });
+    }
+    const store = await readStore(req.householdId);
+    if (!store.pushSubscriptions || !store.pushSubscriptions.length) {
+      return res.status(400).json({ error: 'No browser subscriptions for this household' });
+    }
+    const payload = JSON.stringify({
+      title: 'Chorelog',
+      body: 'Test notification — browser push is working.',
+      url: '/',
+      tag: 'chorelog-test',
+    });
+    const pushRes = await sendPushPayloadToStoreSubscriptions(store, req.householdId, payload);
+    if (!pushRes.ok) return res.status(502).json({ error: 'Push services did not accept the message' });
+    appendAudit(store, req, {
+      action: 'push.test',
+      target: 'web-push',
+      detail: 'Test push sent',
+    });
+    await writeStore(req.householdId, store);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Test failed' });
+  }
 });
 
 app.get('/api/account', (req, res) => {
@@ -1078,10 +1240,26 @@ app.get('/api/entries', async (req, res) => {
 app.post('/api/scheduled-chores', async (req, res) => {
   try {
     const title = String(req.body && req.body.title ? req.body.title : '').trim();
-    let intervalDays = Number(req.body && req.body.intervalDays);
     if (!title) return res.status(400).json({ error: 'title is required' });
-    if (!Number.isFinite(intervalDays) || intervalDays < 1) intervalDays = 7;
-    if (intervalDays > 3650) intervalDays = 3650;
+    const recurrence =
+      req.body && req.body.recurrence === 'monthlyWeekday' ? 'monthlyWeekday' : 'interval';
+    let intervalDays = Number(req.body && req.body.intervalDays);
+    let monthOrdinal;
+    let weekday;
+    if (recurrence === 'monthlyWeekday') {
+      monthOrdinal = Number(req.body && req.body.monthOrdinal);
+      weekday = Number(req.body && req.body.weekday);
+      if (!Number.isFinite(monthOrdinal) || monthOrdinal < 1 || monthOrdinal > 5) {
+        return res.status(400).json({ error: 'monthOrdinal must be 1–5 (5 = last weekday of month)' });
+      }
+      if (!Number.isFinite(weekday) || weekday < 0 || weekday > 6) {
+        return res.status(400).json({ error: 'weekday must be 0–6 (Sun–Sat)' });
+      }
+      intervalDays = 30;
+    } else {
+      if (!Number.isFinite(intervalDays) || intervalDays < 1) intervalDays = 7;
+      if (intervalDays > 3650) intervalDays = 3650;
+    }
     const store = await readStore(req.householdId);
     if (!store.scheduledChores) store.scheduledChores = [];
     const startsOn =
@@ -1094,6 +1272,8 @@ app.post('/api/scheduled-chores', async (req, res) => {
       id: newId(),
       title,
       intervalDays,
+      recurrence,
+      ...(recurrence === 'monthlyWeekday' ? { monthOrdinal, weekday } : {}),
       startsOn,
       lastCompletedAt: null,
       reminderEnabled,
@@ -1101,10 +1281,14 @@ app.post('/api/scheduled-chores', async (req, res) => {
       updatedAt: ts,
     };
     store.scheduledChores.push(row);
+    const detail =
+      recurrence === 'monthlyWeekday'
+        ? `Calendar monthly (ordinal ${monthOrdinal}, weekday ${weekday}); id ${row.id}`
+        : `Every ${intervalDays} day(s); id ${row.id}`;
     appendAudit(store, req, {
       action: 'scheduled.create',
       target: title,
-      detail: `Every ${intervalDays} day(s); id ${row.id}`,
+      detail,
     });
     await writeStore(req.householdId, store);
     res.status(201).json({ scheduledChores: store.scheduledChores });
@@ -1139,6 +1323,25 @@ app.put('/api/scheduled-chores/:id', async (req, res) => {
     if (req.body.reminderEnabled != null) {
       list[idx].reminderEnabled = Boolean(req.body.reminderEnabled);
     }
+    if (req.body.recurrence != null) {
+      const r = req.body.recurrence === 'monthlyWeekday' ? 'monthlyWeekday' : 'interval';
+      list[idx].recurrence = r;
+      if (r === 'interval') {
+        delete list[idx].monthOrdinal;
+        delete list[idx].weekday;
+      }
+    }
+    if (req.body.monthOrdinal != null) {
+      const mo = Number(req.body.monthOrdinal);
+      if (Number.isFinite(mo) && mo >= 1 && mo <= 5) list[idx].monthOrdinal = mo;
+    }
+    if (req.body.weekday != null) {
+      const wd = Number(req.body.weekday);
+      if (Number.isFinite(wd) && wd >= 0 && wd <= 6) list[idx].weekday = wd;
+    }
+    if (list[idx].recurrence === 'monthlyWeekday') {
+      list[idx].intervalDays = 30;
+    }
     list[idx].updatedAt = nowISO();
     store.scheduledChores = list;
     const ch = list[idx];
@@ -1147,6 +1350,9 @@ app.put('/api/scheduled-chores/:id', async (req, res) => {
     if (req.body.intervalDays != null) changes.push('interval');
     if (req.body.startsOn != null) changes.push('startsOn');
     if (req.body.reminderEnabled != null) changes.push('reminderEnabled');
+    if (req.body.recurrence != null) changes.push('recurrence');
+    if (req.body.monthOrdinal != null) changes.push('monthOrdinal');
+    if (req.body.weekday != null) changes.push('weekday');
     appendAudit(store, req, {
       action: 'scheduled.update',
       target: ch.title,
@@ -1456,6 +1662,68 @@ async function sendDigestToAllWebhookChannels(w, chores, today) {
   return results.some(Boolean);
 }
 
+function buildOverduePushPayloadJson(chore, nextDue, today) {
+  const daysPast = Math.floor(
+    (new Date(`${today}T12:00:00`).getTime() - new Date(`${nextDue}T12:00:00`).getTime()) / 864e5,
+  );
+  const name = String(chore.title || 'Chore').replace(/[<>]/g, '');
+  const dueWhen = formatCalendarDateHuman(nextDue);
+  const body = `${name} — was due ${dueWhen} (${daysPast}d overdue)`;
+  return JSON.stringify({
+    title: 'Chorelog — overdue',
+    body,
+    url: '/',
+    tag: `scheduled-${chore.id}`,
+  });
+}
+
+function buildDigestPushPayloadJson(chores, today) {
+  const lines = chores.map((s) => {
+    const next = nextDueDateScheduled(s);
+    const daysPast = Math.floor(
+      (new Date(`${today}T12:00:00`).getTime() - new Date(`${next}T12:00:00`).getTime()) / 864e5,
+    );
+    const title = String(s.title || 'Chore').replace(/[<>]/g, '');
+    return `${title} (${daysPast}d)`;
+  });
+  const body = lines.slice(0, 4).join(' · ') + (lines.length > 4 ? '…' : '');
+  return JSON.stringify({
+    title:
+      chores.length === 1 ? 'Chorelog — overdue chore' : `Chorelog — ${chores.length} overdue chores`,
+    body,
+    url: '/',
+    tag: 'chorelog-overdue-digest',
+  });
+}
+
+/**
+ * @returns {Promise<{ ok: boolean, pruned: boolean }>}
+ */
+async function sendPushPayloadToStoreSubscriptions(store, householdId, payloadString) {
+  const subs = store.pushSubscriptions;
+  if (!subs || !subs.length || !pushSend.vapidKeysPresent()) return { ok: false, pruned: false };
+  if (!pushSend.ensureVapidConfigured()) return { ok: false, pruned: false };
+  const dead = [];
+  let any = false;
+  for (const sub of subs) {
+    const subscription = { endpoint: sub.endpoint, keys: sub.keys };
+    try {
+      await pushSend.sendToSubscription(subscription, payloadString);
+      any = true;
+    } catch (e) {
+      const code = e.statusCode;
+      if (code === 404 || code === 410) dead.push(sub.endpoint);
+      else console.error('Web push:', e.message || e);
+    }
+  }
+  if (dead.length) {
+    store.pushSubscriptions = subs.filter((s) => !dead.includes(s.endpoint));
+    await writeStore(householdId, store);
+    return { ok: any, pruned: true };
+  }
+  return { ok: any, pruned: false };
+}
+
 let discordReminderJobRunning = false;
 async function runDiscordReminders() {
   if (discordReminderJobRunning) return;
@@ -1465,8 +1733,14 @@ async function runDiscordReminders() {
     const ids = householdReg.listHouseholdIds(householdRegistry);
     for (const householdId of ids) {
       const store = await readStore(householdId);
-      const w = store.discordWebhook;
-      if (!w || !w.enabled || !hasReminderDestination(w)) continue;
+      const w = store.discordWebhook || normalizeDiscordWebhook(null);
+      if (!w.enabled) continue;
+      const webhookPath = hasReminderDestination(w);
+      const hasPush =
+        pushSend.vapidKeysPresent() &&
+        Array.isArray(store.pushSubscriptions) &&
+        store.pushSubscriptions.length > 0;
+      if (!webhookPath && !hasPush) continue;
       if (isInReminderQuietHours(w)) continue;
 
       const today = localCalendarDateISO();
@@ -1489,8 +1763,13 @@ async function runDiscordReminders() {
         const last = sentMap[s.id] ? Date.parse(sentMap[s.id]) : 0;
         if (last && now - last < intervalMs) continue;
 
-        const ok = await sendOverdueToAllWebhookChannels(w, s, next, today);
-        if (ok) {
+        const okWh = webhookPath ? await sendOverdueToAllWebhookChannels(w, s, next, today) : false;
+        const payloadJson = buildOverduePushPayloadJson(s, next, today);
+        const pushRes = hasPush
+          ? await sendPushPayloadToStoreSubscriptions(store, householdId, payloadJson)
+          : { ok: false, pruned: false };
+        if (pushRes.pruned) changed = true;
+        if (okWh || pushRes.ok) {
           sentMap[s.id] = new Date().toISOString();
           changed = true;
         }
@@ -1544,10 +1823,21 @@ app.post('/api/discord-webhook/test', async (req, res) => {
 app.post('/api/discord-webhook/remind-now', async (req, res) => {
   try {
     const store = await readStore(req.householdId);
-    const w = store.discordWebhook;
-    if (!w || !hasReminderDestination(w)) {
+    const w = store.discordWebhook || normalizeDiscordWebhook(null);
+    if (!w.enabled) {
       return res.status(400).json({
-        error: 'Configure at least one webhook URL (Discord, Slack, or generic HTTPS)',
+        error: 'Turn on “Send overdue reminders automatically” to post reminders (webhooks and/or push)',
+      });
+    }
+    const webhookPath = hasReminderDestination(w);
+    const hasPush =
+      pushSend.vapidKeysPresent() &&
+      Array.isArray(store.pushSubscriptions) &&
+      store.pushSubscriptions.length > 0;
+    if (!webhookPath && !hasPush) {
+      return res.status(400).json({
+        error:
+          'Configure at least one webhook URL or subscribe a device to browser push (Settings → Integrations)',
       });
     }
     const today = localCalendarDateISO();
@@ -1560,15 +1850,21 @@ app.post('/api/discord-webhook/remind-now', async (req, res) => {
     if (isInReminderQuietHours(w)) {
       return res.status(400).json({ error: 'Quiet hours are active; reminders are not sent' });
     }
-    const ok = await sendDigestToAllWebhookChannels(w, overdue, today);
-    if (!ok) return res.status(502).json({ error: 'Webhook endpoint did not accept the message' });
+    const okWh = webhookPath ? await sendDigestToAllWebhookChannels(w, overdue, today) : false;
+    const digestJson = buildDigestPushPayloadJson(overdue, today);
+    const pushRes = hasPush
+      ? await sendPushPayloadToStoreSubscriptions(store, req.householdId, digestJson)
+      : { ok: false, pruned: false };
+    if (!okWh && !pushRes.ok) {
+      return res.status(502).json({ error: 'Could not deliver digest to webhooks or push subscriptions' });
+    }
     appendAudit(store, req, {
       action: 'discord.remind_now',
-      target: 'webhook',
-      detail: `Posted ${overdue.length} overdue chore(s)`,
+      target: 'reminders',
+      detail: `Posted ${overdue.length} overdue chore(s)${okWh ? ' (webhook)' : ''}${pushRes.ok ? ' (push)' : ''}`,
     });
     await writeStore(req.householdId, store);
-    res.json({ ok: true, sent: overdue.length });
+    res.json({ ok: true, sent: overdue.length, webhooks: okWh, push: pushRes.ok });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to send' });

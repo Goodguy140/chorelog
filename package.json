@@ -8,9 +8,11 @@
     "dev": "node --watch server.js",
     "docs:openapi": "node scripts/write-openapi.cjs",
     "docs:check-api-routes": "node scripts/check-api-routes.cjs",
+    "vapid:keys": "node -e \"const w=require('web-push');const k=w.generateVAPIDKeys();console.log('CHORELOG_VAPID_PUBLIC_KEY='+k.publicKey);console.log('CHORELOG_VAPID_PRIVATE_KEY='+k.privateKey);console.log('# Optional: CHORELOG_VAPID_SUBJECT=mailto:you@example.com');\"",
     "test": "node --test test/*.test.cjs && node scripts/check-api-routes.cjs"
   },
   "dependencies": {
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "web-push": "^3.6.7"
   }
 }

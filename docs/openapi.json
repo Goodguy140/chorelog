@@ -45,6 +45,10 @@
       "description": "Discord / Slack / generic overdue notifications"
     },
     {
+      "name": "Push",
+      "description": "Web Push (VAPID) for PWA browser notifications"
+    },
+    {
       "name": "Export",
       "description": "Backup and CSV export"
     }
@@ -831,6 +835,26 @@
                   "intervalDays": {
                     "type": "number"
                   },
+                  "recurrence": {
+                    "type": "string",
+                    "enum": [
+                      "interval",
+                      "monthlyWeekday"
+                    ],
+                    "description": "interval = rolling N-day cadence; monthlyWeekday = nth weekday of month"
+                  },
+                  "monthOrdinal": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5,
+                    "description": "1–4 = first–fourth occurrence; 5 = last such weekday in the month"
+                  },
+                  "weekday": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6,
+                    "description": "0 = Sunday … 6 = Saturday (JavaScript Date)"
+                  },
                   "startsOn": {
                     "type": "string"
                   },
@@ -882,6 +906,23 @@
                   },
                   "intervalDays": {
                     "type": "number"
+                  },
+                  "recurrence": {
+                    "type": "string",
+                    "enum": [
+                      "interval",
+                      "monthlyWeekday"
+                    ]
+                  },
+                  "monthOrdinal": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5
+                  },
+                  "weekday": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6
                   },
                   "startsOn": {
                     "type": "string"
@@ -1047,7 +1088,7 @@
         "tags": [
           "Webhooks"
         ],
-        "summary": "Post all overdue scheduled chores to webhooks now",
+        "summary": "Post overdue digest to webhooks and/or Web Push now",
         "responses": {
           "200": {
             "description": "OK",
@@ -1061,10 +1102,152 @@
             }
           },
           "400": {
-            "description": "Quiet hours or no webhooks"
+            "description": "Quiet hours or no destinations"
           },
           "502": {
-            "description": "Webhook rejected payload"
+            "description": "Delivery failed"
+          }
+        }
+      }
+    },
+    "/api/push/vapid-public": {
+      "get": {
+        "tags": [
+          "Push"
+        ],
+        "summary": "VAPID public key for PushManager.subscribe",
+        "responses": {
+          "200": {
+            "description": "URL-safe base64 public key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "publicKey": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "publicKey"
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "VAPID not configured"
+          }
+        }
+      }
+    },
+    "/api/push/subscriptions": {
+      "get": {
+        "tags": [
+          "Push"
+        ],
+        "summary": "List registered browser push endpoints for this household",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/push/subscribe": {
+      "post": {
+        "tags": [
+          "Push"
+        ],
+        "summary": "Register or refresh a PushSubscription (browser JSON)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "PushSubscription.toJSON() shape"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Invalid body"
+          },
+          "503": {
+            "description": "VAPID not configured"
+          }
+        }
+      }
+    },
+    "/api/push/unsubscribe": {
+      "post": {
+        "tags": [
+          "Push"
+        ],
+        "summary": "Remove a subscription by endpoint URL",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "endpoint"
+                ],
+                "properties": {
+                  "endpoint": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/push/test": {
+      "post": {
+        "tags": [
+          "Push"
+        ],
+        "summary": "Send a test Web Push to all household subscriptions",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "No subscriptions"
+          },
+          "502": {
+            "description": "Push failed"
           }
         }
       }
