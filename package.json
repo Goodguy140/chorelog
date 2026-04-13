@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test test/*.test.cjs"
+    "docs:openapi": "node scripts/write-openapi.cjs",
+    "docs:check-api-routes": "node scripts/check-api-routes.cjs",
+    "test": "node --test test/*.test.cjs && node scripts/check-api-routes.cjs"
   },
   "dependencies": {
     "express": "^4.21.2"

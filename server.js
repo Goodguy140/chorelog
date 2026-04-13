@@ -21,6 +21,7 @@ const LEGACY_DATA_FILE = path.join(DATA_DIR, 'chores.json');
 const { createLoginThrottle } = require('./lib/login-throttle.cjs');
 const { openSqliteStore } = require('./lib/sqlite-store.cjs');
 const householdReg = require('./lib/households-registry.cjs');
+const { buildOpenApiDocument } = require('./lib/openapi-spec.cjs');
 
 const USE_SQLITE_PER_HOUSEHOLD = Boolean(
   process.env.CHORELOG_SQLITE_PATH && String(process.env.CHORELOG_SQLITE_PATH).trim(),
@@ -751,6 +752,7 @@ function requireApiAuth(req, res, next) {
   if (req.method === 'GET' && req.path === '/api/auth') return next();
   if (req.method === 'GET' && req.path === '/api/version') return next();
   if (req.method === 'GET' && req.path === '/api/register-info') return next();
+  if (req.method === 'GET' && req.path === '/api/openapi.json') return next();
   if (req.method === 'POST' && req.path === '/api/login') return next();
   if (req.method === 'POST' && req.path === '/api/login/members') return next();
   if (req.method === 'POST' && req.path === '/api/logout') return next();
@@ -843,6 +845,12 @@ app.get('/api/register-info', (req, res) => {
     hasMasterPassword: master,
     allowCreateHousehold: open || master,
   });
+});
+
+/** OpenAPI 3.0 document for integrators (public). */
+app.get('/api/openapi.json', (req, res) => {
+  res.type('application/json');
+  res.json(buildOpenApiDocument(req));
 });
 
 app.get('/api/account', (req, res) => {

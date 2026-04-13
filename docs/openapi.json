@@ -1,0 +1,1179 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Chorelog API",
+    "version": "1.0.0",
+    "description": "HTTP API for Chorelog (household chore tracker).\n\nMost routes require a session cookie **`chorelog_auth`** set by **`POST /api/login`** (HttpOnly, SameSite=Lax). Send cookies on subsequent requests.\n\nJSON bodies use `Content-Type: application/json`."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:3000",
+      "description": "This instance"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "Login, logout, session, registration hints"
+    },
+    {
+      "name": "Account",
+      "description": "Signed-in user / household session info"
+    },
+    {
+      "name": "Households",
+      "description": "Create tenant (when enabled by server env)"
+    },
+    {
+      "name": "Data",
+      "description": "Main store: entries, people, locations, presets, scheduled chores"
+    },
+    {
+      "name": "Entries",
+      "description": "Activity log rows"
+    },
+    {
+      "name": "Scheduled",
+      "description": "Recurring chores"
+    },
+    {
+      "name": "Settings",
+      "description": "Household settings batch update"
+    },
+    {
+      "name": "Webhooks",
+      "description": "Discord / Slack / generic overdue notifications"
+    },
+    {
+      "name": "Export",
+      "description": "Backup and CSV export"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "chorelog_auth",
+        "description": "Set by POST /api/login; include in Cookie header for protected routes."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "AuthOk": {
+        "type": "object",
+        "properties": {
+          "authenticated": {
+            "type": "boolean"
+          },
+          "user": {
+            "type": "string"
+          },
+          "household": {
+            "type": "string"
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "properties": {
+          "household": {
+            "type": "string",
+            "description": "Household id slug; default applied if omitted"
+          },
+          "username": {
+            "type": "string",
+            "description": "Display name for audit log"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "LoginMembersRequest": {
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "properties": {
+          "household": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "LoginMembersResponse": {
+        "type": "object",
+        "properties": {
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "RegisterInfo": {
+        "type": "object",
+        "properties": {
+          "openRegistration": {
+            "type": "boolean"
+          },
+          "hasMasterPassword": {
+            "type": "boolean"
+          },
+          "allowCreateHousehold": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateHouseholdRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "householdId": {
+            "type": "string",
+            "description": "Alias for id"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8
+          },
+          "masterPassword": {
+            "type": "string"
+          }
+        }
+      },
+      "AccountInfo": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string"
+          },
+          "household": {
+            "type": "string"
+          },
+          "sessionExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "canCreateHouseholds": {
+            "type": "boolean"
+          },
+          "openRegistration": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "cookieAuth": []
+    }
+  ],
+  "paths": {
+    "/api/auth": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Session status",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Authenticated or anonymous",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "authenticated": {
+                          "const": false
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "authenticated": {
+                          "const": true
+                        },
+                        "user": {
+                          "type": "string"
+                        },
+                        "household": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/version": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "App and runtime version",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Version payload; extra fields when authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/openapi.json": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "This OpenAPI document (JSON)",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.0 document"
+          }
+        }
+      }
+    },
+    "/api/register-info": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Registration options for this server",
+        "security": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Sign in (sets session cookie)",
+        "security": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "household": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Brute-force throttle",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "retryAfterSeconds": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/login/members": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "List household people after password check (no session)",
+        "description": "Same throttle as login on failures. Used for login UI step 1 → 2.",
+        "security": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginMembersRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginMembersResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many attempts"
+          }
+        }
+      }
+    },
+    "/api/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Sign out (clears cookie)",
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "No content"
+          }
+        }
+      }
+    },
+    "/api/households": {
+      "post": {
+        "tags": [
+          "Households"
+        ],
+        "summary": "Create a new household",
+        "description": "Requires `CHORELOG_OPEN_REGISTRATION=1` and/or valid `CHORELOG_MASTER_PASSWORD`.",
+        "security": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHouseholdRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "household": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Household id already exists"
+          }
+        }
+      }
+    },
+    "/api/account": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Current account / session summary",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountInfo"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/display-name": {
+      "put": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Update display name (re-issues cookie)",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "user"
+                ],
+                "properties": {
+                  "user": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "user": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/api/account/password": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Change this household password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "currentPassword": {
+                    "type": "string"
+                  },
+                  "newPassword": {
+                    "type": "string",
+                    "minLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "New password too short"
+          },
+          "401": {
+            "description": "Current password wrong"
+          }
+        }
+      }
+    },
+    "/api/audit": {
+      "get": {
+        "tags": [
+          "Data"
+        ],
+        "summary": "Audit log",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "maximum": 500
+            },
+            "description": "Max rows (capped at 500)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "auditLog": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/entries": {
+      "get": {
+        "tags": [
+          "Data"
+        ],
+        "summary": "Load full household store slice (entries, people, locations, …)",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Entries"
+        ],
+        "summary": "Create log entries (batch)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "entries"
+                ],
+                "properties": {
+                  "entries": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "d": {
+                          "type": "string",
+                          "description": "Date YYYY-MM-DD"
+                        },
+                        "p": {
+                          "type": "string",
+                          "description": "Person name"
+                        },
+                        "c": {
+                          "type": "string",
+                          "description": "Chore text if no choreId"
+                        },
+                        "choreId": {
+                          "type": "string"
+                        },
+                        "locationIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/api/entries/{id}": {
+      "put": {
+        "tags": [
+          "Entries"
+        ],
+        "summary": "Update a log entry",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "d": {
+                    "type": "string"
+                  },
+                  "p": {
+                    "type": "string"
+                  },
+                  "c": {
+                    "type": "string"
+                  },
+                  "choreId": {
+                    "type": "string"
+                  },
+                  "locationIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated entry"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Entries"
+        ],
+        "summary": "Delete a log entry",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/api/scheduled-chores": {
+      "post": {
+        "tags": [
+          "Scheduled"
+        ],
+        "summary": "Create scheduled chore",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "title"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "intervalDays": {
+                    "type": "number"
+                  },
+                  "startsOn": {
+                    "type": "string"
+                  },
+                  "createdAt": {
+                    "type": "string"
+                  },
+                  "reminderEnabled": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "400": {
+            "description": "Missing title"
+          }
+        }
+      }
+    },
+    "/api/scheduled-chores/{id}": {
+      "put": {
+        "tags": [
+          "Scheduled"
+        ],
+        "summary": "Update scheduled chore",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "intervalDays": {
+                    "type": "number"
+                  },
+                  "startsOn": {
+                    "type": "string"
+                  },
+                  "reminderEnabled": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Scheduled"
+        ],
+        "summary": "Delete scheduled chore",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/api/scheduled-chores/{id}/complete": {
+      "post": {
+        "tags": [
+          "Scheduled"
+        ],
+        "summary": "Mark scheduled chore done (adds log line)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "person",
+                  "completedDate"
+                ],
+                "properties": {
+                  "person": {
+                    "type": "string"
+                  },
+                  "completedDate": {
+                    "type": "string",
+                    "description": "YYYY-MM-DD"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Validation"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/api/settings": {
+      "put": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Batch-update household settings",
+        "description": "Any of: people, locations, chorePresets, quickChoreIds, discordWebhook",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated subset returned"
+          },
+          "400": {
+            "description": "Validation"
+          }
+        }
+      }
+    },
+    "/api/discord-webhook/test": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Send test notification to configured webhooks",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "slackWebhookUrl": {
+                    "type": "string"
+                  },
+                  "genericWebhookUrl": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "No valid URL"
+          }
+        }
+      }
+    },
+    "/api/discord-webhook/remind-now": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Post all overdue scheduled chores to webhooks now",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Quiet hours or no webhooks"
+          },
+          "502": {
+            "description": "Webhook rejected payload"
+          }
+        }
+      }
+    },
+    "/api/export": {
+      "get": {
+        "tags": [
+          "Export"
+        ],
+        "summary": "Download full JSON backup",
+        "responses": {
+          "200": {
+            "description": "JSON attachment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/export/entries.csv": {
+      "get": {
+        "tags": [
+          "Export"
+        ],
+        "summary": "Download log entries as CSV",
+        "responses": {
+          "200": {
+            "description": "CSV with UTF-8 BOM",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/import": {
+      "post": {
+        "tags": [
+          "Export"
+        ],
+        "summary": "Import JSON backup (replace or merge)",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "replace",
+                      "merge"
+                    ]
+                  },
+                  "people": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "locations": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "entries": {
+                    "type": "array"
+                  },
+                  "scheduledChores": {
+                    "type": "array"
+                  },
+                  "chorePresets": {
+                    "type": "array"
+                  },
+                  "quickChoreIds": {
+                    "type": "array"
+                  },
+                  "discordWebhook": {
+                    "type": "object"
+                  },
+                  "auditLog": {
+                    "type": "array"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Store snapshot returned"
+          },
+          "400": {
+            "description": "Invalid import"
+          }
+        }
+      }
+    }
+  }
+}
