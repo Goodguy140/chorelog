@@ -142,7 +142,7 @@
 - **Session** — signed HMAC cookie (`chorelog_auth`) includes **`user`** (username) for audit actor; ~30-day expiry; secret from `CHORELOG_SECRET` (dev default in code). **`GET /api/auth`** returns `{ authenticated, user }` when valid.
 - **API guard** — all `/api/*` except auth/version/login require a valid cookie (`requireApiAuth` sets `req.authPayload`).
 - **Persistence** — default: JSON file **`data/chores.json`**; **atomic write** (temp + rename). **Optional SQLite**: set **`CHORELOG_SQLITE_PATH`** — bare filename (e.g. `chores.db`) → **`data/chores.db`**; paths starting with **`data/`** (e.g. `./data/chores.db`) → from **project root**; absolute paths as-is. Parent dirs are created if missing. Uses Node built-in **`node:sqlite`** (`DatabaseSync`, WAL). If the DB has no row yet, the server **one-time imports** existing `data/chores.json` then serves from SQLite. **`ensureSeed`** unchanged (demo rows if empty).
-- **Version** — **`GET /api/version`** returns `package.json` version; shown in Settings + footer when loaded.
+- **Version** — **`GET /api/version`** returns `version`, `nodeVersion`, `persistence` (`json`|`sqlite`), `databaseRelativePath`, optional `sqliteVersion` / `journalMode`, `exportSchemaVersion` (matches export JSON `version`); footer + Settings **About** tab.
 
 ### Data model (store)
 
@@ -193,11 +193,11 @@
 
 ### Settings and data lifecycle
 
-- **Settings layout** — tabbed **nav** (`#settingsNav`, categories: Interface, Household, Chores, Integrations, Account, Audit, Data); scrollable **panel** content; hamburger + backdrop on small viewports; last tab in `sessionStorage` (`chorelog-settings-tab`).
+- **Settings layout** — tabbed **nav** (`#settingsNav`, categories: Interface, Household, Chores, Integrations, Account, Audit, Data, **About**); **About** loads **`GET /api/version`** (app version, Node, storage type, data file path, SQLite engine + journal mode when applicable, export schema version); scrollable **panel** content; hamburger + backdrop on small viewports; last tab in `sessionStorage` (`chorelog-settings-tab`).
 - **Integrations** — overdue webhook reminders: Discord URL, reminder interval, **quiet hours**, optional **Slack** + **generic HTTPS** URLs; Save / Send test / Post overdue now (`js/main.js` + `server.js` as above).
 - **Appearance** — theme **system / light / dark** (`localStorage` + inline head script to prevent flash); **`syncThemeMeta`** for `theme-color`.
 - **People / locations / presets / quick bar** — CRUD in UI; **`PUT /api/settings`** batches updates.
-- **Export** — **`GET /api/export`** / download button.
+- **Export** — **`GET /api/export`** (full JSON backup) and **`GET /api/export/entries.csv`** (log rows only, UTF-8 BOM, RFC 4180-style quoting); Settings → Data **Export JSON** / **Export CSV**.
 - **Import** — file upload; **replace** or **merge** with confirmation; backup may include **`auditLog`** (export v5).
 - **Audit log UI** — Settings → load **`GET /api/audit`** on open + Refresh; shows actor (signed-in account) and action summaries.
 - **PWA** — `site.webmanifest` (standalone, icons); **`sw.js`** — installability hook, **no caching** of `/api` (see file comment); Apple touch icon / meta tags.
@@ -218,7 +218,7 @@
 - **True offline mode** — cache static assets + read-only queue in SW; conflict rules for writes.
 - **Push notifications** (PWA) as an alternative to Discord for mobile users.
 - **Calendar-native recurrence** — e.g. “every second Tuesday” vs fixed day intervals only.
-- **CSV / spreadsheet export** for entries.
+- ~~**CSV / spreadsheet export** for entries.~~ **Done** — `GET /api/export/entries.csv`, Settings → **Export CSV**.
 - **Multi-household or multi-user** accounts with isolated stores.
 - **Read-only or guest** role (view stats, no edit).
 - **Tags or categories** orthogonal to presets.

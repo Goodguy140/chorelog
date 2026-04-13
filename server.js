@@ -4,6 +4,8 @@ const crypto = require('crypto');
 const express = require('express');
 
 const pkg = require('./package.json');
+/** Matches `version` in JSON export (`GET /api/export`) and `/api/version` `exportSchemaVersion`. */
+const EXPORT_SCHEMA_VERSION = 5;
 
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
@@ -726,6 +728,32 @@ function requireApiAuth(req, res, next) {
 
 app.use(requireApiAuth);
 
+function buildVersionPayload() {
+  const persistence = sqliteStore ? 'sqlite' : 'json';
+  const dbPath = sqliteStore ? SQLITE_DB_PATH : DATA_FILE;
+  let databaseRelativePath = path.relative(__dirname, dbPath);
+  if (!databaseRelativePath || databaseRelativePath.startsWith('..')) {
+    databaseRelativePath = dbPath;
+  }
+  databaseRelativePath = databaseRelativePath.split(path.sep).join('/');
+  let sqliteVersion = null;
+  let journalMode = null;
+  if (sqliteStore && typeof sqliteStore.getEngineInfo === 'function') {
+    const info = sqliteStore.getEngineInfo();
+    if (info.sqliteVersion) sqliteVersion = info.sqliteVersion;
+    if (info.journalMode) journalMode = info.journalMode;
+  }
+  return {
+    version: pkg.version,
+    nodeVersion: process.version,
+    persistence,
+    databaseRelativePath,
+    sqliteVersion,
+    journalMode,
+    exportSchemaVersion: EXPORT_SCHEMA_VERSION,
+  };
+}
+
 app.get('/api/auth', (req, res) => {
   const payload = verifyAuthCookie(req.headers.cookie);
   if (!payload) {
@@ -741,7 +769,7 @@ app.get('/api/auth', (req, res) => {
 });
 
 app.get('/api/version', (req, res) => {
-  res.json({ version: pkg.version });
+  res.json(buildVersionPayload());
 });
 
 app.get('/api/audit', async (req, res) => {
@@ -1306,12 +1334,90 @@ app.post('/api/discord-webhook/remind-now', async (req, res) => {
   }
 });
 
+function csvEscapeCell(value) {
+  const s = value == null ? '' : String(value);
+  if (/[\r\n",]/.test(s)) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+function entryPointsForCsvExport(entry, presetMap) {
+  if (!entry || !entry.choreId) return '';
+  const pr = presetMap.get(entry.choreId);
+  if (!pr) return '';
+  if (pr.scoringMode === 'per_location') {
+    const n = Array.isArray(entry.locationIds) ? entry.locationIds.length : 0;
+    return pr.points * n;
+  }
+  return pr.points;
+}
+
+function buildEntriesCsv(store) {
+  const presets = store.chorePresets || [];
+  const presetMap = new Map(presets.map((p) => [p.id, p]));
+  const entries = [...(store.entries || [])].sort((a, b) => {
+    const da = String(a.d || '');
+    const db = String(b.d || '');
+    if (da !== db) return da.localeCompare(db);
+    return String(a.id || '').localeCompare(String(b.id || ''));
+  });
+  const headers = [
+    'id',
+    'date',
+    'chore',
+    'person',
+    'points',
+    'preset_title',
+    'chore_id',
+    'locations',
+    'created_at',
+    'updated_at',
+  ];
+  const lines = [headers.map(csvEscapeCell).join(',')];
+  for (const e of entries) {
+    const pr = e.choreId ? presetMap.get(e.choreId) : null;
+    const presetTitle = pr ? pr.title : '';
+    const pts = entryPointsForCsvExport(e, presetMap);
+    const locs = Array.isArray(e.locationIds) ? e.locationIds.join('; ') : '';
+    const row = [
+      csvEscapeCell(e.id),
+      csvEscapeCell(e.d),
+      csvEscapeCell(e.c),
+      csvEscapeCell(e.p),
+      csvEscapeCell(pts === '' ? '' : pts),
+      csvEscapeCell(presetTitle),
+      csvEscapeCell(e.choreId || ''),
+      csvEscapeCell(locs),
+      csvEscapeCell(e.createdAt || ''),
+      csvEscapeCell(e.updatedAt || ''),
+    ];
+    lines.push(row.join(','));
+  }
+  return lines.join('\r\n');
+}
+
+app.get('/api/export/entries.csv', async (req, res) => {
+  try {
+    await ensureSeed();
+    const store = await readStore();
+    const csv = buildEntriesCsv(store);
+    const filename = `chorelog-entries-${localCalendarDateISO()}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(`\uFEFF${csv}`);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to export CSV' });
+  }
+});
+
 app.get('/api/export', async (req, res) => {
   try {
     await ensureSeed();
     const store = await readStore();
     const payload = {
-      version: 5,
+      version: EXPORT_SCHEMA_VERSION,
       exportedAt: new Date().toISOString(),
       people: store.people,
       locations: store.locations || [],
@@ -1625,7 +1731,7 @@ app.get('/favicon.ico', (req, res) => {
 app.use(express.static(__dirname));
 
 /** Exported for `npm test` / CI only (`normalizeStore` is otherwise internal). */
-module.exports = { normalizeStore };
+module.exports = { normalizeStore, buildEntriesCsv };
 
 if (require.main === module) {
   setInterval(() => {

@@ -191,6 +191,7 @@
           <button type="button" class="settings-nav-item" id="settingsTabAccount" role="tab" aria-selected="false" aria-controls="settingsPanelAccount" data-settings-tab="account" data-i18n="settings.sectionAccount">Account</button>
           <button type="button" class="settings-nav-item" id="settingsTabAudit" role="tab" aria-selected="false" aria-controls="settingsPanelAudit" data-settings-tab="audit" data-i18n="settings.sectionAudit">Audit</button>
           <button type="button" class="settings-nav-item" id="settingsTabData" role="tab" aria-selected="false" aria-controls="settingsPanelData" data-settings-tab="data" data-i18n="settings.sectionData">Data & backup</button>
+          <button type="button" class="settings-nav-item" id="settingsTabAbout" role="tab" aria-selected="false" aria-controls="settingsPanelAbout" data-settings-tab="about" data-i18n="settings.sectionAbout">About</button>
         </nav>
 
         <div class="settings-content">
@@ -338,18 +339,29 @@
                   <p class="settings-block-title" data-i18n="settings.data">Data</p>
                   <div class="settings-actions">
                     <button type="button" class="btn-secondary" id="btnExport" data-i18n="settings.export">Export JSON</button>
+                    <button type="button" class="btn-secondary" id="btnExportCsv" data-i18n="settings.exportCsv">Export CSV</button>
                     <label class="btn-secondary" style="cursor:pointer;display:inline-block;">
                       <span data-i18n="settings.import">Import JSON</span>
                       <input type="file" id="importFile" accept="application/json,.json" hidden>
                     </label>
                   </div>
-                  <p class="settings-hint" data-i18n="settings.dataHint" data-i18n-html>Import can <strong>replace</strong> everything or <strong>merge</strong> with a prompt. Export includes people, log entries, and scheduled chores.</p>
+                  <p class="settings-hint" data-i18n="settings.dataHint" data-i18n-html>Import can <strong>replace</strong> everything or <strong>merge</strong> with a prompt. JSON export includes people, log entries, and scheduled chores. CSV is log entries only (spreadsheet-friendly).</p>
                 </div>
                 <div class="settings-subblock">
                   <p class="settings-block-title" data-i18n="settings.scheduledBlock">Scheduled chores</p>
                   <button type="button" class="btn-secondary" id="btnOpenScheduledFromSettings" data-i18n="scheduled.manageFromSettings">Manage scheduled chores</button>
                   <p class="settings-hint" data-i18n="scheduled.settingsHint">Recurring tasks (weekly, every 2 weeks, etc.). Due dates reset only when you mark them done.</p>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel" id="settingsPanelAbout" role="tabpanel" aria-labelledby="settingsTabAbout" data-settings-panel="about" hidden>
+            <div class="settings-section settings-section--flat">
+              <div class="settings-section-body">
+                <p class="settings-hint settings-hint--tight" data-i18n="settings.aboutIntro">Server and storage details for this installation.</p>
+                <p class="settings-hint audit-log-status" id="aboutInfoError" hidden role="status"></p>
+                <dl class="about-info" id="aboutInfoDl"></dl>
               </div>
             </div>
           </div>

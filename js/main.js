@@ -40,6 +40,42 @@ async function loadAppVersion() {
   }
 }
 
+async function loadAboutPanel() {
+  const dl = document.getElementById('aboutInfoDl');
+  const errEl = document.getElementById('aboutInfoError');
+  if (!dl || !errEl) return;
+  errEl.hidden = true;
+  dl.innerHTML = '';
+  try {
+    const r = await apiFetch('/api/version');
+    if (!r.ok) throw new Error('bad status');
+    const d = await r.json();
+    const rows = [];
+    rows.push([t('settings.aboutAppVersion'), d.version != null ? String(d.version) : '—']);
+    rows.push([t('settings.aboutNode'), d.nodeVersion != null ? String(d.nodeVersion) : '—']);
+    const persistLabel =
+      d.persistence === 'sqlite' ? t('settings.aboutPersistenceSqlite') : t('settings.aboutPersistenceJson');
+    rows.push([t('settings.aboutPersistence'), persistLabel]);
+    rows.push([t('settings.aboutDbFile'), d.databaseRelativePath != null ? String(d.databaseRelativePath) : '—']);
+    if (d.persistence === 'sqlite' && d.sqliteVersion) {
+      rows.push([t('settings.aboutSqliteEngine'), String(d.sqliteVersion)]);
+      if (d.journalMode) {
+        rows.push([t('settings.aboutJournalMode'), String(d.journalMode)]);
+      }
+    }
+    rows.push([
+      t('settings.aboutExportSchema'),
+      d.exportSchemaVersion != null ? String(d.exportSchemaVersion) : '—',
+    ]);
+    dl.innerHTML = rows
+      .map(([label, val]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(val)}</dd>`)
+      .join('');
+  } catch {
+    errEl.textContent = t('settings.aboutLoadError');
+    errEl.hidden = false;
+  }
+}
+
 function syncThemeMeta() {
   const el = document.getElementById('metaThemeColor');
   if (!el) return;
@@ -864,6 +900,7 @@ const VALID_SETTINGS_TABS = new Set([
   'account',
   'audit',
   'data',
+  'about',
 ]);
 
 function closeSettingsMobileNav() {
@@ -912,6 +949,9 @@ function setSettingsTab(id) {
     /* ignore */
   }
   closeSettingsMobileNav();
+  if (id === 'about') {
+    void loadAboutPanel();
+  }
 }
 
 function initSettingsShell() {
@@ -1011,6 +1051,23 @@ document.getElementById('btnExport').addEventListener('click', async () => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'chorelog-backup.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch {
+    alert(t('errors.exportFailed'));
+  }
+});
+
+document.getElementById('btnExportCsv').addEventListener('click', async () => {
+  try {
+    const r = await apiFetch('/api/export/entries.csv');
+    if (!r.ok) throw new Error();
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const cd = r.headers.get('Content-Disposition');
+    const m = cd && /filename="([^"]+)"/.exec(cd);
+    a.download = m ? m[1] : `chorelog-entries-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
   } catch {
@@ -1354,6 +1411,10 @@ subscribeLocale(() => {
     renderQuickChoresEditor();
     renderScheduledManageList();
     syncDiscordWebhookForm();
+  }
+  const aboutPanel = document.getElementById('settingsPanelAbout');
+  if (aboutPanel && !aboutPanel.hidden) {
+    void loadAboutPanel();
   }
 });
 

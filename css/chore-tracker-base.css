@@ -665,6 +665,28 @@ body {
   line-height: 1.35;
 }
 
+.about-info {
+  margin: 0.5rem 0 0;
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) 1fr;
+  gap: 8px 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  align-items: baseline;
+}
+
+.about-info dt {
+  margin: 0;
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+}
+
+.about-info dd {
+  margin: 0;
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+
 .discord-webhook-block {
   display: flex;
   flex-direction: column;
