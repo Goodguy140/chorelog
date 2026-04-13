@@ -10,7 +10,7 @@
 
 | Area | Primary files |
 |------|----------------|
-| HTTP API + JSON store | `server.js` |
+| HTTP API + persistence (`data/chores.json` or optional SQLite) | `server.js`, `lib/login-throttle.cjs`, `lib/sqlite-store.cjs` |
 | HTML shell + ids | `index.html` |
 | Events, auth, mutations | `js/main.js` |
 | i18n (`t`, locales, language in Settings) | `js/i18n.js`, `locales/en.json`, `locales/de.json` |
@@ -138,9 +138,10 @@
 ### Auth and server
 
 - **Login** — `POST /api/login` with env `CHORELOG_USER` / `CHORELOG_PASSWORD` (defaults documented in code); **logout** `POST /api/logout`.
+- **Brute-force protection** — failed sign-ins are tracked **per client IP** (`lib/login-throttle.cjs`); after `CHORELOG_LOGIN_MAX_FAILURES` (default 8) failures within `CHORELOG_LOGIN_WINDOW_MS` (default 15 min), the IP is locked out for `CHORELOG_LOGIN_LOCKOUT_MS` (default 15 min). State in **`data/login-throttle.json`** (survives restarts). **`429`** with `Retry-After` and JSON `{ error, retryAfterSeconds }` when locked out. **`CHORELOG_TRUST_PROXY=1`** sets Express `trust proxy` so `req.ip` reflects `X-Forwarded-For` behind a reverse proxy.
 - **Session** — signed HMAC cookie (`chorelog_auth`) includes **`user`** (username) for audit actor; ~30-day expiry; secret from `CHORELOG_SECRET` (dev default in code). **`GET /api/auth`** returns `{ authenticated, user }` when valid.
 - **API guard** — all `/api/*` except auth/version/login require a valid cookie (`requireApiAuth` sets `req.authPayload`).
-- **Persistence** — JSON file `data/chores.json`; **atomic write** (temp + rename); **`ensureSeed`** expands demo rows if store is empty on first read.
+- **Persistence** — default: JSON file **`data/chores.json`**; **atomic write** (temp + rename). **Optional SQLite**: set **`CHORELOG_SQLITE_PATH`** — bare filename (e.g. `chores.db`) → **`data/chores.db`**; paths starting with **`data/`** (e.g. `./data/chores.db`) → from **project root**; absolute paths as-is. Parent dirs are created if missing. Uses Node built-in **`node:sqlite`** (`DatabaseSync`, WAL). If the DB has no row yet, the server **one-time imports** existing `data/chores.json` then serves from SQLite. **`ensureSeed`** unchanged (demo rows if empty).
 - **Version** — **`GET /api/version`** returns `package.json` version; shown in Settings + footer when loaded.
 
 ### Data model (store)
@@ -214,8 +215,6 @@
 - **Soft delete** or archive for presets and log rows.
 - **Fuzzy / typo-tolerant** matching for each `;` segment in the chore field (beyond current suggest list).
 - **Backup snapshots** — timestamped copy of `chores.json` before destructive import or on a schedule.
-- **Brute-force protection** — rate limit or lockout on `POST /api/login`.
-- **SQLite (or other) backend** — optional migration path from flat JSON for concurrency and scale.
 - **True offline mode** — cache static assets + read-only queue in SW; conflict rules for writes.
 - **Push notifications** (PWA) as an alternative to Discord for mobile users.
 - **Calendar-native recurrence** — e.g. “every second Tuesday” vs fixed day intervals only.

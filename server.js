@@ -9,6 +9,41 @@ const PORT = Number(process.env.PORT) || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'chores.json');
 
+/**
+ * Optional SQLite backing store (CHORELOG_SQLITE_PATH). Empty DB imports legacy data/chores.json once.
+ * Login brute-force: CHORELOG_LOGIN_MAX_FAILURES, CHORELOG_LOGIN_LOCKOUT_MS, CHORELOG_LOGIN_WINDOW_MS;
+ * data/login-throttle.json persists lockouts. CHORELOG_TRUST_PROXY=1 when behind a reverse proxy (uses X-Forwarded-For).
+ */
+const { createLoginThrottle } = require('./lib/login-throttle.cjs');
+const { openSqliteStore } = require('./lib/sqlite-store.cjs');
+
+const CHORELOG_SQLITE_PATH_RAW = process.env.CHORELOG_SQLITE_PATH;
+
+/** Resolve DB path: absolute as-is; `data/...` or `./data/...` from project root; bare `file.db` → `data/file.db`. */
+function resolveSqliteDbPath(raw) {
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  const norm = path.normalize(s);
+  if (path.isAbsolute(norm)) return norm;
+  if (norm.startsWith('..')) return path.resolve(__dirname, norm);
+  const first = norm.split(path.sep)[0];
+  if (first === 'data') return path.join(__dirname, norm);
+  return path.join(DATA_DIR, norm);
+}
+
+const SQLITE_DB_PATH = resolveSqliteDbPath(CHORELOG_SQLITE_PATH_RAW);
+
+let sqliteStore = null;
+if (SQLITE_DB_PATH) {
+  sqliteStore = openSqliteStore(SQLITE_DB_PATH, DATA_FILE);
+  if (sqliteStore.migratedFromJson) {
+    console.log('Chorelog: migrated persisted store from JSON to SQLite');
+  }
+}
+
+const loginThrottle = createLoginThrottle({ dataDir: DATA_DIR });
+
 const DEFAULT_PEOPLE = ['Dylan', 'Rachel', 'Vic', 'Christian'];
 const DEFAULT_LOCATIONS = ['Upstairs', 'Stairs', 'Hallway', 'Kitchen', 'Living room', 'Front porch', 'Back porch'];
 
@@ -553,6 +588,26 @@ function normalizeStore(raw) {
 }
 
 async function readStore() {
+  if (sqliteStore) {
+    const raw = sqliteStore.readJsonString();
+    if (raw == null || raw === '') {
+      return normalizeStore({
+        entries: [],
+        people: [...DEFAULT_PEOPLE],
+        locations: [...DEFAULT_LOCATIONS],
+        scheduledChores: [],
+        chorePresets: [],
+        quickChoreIds: [],
+      });
+    }
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      throw new Error('SQLite store contains invalid JSON');
+    }
+    return normalizeStore(data);
+  }
   try {
     const buf = await fs.promises.readFile(DATA_FILE, 'utf8');
     const data = JSON.parse(buf);
@@ -574,6 +629,10 @@ async function readStore() {
 
 async function writeStore(data) {
   const normalized = normalizeStore(data);
+  if (sqliteStore) {
+    sqliteStore.writeJsonString(JSON.stringify(normalized));
+    return;
+  }
   await fs.promises.mkdir(DATA_DIR, { recursive: true });
   const tmp = `${DATA_FILE}.${process.pid}.tmp`;
   await fs.promises.writeFile(tmp, JSON.stringify(normalized, null, 2), 'utf8');
@@ -592,7 +651,12 @@ async function ensureSeed() {
 }
 
 const app = express();
+app.set('trust proxy', process.env.CHORELOG_TRUST_PROXY === '1');
 app.use(express.json({ limit: '5mb' }));
+
+function clientIp(req) {
+  return req.ip || req.socket.remoteAddress || 'unknown';
+}
 
 const AUTH_COOKIE = 'chorelog_auth';
 const COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -694,13 +758,25 @@ app.get('/api/audit', async (req, res) => {
 });
 
 app.post('/api/login', (req, res) => {
+  const ip = clientIp(req);
+  const throttle = loginThrottle.check(ip);
+  if (!throttle.allowed) {
+    const retry = throttle.retryAfterSec || 60;
+    res.setHeader('Retry-After', String(retry));
+    return res.status(429).json({
+      error: `Too many sign-in attempts. Try again in ${retry} seconds.`,
+      retryAfterSeconds: retry,
+    });
+  }
   const u = String(req.body && req.body.username != null ? req.body.username : '').trim();
   const p = String(req.body && req.body.password != null ? req.body.password : '');
   const okUser = process.env.CHORELOG_USER || 'house';
   const okPass = process.env.CHORELOG_PASSWORD || 'monkey';
   if (u !== okUser || p !== okPass) {
+    loginThrottle.recordFailure(ip);
     return res.status(401).json({ error: 'Invalid username or password' });
   }
+  loginThrottle.recordSuccess(ip);
   const token = createAuthToken(u);
   const maxAgeSec = Math.floor(COOKIE_MAX_AGE_MS / 1000);
   res.setHeader(
