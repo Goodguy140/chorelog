@@ -322,6 +322,8 @@
     "pushHint": "Overdue reminders on this device when the app is closed (PWA). Turn on “Send overdue reminders automatically” above (no webhook URL required for push-only). Same reminder interval and quiet hours. Each device subscribes separately.",
     "pushServerOff": "Push is not configured on this server (administrator must set VAPID keys).",
     "pushRequiresHttps": "Use HTTPS (or localhost) for push notifications.",
+    "pushHouseholdOnly": "Browser push (PWA) can only be set up while signed in to the default household (the admin household created on first install).",
+    "pushHouseholdNotAllowed": "Browser push is only available for the default household. Sign in to that household to enable it.",
     "pushIosHint": "On iPhone and iPad, add Chorelog to the Home Screen (Share → Add to Home Screen) and open it from the icon — Web Push does not run in a normal Safari tab. Requires iOS/iPadOS 16.4 or newer. If push still fails, set the server’s VAPID subject to a real address (mailto:user@yourdomain.com); Apple may reject localhost-style values.",
     "pushEnable": "Enable on this device",
     "pushDisable": "Turn off on this device",

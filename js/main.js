@@ -399,6 +399,7 @@ async function removeLocationAt(index) {
 async function load() {
   app.loadError = null;
   try {
+    await loadAccountInfo();
     /** Cookie from POST /api/login may not be attached to an immediate GET; retry once before session-expired UX. */
     let r = await apiFetch('/api/entries', { skipSessionRedirect: true });
     if (r.status === 401) {
@@ -808,7 +809,6 @@ function openScheduledDialog() {
 function startApp() {
   document.getElementById('inDate').value = localDateISO();
   return load().then(async () => {
-    await loadAccountInfo();
     const months = [...new Set(app.entries.map((e) => getMonthKey(e.d)))].sort().reverse();
     if (months.length) app.currentMonth = months[0];
     else app.currentMonth = thisCalendarMonthKey();

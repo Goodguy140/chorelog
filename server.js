@@ -29,6 +29,12 @@ const USE_SQLITE_PER_HOUSEHOLD = Boolean(
   process.env.CHORELOG_SQLITE_PATH && String(process.env.CHORELOG_SQLITE_PATH).trim(),
 );
 
+/** Browser push (PWA subscriptions) is only managed for the seeded admin household (`default`). */
+const BROWSER_PUSH_HOUSEHOLD_ID = 'default';
+function browserPushAllowedForHousehold(hid) {
+  return String(hid || '').trim() === BROWSER_PUSH_HOUSEHOLD_ID;
+}
+
 let householdRegistry = null;
 const sqliteStoreByHousehold = new Map();
 
@@ -1049,6 +1055,12 @@ app.get('/api/push/vapid-public', (req, res) => {
 
 app.get('/api/push/subscriptions', async (req, res) => {
   try {
+    if (!browserPushAllowedForHousehold(req.householdId)) {
+      return res.status(403).json({
+        error: 'Browser push is only available for the default household.',
+        code: 'push_household_not_allowed',
+      });
+    }
     const store = await readStore(req.householdId);
     const list = normalizePushSubscriptions(store.pushSubscriptions);
     if (list.length !== (store.pushSubscriptions || []).length) {
@@ -1067,6 +1079,12 @@ app.get('/api/push/subscriptions', async (req, res) => {
 
 app.post('/api/push/subscribe', async (req, res) => {
   try {
+    if (!browserPushAllowedForHousehold(req.householdId)) {
+      return res.status(403).json({
+        error: 'Browser push is only available for the default household.',
+        code: 'push_household_not_allowed',
+      });
+    }
     if (!pushSend.vapidKeysPresent()) {
       return res.status(503).json({ error: 'Push is not configured on this server' });
     }
@@ -1108,6 +1126,12 @@ app.post('/api/push/subscribe', async (req, res) => {
 
 app.post('/api/push/unsubscribe', async (req, res) => {
   try {
+    if (!browserPushAllowedForHousehold(req.householdId)) {
+      return res.status(403).json({
+        error: 'Browser push is only available for the default household.',
+        code: 'push_household_not_allowed',
+      });
+    }
     const endpoint = typeof req.body && req.body.endpoint ? String(req.body.endpoint).trim() : '';
     if (!endpoint) return res.status(400).json({ error: 'endpoint is required' });
     const store = await readStore(req.householdId);
@@ -1131,6 +1155,12 @@ app.post('/api/push/unsubscribe', async (req, res) => {
 
 app.post('/api/push/test', async (req, res) => {
   try {
+    if (!browserPushAllowedForHousehold(req.householdId)) {
+      return res.status(403).json({
+        error: 'Browser push is only available for the default household.',
+        code: 'push_household_not_allowed',
+      });
+    }
     if (!pushSend.vapidKeysPresent()) {
       return res.status(503).json({ error: 'Push is not configured on this server' });
     }
@@ -1176,12 +1206,14 @@ app.get('/api/account', (req, res) => {
     if (!p || !p.household) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
+    const hid = String(p.household).trim();
     res.json({
       user: typeof p.user === 'string' && p.user.trim() ? p.user.trim() : 'member',
-      household: String(p.household).trim(),
+      household: hid,
       sessionExpiresAt: new Date(p.exp).toISOString(),
       canCreateHouseholds: Boolean(process.env.CHORELOG_MASTER_PASSWORD),
       openRegistration: process.env.CHORELOG_OPEN_REGISTRATION === '1',
+      browserPushAllowed: browserPushAllowedForHousehold(hid),
     });
   } catch (e) {
     console.error(e);
@@ -1894,6 +1926,7 @@ async function runDiscordReminders() {
       if (!w.enabled) continue;
       const webhookPath = hasReminderDestination(w);
       const hasPush =
+        browserPushAllowedForHousehold(householdId) &&
         pushSend.vapidKeysPresent() &&
         Array.isArray(store.pushSubscriptions) &&
         store.pushSubscriptions.length > 0;
@@ -1988,6 +2021,7 @@ app.post('/api/discord-webhook/remind-now', async (req, res) => {
     }
     const webhookPath = hasReminderDestination(w);
     const hasPush =
+      browserPushAllowedForHousehold(req.householdId) &&
       pushSend.vapidKeysPresent() &&
       Array.isArray(store.pushSubscriptions) &&
       store.pushSubscriptions.length > 0;

@@ -1,5 +1,13 @@
 import { apiFetch } from './api-fetch.js';
 import { t } from './i18n.js';
+import { app } from './state.js';
+
+function sessionAllowsBrowserPushSettings() {
+  const a = app.account;
+  if (!a) return false;
+  if (typeof a.browserPushAllowed === 'boolean') return a.browserPushAllowed;
+  return String(a.household || '').trim() === 'default';
+}
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -29,7 +37,9 @@ function isAppleMobileDevice() {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent || '';
   if (/iPad|iPhone|iPod/.test(ua)) return true;
-  return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+  // iPadOS 13+ Safari often reports as Macintosh; avoid deprecated navigator.platform
+  if (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1) return true;
+  return false;
 }
 
 function isPwaStandaloneDisplay() {
@@ -56,6 +66,9 @@ export async function refreshPushNotificationsPanel() {
   const btnSub = document.getElementById('btnPushSubscribe');
   const btnUn = document.getElementById('btnPushUnsubscribe');
   const btnTest = document.getElementById('btnPushTest');
+  const pushGeneralHint = document.getElementById('pushGeneralHint');
+  const pushHouseholdOnlyHint = document.getElementById('pushHouseholdOnlyHint');
+  const pushActions = document.getElementById('pushNotificationActions');
   if (!block) return;
 
   setPushStatus('', false);
@@ -65,11 +78,29 @@ export async function refreshPushNotificationsPanel() {
     serverOff.hidden = vapidOk;
   }
   if (!vapidOk) {
+    if (pushGeneralHint) pushGeneralHint.hidden = false;
+    if (pushHouseholdOnlyHint) pushHouseholdOnlyHint.hidden = true;
+    if (pushActions) pushActions.hidden = false;
     if (btnSub) btnSub.disabled = true;
     if (btnUn) btnUn.disabled = true;
     if (btnTest) btnTest.disabled = true;
     return;
   }
+
+  const allowHouse = sessionAllowsBrowserPushSettings();
+  if (!allowHouse) {
+    if (pushGeneralHint) pushGeneralHint.hidden = true;
+    if (pushHouseholdOnlyHint) pushHouseholdOnlyHint.hidden = false;
+    if (pushActions) pushActions.hidden = true;
+    const iosHint = document.getElementById('pushIosHint');
+    if (iosHint) iosHint.hidden = true;
+    if (httpsHint) httpsHint.hidden = true;
+    return;
+  }
+
+  if (pushGeneralHint) pushGeneralHint.hidden = false;
+  if (pushHouseholdOnlyHint) pushHouseholdOnlyHint.hidden = true;
+  if (pushActions) pushActions.hidden = false;
   if (btnSub) btnSub.disabled = false;
   if (btnTest) btnTest.disabled = false;
 
@@ -128,6 +159,10 @@ export async function enableBrowserPush() {
     setPushStatus(t('settings.pushUnsupported'), true);
     return;
   }
+  if (!sessionAllowsBrowserPushSettings()) {
+    setPushStatus(t('settings.pushHouseholdNotAllowed'), true);
+    return;
+  }
   const vapidOk = await serverHasVapid();
   if (!vapidOk) {
     setPushStatus(t('settings.pushServerOff'), true);
@@ -183,6 +218,10 @@ export async function enableBrowserPush() {
 
 export async function disableBrowserPush() {
   setPushStatus('', false);
+  if (!sessionAllowsBrowserPushSettings()) {
+    setPushStatus(t('settings.pushHouseholdNotAllowed'), true);
+    return;
+  }
   try {
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
@@ -203,6 +242,10 @@ export async function disableBrowserPush() {
 
 export async function testBrowserPush() {
   setPushStatus('', false);
+  if (!sessionAllowsBrowserPushSettings()) {
+    setPushStatus(t('settings.pushHouseholdNotAllowed'), true);
+    return;
+  }
   try {
     const r = await apiFetch('/api/push/test', { method: 'POST' });
     const data = await r.json().catch(() => ({}));
