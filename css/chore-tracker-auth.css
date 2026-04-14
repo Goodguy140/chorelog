@@ -97,6 +97,13 @@
 .login-select {
   cursor: pointer;
   appearance: none;
+  -webkit-appearance: none;
+  /* iOS Safari clips select text without enough line box + min height */
+  min-height: 52px;
+  line-height: 1.35;
+  padding-top: 14px;
+  padding-bottom: 14px;
+  padding-left: 14px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
