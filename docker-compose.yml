@@ -11,6 +11,8 @@
 # - Set environment variables in the UI or in a .env file next to this file.
 # - Publish port 3000 (or change left side: "8080:3000").
 # - Do NOT commit .env — keep CHORELOG_SECRET and CHORELOG_PASSWORD private.
+# - Web Push: if CHORELOG_VAPID_PUBLIC_KEY / CHORELOG_VAPID_PRIVATE_KEY are unset, the
+#   container generates them once and saves `data/vapid-keys.env` on the volume (see docker/entrypoint.sh).
 
 services:
   chorelog:
@@ -23,6 +25,8 @@ services:
       - "3000:3000"
     environment:
       PORT: "3000"
+      # Optional Web Push — leave unset to auto-generate on first boot (persisted under /app/data)
+      CHORELOG_VAPID_SUBJECT: ${CHORELOG_VAPID_SUBJECT:-mailto:noreply@localhost}
       # Required — set in `.env` (see `.env.example`) or the host / TrueNAS UI
       CHORELOG_SECRET: ${CHORELOG_SECRET}
       CHORELOG_USER: ${CHORELOG_USER:-house}

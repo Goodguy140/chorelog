@@ -29,10 +29,11 @@ mkdir -p /app
 sync_repo
 install_deps
 mkdir -p /app/data
+chmod +x /app/docker/ensure-vapid.sh 2>/dev/null || true
 chown -R node:node /app
 
 run_node() {
-  su-exec node sh -c 'cd /app && exec node server.js' &
+  su-exec node sh -c 'cd /app && . docker/ensure-vapid.sh && exec node server.js' &
   echo $!
 }
 

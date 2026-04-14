@@ -8,4 +8,5 @@ npm-debug.log*
 .env.*
 !.env.example
 data/*.json
+data/vapid-keys.env
 .rctx

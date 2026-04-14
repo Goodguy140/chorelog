@@ -11,6 +11,9 @@ yarn-error.log*
 .env.*
 !.env.example
 
+# Auto-generated Web Push keys (Docker / local)
+data/vapid-keys.env
+
 # OS
 .DS_Store
 Thumbs.db

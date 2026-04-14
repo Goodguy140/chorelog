@@ -19,7 +19,7 @@
 | Presets, points, quick bar | `js/presets.js` |
 | Shared state | `js/state.js` |
 | Styles (split by feature) | `css/chore-tracker-*.css` |
-| Docker (prod image, compose, GitHub clone / auto-pull) | `Dockerfile`, `docker-compose.yml`, `Dockerfile.gitclone`, `Dockerfile.autopull`, `docker-compose.autopull.yml`, `docker/entrypoint-sync.sh`, `.github/workflows/docker-image.yml` |
+| Docker (prod image, compose, GitHub clone / auto-pull) | `Dockerfile`, `docker-compose.yml`, `Dockerfile.gitclone`, `Dockerfile.autopull`, `docker-compose.autopull.yml`, `docker/entrypoint.sh`, `docker/ensure-vapid.sh`, `docker/generate-vapid-env.cjs`, `docker/entrypoint-sync.sh`, `.github/workflows/docker-image.yml` |
 | Automated tests (Node built-in runner, CI) | `test/*.test.cjs`, `npm test`, `.github/workflows/ci.yml` |
 
 ---
@@ -32,7 +32,7 @@
 - `291` `normalizeStore(raw)` — canonicalizes store object read from disk (`discordWebhook`, `discordReminderSentAt`, **`pushSubscriptions`**, **`auditLog`**).
 - `GET /api/audit` — recent audit events (auth required); **`appendAudit`** on entry/settings/scheduled/import/discord user actions.
 - `451` `app.get('/api/entries', ...)` — list entries + `discordWebhook` for settings UI.
-- Discord / Slack / generic webhooks + **Web Push (VAPID)**: `POST /api/discord-webhook/test`, `POST /api/discord-webhook/remind-now` (digest to webhooks and/or push); **`GET /api/push/vapid-public`**, **`GET/POST /api/push/subscriptions|subscribe|unsubscribe`**, **`POST /api/push/test`**; background timer sends overdue reminders per `discordReminderSentAt` to webhooks and/or registered push endpoints; **quiet hours** skip both; `discordWebhook` holds `quietHours*`, `slackWebhookUrl`, `genericWebhookUrl`; store **`pushSubscriptions`** (per household, max 24). Env **`CHORELOG_VAPID_PUBLIC_KEY`**, **`CHORELOG_VAPID_PRIVATE_KEY`**, optional **`CHORELOG_VAPID_SUBJECT`**; `npm run vapid:keys` generates keys.
+- Discord / Slack / generic webhooks + **Web Push (VAPID)**: `POST /api/discord-webhook/test`, `POST /api/discord-webhook/remind-now` (digest to webhooks and/or push); **`GET /api/push/vapid-public`**, **`GET/POST /api/push/subscriptions|subscribe|unsubscribe`**, **`POST /api/push/test`**; background timer sends overdue reminders per `discordReminderSentAt` to webhooks and/or registered push endpoints; **quiet hours** skip both; `discordWebhook` holds `quietHours*`, `slackWebhookUrl`, `genericWebhookUrl`; store **`pushSubscriptions`** (per household, max 24). Env **`CHORELOG_VAPID_PUBLIC_KEY`**, **`CHORELOG_VAPID_PRIVATE_KEY`**, optional **`CHORELOG_VAPID_SUBJECT`**; `npm run vapid:keys` generates keys; **Docker** `docker/entrypoint.sh` + **`docker/ensure-vapid.sh`** create **`data/vapid-keys.env`** on first run if unset (persisted volume).
 - `469`–`542` scheduled chore routes; `PUT /api/scheduled-chores/:id` supports title/interval/**startsOn**/**reminderEnabled** updates; `542` `POST .../complete` writes completion entry.
 - `588` `app.put('/api/settings', ...)` — settings write (people/presets/quick ids/locations/**discordWebhook** with quiet hours + extra webhook URLs).
 - `657` `app.post('/api/import', ...)` — import handler (replace/merge modes).
