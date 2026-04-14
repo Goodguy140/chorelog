@@ -444,6 +444,11 @@ async function load() {
       quietHoursEnd: '08:00',
       slackWebhookUrl: '',
       genericWebhookUrl: '',
+      overdueNotifyWebhooks: true,
+      overdueNotifyPush: true,
+      dueTodayEnabled: false,
+      dueTodayNotifyWebhooks: true,
+      dueTodayNotifyPush: true,
     };
     syncPersonSelect();
     syncLocationSelect();
@@ -902,6 +907,16 @@ function syncDiscordWebhookForm() {
   if (qhEnd) qhEnd.value = typeof w.quietHoursEnd === 'string' ? w.quietHoursEnd : '08:00';
   if (slackEl) slackEl.value = typeof w.slackWebhookUrl === 'string' ? w.slackWebhookUrl : '';
   if (genEl) genEl.value = typeof w.genericWebhookUrl === 'string' ? w.genericWebhookUrl : '';
+  const owh = document.getElementById('remindOverdueWebhooks');
+  const owp = document.getElementById('remindOverduePush');
+  const dte = document.getElementById('remindDueTodayEnabled');
+  const dtw = document.getElementById('remindDueTodayWebhooks');
+  const dtp = document.getElementById('remindDueTodayPush');
+  if (owh) owh.checked = w.overdueNotifyWebhooks !== false;
+  if (owp) owp.checked = w.overdueNotifyPush !== false;
+  if (dte) dte.checked = Boolean(w.dueTodayEnabled);
+  if (dtw) dtw.checked = w.dueTodayNotifyWebhooks !== false;
+  if (dtp) dtp.checked = w.dueTodayNotifyPush !== false;
   if (status) {
     status.textContent = '';
     status.hidden = true;
@@ -926,6 +941,11 @@ async function saveDiscordWebhookSettings() {
   const quietHoursEnd = document.getElementById('discordQuietHoursEnd')?.value ?? '08:00';
   const slackWebhookUrl = document.getElementById('slackWebhookUrl')?.value.trim() ?? '';
   const genericWebhookUrl = document.getElementById('genericWebhookUrl')?.value.trim() ?? '';
+  const overdueNotifyWebhooks = document.getElementById('remindOverdueWebhooks')?.checked;
+  const overdueNotifyPush = document.getElementById('remindOverduePush')?.checked;
+  const dueTodayEnabled = document.getElementById('remindDueTodayEnabled')?.checked;
+  const dueTodayNotifyWebhooks = document.getElementById('remindDueTodayWebhooks')?.checked;
+  const dueTodayNotifyPush = document.getElementById('remindDueTodayPush')?.checked;
   try {
     const r = await apiFetch('/api/settings', {
       method: 'PUT',
@@ -940,6 +960,11 @@ async function saveDiscordWebhookSettings() {
           quietHoursEnd,
           slackWebhookUrl,
           genericWebhookUrl,
+          overdueNotifyWebhooks,
+          overdueNotifyPush,
+          dueTodayEnabled,
+          dueTodayNotifyWebhooks,
+          dueTodayNotifyPush,
         },
       }),
     });
@@ -983,11 +1008,20 @@ async function discordRemindOverdueNow() {
       setDiscordStatus(data.error || t('settings.discordPostErr'), true);
       return;
     }
-    if (data.sent === 0) {
-      setDiscordStatus(data.message || t('settings.discordNoOverdue'), false);
-    } else {
-      setDiscordStatus(t('settings.discordPosted', { n: data.sent }), false);
+    const nOver = data.sentOverdue;
+    const nDue = data.sentDueToday;
+    if (typeof nOver === 'number' && typeof nDue === 'number' && nOver === 0 && nDue === 0) {
+      setDiscordStatus(data.message || t('settings.discordNoReminders'), false);
+      return;
     }
+    if (typeof nOver === 'number' && typeof nDue === 'number') {
+      setDiscordStatus(
+        t('settings.discordPostedMixed', { overdue: nOver, dueToday: nDue }),
+        false,
+      );
+      return;
+    }
+    setDiscordStatus(t('settings.discordPosted', { n: data.sent }), false);
   } catch {
     setDiscordStatus(t('settings.discordPostErr'), true);
   }

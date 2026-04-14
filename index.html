@@ -411,10 +411,18 @@
                   <input type="url" id="slackWebhookUrl" class="discord-webhook-url" data-i18n-placeholder="settings.slackWebhookPh" placeholder="https://hooks.slack.com/services/…" autocomplete="off" spellcheck="false">
                   <label class="analytics-filter-label" for="genericWebhookUrl" data-i18n="settings.genericWebhookUrl">Generic HTTPS webhook</label>
                   <input type="url" id="genericWebhookUrl" class="discord-webhook-url" data-i18n-placeholder="settings.genericWebhookPh" placeholder="https://…" autocomplete="off" spellcheck="false">
+                  <p class="settings-block-title settings-block-title--sub" data-i18n="settings.reminderOverdueChannelsTitle">Overdue — send via</p>
+                  <label class="discord-webhook-enable"><input type="checkbox" id="remindOverdueWebhooks" checked> <span data-i18n="settings.remindOverdueWebhooks">Webhooks (Discord, Slack, …)</span></label>
+                  <label class="discord-webhook-enable"><input type="checkbox" id="remindOverduePush" checked> <span data-i18n="settings.remindOverduePush">Browser push</span></label>
+                  <p class="settings-block-title settings-block-title--sub" data-i18n="settings.reminderDueTodayTitle">Due today</p>
+                  <p class="settings-hint" data-i18n="settings.remindDueTodayIntro">One automatic notification per chore on the calendar day it is due (same quiet hours). Does not repeat on an interval like overdue reminders.</p>
+                  <label class="discord-webhook-enable"><input type="checkbox" id="remindDueTodayEnabled"> <span data-i18n="settings.remindDueTodayEnable">Notify when a chore is due today</span></label>
+                  <label class="discord-webhook-enable"><input type="checkbox" id="remindDueTodayWebhooks" checked> <span data-i18n="settings.remindDueTodayWebhooks">Webhooks for due today</span></label>
+                  <label class="discord-webhook-enable"><input type="checkbox" id="remindDueTodayPush" checked> <span data-i18n="settings.remindDueTodayPush">Browser push for due today</span></label>
                   <div class="settings-actions discord-webhook-actions">
                     <button type="button" class="btn-secondary" id="btnSaveDiscordWebhook" data-i18n="settings.save">Save</button>
                     <button type="button" class="btn-secondary" id="btnTestDiscordWebhook" data-i18n="settings.sendTest">Send test</button>
-                    <button type="button" class="btn-secondary" id="btnDiscordRemindNow" data-i18n="settings.postOverdue">Post overdue now</button>
+                    <button type="button" class="btn-secondary" id="btnDiscordRemindNow" data-i18n="settings.postRemindersNow">Post reminders now</button>
                   </div>
                   <p class="settings-hint discord-webhook-status" id="discordWebhookStatus" hidden role="status"></p>
                 </div>

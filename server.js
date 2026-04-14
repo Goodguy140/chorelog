@@ -506,6 +506,11 @@ function normalizeDiscordWebhook(raw) {
     quietHoursEnd: '08:00',
     slackWebhookUrl: '',
     genericWebhookUrl: '',
+    overdueNotifyWebhooks: true,
+    overdueNotifyPush: true,
+    dueTodayEnabled: false,
+    dueTodayNotifyWebhooks: true,
+    dueTodayNotifyPush: true,
   };
   if (!raw || typeof raw !== 'object') return { ...defaults };
   const enabled = Boolean(raw.enabled);
@@ -528,6 +533,12 @@ function normalizeDiscordWebhook(raw) {
   let genericWebhookUrl = typeof raw.genericWebhookUrl === 'string' ? raw.genericWebhookUrl.trim() : '';
   if (genericWebhookUrl && !isGenericHttpsWebhookUrl(genericWebhookUrl)) genericWebhookUrl = '';
 
+  const overdueNotifyWebhooks = raw.overdueNotifyWebhooks !== false;
+  const overdueNotifyPush = raw.overdueNotifyPush !== false;
+  const dueTodayEnabled = Boolean(raw.dueTodayEnabled);
+  const dueTodayNotifyWebhooks = raw.dueTodayNotifyWebhooks !== false;
+  const dueTodayNotifyPush = raw.dueTodayNotifyPush !== false;
+
   return {
     enabled,
     url,
@@ -537,6 +548,11 @@ function normalizeDiscordWebhook(raw) {
     quietHoursEnd,
     slackWebhookUrl,
     genericWebhookUrl,
+    overdueNotifyWebhooks,
+    overdueNotifyPush,
+    dueTodayEnabled,
+    dueTodayNotifyWebhooks,
+    dueTodayNotifyPush,
   };
 }
 
@@ -552,6 +568,27 @@ function normalizeDiscordReminderSentAt(raw) {
 }
 
 function pruneDiscordReminderSentAt(sentMap, scheduledIds) {
+  const set = new Set(scheduledIds);
+  const out = {};
+  for (const [k, v] of Object.entries(sentMap)) {
+    if (set.has(k)) out[k] = v;
+  }
+  return out;
+}
+
+/** Values are calendar days YYYY-MM-DD (last day we sent a “due today” notice per chore). */
+function normalizeDiscordDueTodaySentAt(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [k, v] of Object.entries(raw)) {
+    if (typeof k === 'string' && k.length > 0 && typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+function pruneDiscordDueTodaySentAt(sentMap, scheduledIds) {
   const set = new Set(scheduledIds);
   const out = {};
   for (const [k, v] of Object.entries(sentMap)) {
@@ -736,6 +773,11 @@ function normalizeStore(raw) {
     discordReminderSentAt,
     scheduledChores.map((s) => s.id),
   );
+  let discordDueTodaySentAt = normalizeDiscordDueTodaySentAt(raw.discordDueTodaySentAt);
+  discordDueTodaySentAt = pruneDiscordDueTodaySentAt(
+    discordDueTodaySentAt,
+    scheduledChores.map((s) => s.id),
+  );
   const auditLog = normalizeAuditLog(raw.auditLog);
   const pushSubscriptions = normalizePushSubscriptions(raw.pushSubscriptions);
   return {
@@ -747,6 +789,7 @@ function normalizeStore(raw) {
     quickChoreIds,
     discordWebhook,
     discordReminderSentAt,
+    discordDueTodaySentAt,
     pushSubscriptions,
     auditLog,
   };
@@ -1693,6 +1736,9 @@ app.delete('/api/scheduled-chores/:id', async (req, res) => {
     if (store.discordReminderSentAt && store.discordReminderSentAt[id]) {
       delete store.discordReminderSentAt[id];
     }
+    if (store.discordDueTodaySentAt && store.discordDueTodaySentAt[id]) {
+      delete store.discordDueTodaySentAt[id];
+    }
     appendAudit(store, req, {
       action: 'scheduled.delete',
       target: removed ? removed.title : id,
@@ -1742,6 +1788,9 @@ app.post('/api/scheduled-chores/:id/complete', async (req, res) => {
     });
     if (store.discordReminderSentAt && store.discordReminderSentAt[id]) {
       delete store.discordReminderSentAt[id];
+    }
+    if (store.discordDueTodaySentAt && store.discordDueTodaySentAt[id]) {
+      delete store.discordDueTodaySentAt[id];
     }
     appendAudit(store, req, {
       action: 'scheduled.complete',
@@ -2011,6 +2060,104 @@ function buildDigestPushPayloadJson(chores, today) {
   });
 }
 
+function buildDueTodayDiscordPayload(chore, today) {
+  const title = String(chore.title || 'Chore').replace(/\*/g, '');
+  const dueWhen = formatCalendarDateHuman(today);
+  return {
+    embeds: [
+      {
+        title: 'Scheduled chore due today',
+        description: `**${title}** is due **today** (${dueWhen}).`,
+        color: 0x378add,
+      },
+    ],
+  };
+}
+
+function buildDueTodaySlackPlainText(chore, today) {
+  const title = String(chore.title || 'Chore').replace(/\*/g, '');
+  const dueWhen = formatCalendarDateHuman(today);
+  return `Scheduled chore due today: *${title}* (${dueWhen}).`;
+}
+
+async function sendDueTodayToAllWebhookChannels(w, chore, today) {
+  const discordPayload = buildDueTodayDiscordPayload(chore, today);
+  const slackText = buildDueTodaySlackPlainText(chore, today);
+  const tasks = [];
+  if (w.url && isDiscordWebhookUrl(w.url)) {
+    tasks.push(() => postDiscordWebhook(w.url, discordPayload));
+  }
+  if (w.slackWebhookUrl && isSlackIncomingWebhookUrl(w.slackWebhookUrl)) {
+    tasks.push(() => postSlackIncomingWebhook(w.slackWebhookUrl, slackText));
+  }
+  if (w.genericWebhookUrl && isGenericHttpsWebhookUrl(w.genericWebhookUrl)) {
+    tasks.push(() => postDiscordWebhook(w.genericWebhookUrl, discordPayload));
+  }
+  if (!tasks.length) return false;
+  const results = await Promise.all(tasks.map((fn) => fn()));
+  return results.some(Boolean);
+}
+
+function buildDueTodayPushPayloadJson(chore, today) {
+  const name = String(chore.title || 'Chore').replace(/[<>]/g, '');
+  return JSON.stringify({
+    title: 'Chorelog — due today',
+    body: `${name} is due today.`,
+    url: '/',
+    tag: `scheduled-due-${chore.id}-${today}`,
+  });
+}
+
+function buildDiscordDueTodayDigestPayload(chores, today) {
+  const lines = chores.map((s) => {
+    const title = String(s.title || 'Chore').replace(/\*/g, '');
+    return `• **${title}** — due today (${formatCalendarDateHuman(today)})`;
+  });
+  const desc = lines.join('\n').slice(0, 3900);
+  return {
+    content: `**${chores.length} scheduled chore(s) due today**`,
+    embeds: [{ description: desc, color: 0x378add }],
+  };
+}
+
+function buildSlackDueTodayDigestPlainText(chores, today) {
+  const lines = chores.map((s) => {
+    const title = String(s.title || 'Chore').replace(/\*/g, '');
+    return `• ${title} — due today (${formatCalendarDateHuman(today)})`;
+  });
+  return `*${chores.length} scheduled chore(s) due today*\n${lines.join('\n')}`.slice(0, 3900);
+}
+
+async function sendDueTodayDigestToAllWebhookChannels(w, chores, today) {
+  const discordPayload = buildDiscordDueTodayDigestPayload(chores, today);
+  const slackText = buildSlackDueTodayDigestPlainText(chores, today);
+  const tasks = [];
+  if (w.url && isDiscordWebhookUrl(w.url)) {
+    tasks.push(() => postDiscordWebhook(w.url, discordPayload));
+  }
+  if (w.slackWebhookUrl && isSlackIncomingWebhookUrl(w.slackWebhookUrl)) {
+    tasks.push(() => postSlackIncomingWebhook(w.slackWebhookUrl, slackText));
+  }
+  if (w.genericWebhookUrl && isGenericHttpsWebhookUrl(w.genericWebhookUrl)) {
+    tasks.push(() => postDiscordWebhook(w.genericWebhookUrl, discordPayload));
+  }
+  if (!tasks.length) return false;
+  const results = await Promise.all(tasks.map((fn) => fn()));
+  return results.some(Boolean);
+}
+
+function buildDueTodayDigestPushPayloadJson(chores, today) {
+  const lines = chores.map((s) => String(s.title || 'Chore').replace(/[<>]/g, ''));
+  const body = lines.slice(0, 6).join(' · ') + (lines.length > 6 ? '…' : '');
+  return JSON.stringify({
+    title:
+      chores.length === 1 ? 'Chorelog — due today' : `Chorelog — ${chores.length} chores due today`,
+    body,
+    url: '/',
+    tag: `chorelog-due-today-${today}`,
+  });
+}
+
 /**
  * @returns {Promise<{ ok: boolean, pruned: boolean }>}
  */
@@ -2058,7 +2205,15 @@ async function runDiscordReminders() {
         pushSend.vapidKeysPresent() &&
         Array.isArray(store.pushSubscriptions) &&
         store.pushSubscriptions.length > 0;
-      if (!webhookPath && !hasPush) continue;
+
+      const overdueWh = webhookPath && w.overdueNotifyWebhooks;
+      const overduePush = hasPush && w.overdueNotifyPush;
+      const dueTodayWh = webhookPath && w.dueTodayNotifyWebhooks;
+      const dueTodayPush = hasPush && w.dueTodayNotifyPush;
+      const anyOverdueChannel = overdueWh || overduePush;
+      const anyDueTodayChannel = w.dueTodayEnabled && (dueTodayWh || dueTodayPush);
+
+      if (!anyOverdueChannel && !anyDueTodayChannel) continue;
       if (isInReminderQuietHours(w)) continue;
 
       const today = localCalendarDateISO();
@@ -2066,35 +2221,91 @@ async function runDiscordReminders() {
       const now = Date.now();
       const list = store.scheduledChores || [];
       let sentMap = { ...store.discordReminderSentAt };
+      let dueTodayMap = { ...(store.discordDueTodaySentAt || {}) };
       let changed = false;
 
       for (const s of list) {
         if (s.reminderEnabled === false) continue;
         const next = nextDueDateScheduled(s);
-        if (next >= today) {
+
+        if (next > today) {
           if (sentMap[s.id]) {
             delete sentMap[s.id];
             changed = true;
           }
+          if (dueTodayMap[s.id]) {
+            delete dueTodayMap[s.id];
+            changed = true;
+          }
           continue;
         }
-        const last = sentMap[s.id] ? Date.parse(sentMap[s.id]) : 0;
-        if (last && now - last < intervalMs) continue;
 
-        const okWh = webhookPath ? await sendOverdueToAllWebhookChannels(w, s, next, today) : false;
-        const payloadJson = buildOverduePushPayloadJson(s, next, today);
-        const pushRes = hasPush
-          ? await sendPushPayloadToStoreSubscriptions(store, householdId, payloadJson)
-          : { ok: false, pruned: false };
+        if (next < today) {
+          if (dueTodayMap[s.id]) {
+            delete dueTodayMap[s.id];
+            changed = true;
+          }
+          if (!anyOverdueChannel) continue;
+
+          const last = sentMap[s.id] ? Date.parse(sentMap[s.id]) : 0;
+          if (last && now - last < intervalMs) continue;
+
+          let okWh = false;
+          let pushRes = { ok: false, pruned: false };
+          if (overdueWh) okWh = await sendOverdueToAllWebhookChannels(w, s, next, today);
+          if (overduePush) {
+            pushRes = await sendPushPayloadToStoreSubscriptions(
+              store,
+              householdId,
+              buildOverduePushPayloadJson(s, next, today),
+            );
+          }
+          if (pushRes.pruned) changed = true;
+          if (okWh || pushRes.ok) {
+            sentMap[s.id] = new Date().toISOString();
+            changed = true;
+          }
+          continue;
+        }
+
+        /* next === today */
+        if (sentMap[s.id]) {
+          delete sentMap[s.id];
+          changed = true;
+        }
+
+        if (!w.dueTodayEnabled) {
+          if (dueTodayMap[s.id]) {
+            delete dueTodayMap[s.id];
+            changed = true;
+          }
+          continue;
+        }
+
+        if (!anyDueTodayChannel) continue;
+
+        if (dueTodayMap[s.id] === today) continue;
+
+        let okWh = false;
+        let pushRes = { ok: false, pruned: false };
+        if (dueTodayWh) okWh = await sendDueTodayToAllWebhookChannels(w, s, today);
+        if (dueTodayPush) {
+          pushRes = await sendPushPayloadToStoreSubscriptions(
+            store,
+            householdId,
+            buildDueTodayPushPayloadJson(s, today),
+          );
+        }
         if (pushRes.pruned) changed = true;
         if (okWh || pushRes.ok) {
-          sentMap[s.id] = new Date().toISOString();
+          dueTodayMap[s.id] = today;
           changed = true;
         }
       }
 
       if (changed) {
         store.discordReminderSentAt = sentMap;
+        store.discordDueTodaySentAt = dueTodayMap;
         await writeStore(householdId, store);
       }
     }
@@ -2159,31 +2370,103 @@ app.post('/api/discord-webhook/remind-now', async (req, res) => {
           'Configure at least one webhook URL or subscribe a device to browser push (Settings → Integrations)',
       });
     }
+
+    const overdueWh = webhookPath && w.overdueNotifyWebhooks;
+    const overduePush = hasPush && w.overdueNotifyPush;
+    const dueTodayWh = webhookPath && w.dueTodayNotifyWebhooks;
+    const dueTodayPush = hasPush && w.dueTodayNotifyPush;
+    const anyOverdue = overdueWh || overduePush;
+    const anyDueToday = w.dueTodayEnabled && (dueTodayWh || dueTodayPush);
+
     const today = localCalendarDateISO();
     const overdue = (store.scheduledChores || []).filter(
       (s) => s.reminderEnabled !== false && nextDueDateScheduled(s) < today,
     );
-    if (!overdue.length) {
-      return res.json({ ok: true, sent: 0, message: 'No overdue scheduled chores' });
+    const dueToday = (store.scheduledChores || []).filter(
+      (s) => s.reminderEnabled !== false && nextDueDateScheduled(s) === today,
+    );
+
+    if (!overdue.length && !dueToday.length) {
+      return res.json({
+        ok: true,
+        sentOverdue: 0,
+        sentDueToday: 0,
+        message: 'No overdue or due-today scheduled chores',
+      });
     }
+
+    const wantOverdue = overdue.length && anyOverdue;
+    const wantDueToday = dueToday.length && anyDueToday;
+    if (!wantOverdue && !wantDueToday) {
+      return res.status(400).json({
+        error:
+          'Enable reminder channels in Settings (overdue and/or “due today”, webhooks and/or browser push).',
+      });
+    }
+
     if (isInReminderQuietHours(w)) {
       return res.status(400).json({ error: 'Quiet hours are active; reminders are not sent' });
     }
-    const okWh = webhookPath ? await sendDigestToAllWebhookChannels(w, overdue, today) : false;
-    const digestJson = buildDigestPushPayloadJson(overdue, today);
-    const pushRes = hasPush
-      ? await sendPushPayloadToStoreSubscriptions(store, req.householdId, digestJson)
-      : { ok: false, pruned: false };
-    if (!okWh && !pushRes.ok) {
-      return res.status(502).json({ error: 'Could not deliver digest to webhooks or push subscriptions' });
+
+    let okWhOverdue = false;
+    let okWhDueToday = false;
+    let pushOverdue = { ok: false, pruned: false };
+    let pushDueToday = { ok: false, pruned: false };
+
+    if (wantOverdue) {
+      if (overdueWh) okWhOverdue = await sendDigestToAllWebhookChannels(w, overdue, today);
+      if (overduePush) {
+        pushOverdue = await sendPushPayloadToStoreSubscriptions(
+          store,
+          req.householdId,
+          buildDigestPushPayloadJson(overdue, today),
+        );
+      }
     }
+    if (wantDueToday) {
+      if (dueTodayWh) okWhDueToday = await sendDueTodayDigestToAllWebhookChannels(w, dueToday, today);
+      if (dueTodayPush) {
+        pushDueToday = await sendPushPayloadToStoreSubscriptions(
+          store,
+          req.householdId,
+          buildDueTodayDigestPushPayloadJson(dueToday, today),
+        );
+      }
+    }
+
+    const anyOk =
+      okWhOverdue || okWhDueToday || pushOverdue.ok || pushDueToday.ok;
+    if (!anyOk) {
+      return res.status(502).json({ error: 'Could not deliver reminders to webhooks or push subscriptions' });
+    }
+
+    const parts = [];
+    if (overdue.length && wantOverdue) {
+      parts.push(
+        `${overdue.length} overdue${okWhOverdue ? ' (webhook)' : ''}${pushOverdue.ok ? ' (push)' : ''}`,
+      );
+    }
+    if (dueToday.length && wantDueToday) {
+      parts.push(
+        `${dueToday.length} due today${okWhDueToday ? ' (webhook)' : ''}${pushDueToday.ok ? ' (push)' : ''}`,
+      );
+    }
+
     appendAudit(store, req, {
       action: 'discord.remind_now',
       target: 'reminders',
-      detail: `Posted ${overdue.length} overdue chore(s)${okWh ? ' (webhook)' : ''}${pushRes.ok ? ' (push)' : ''}`,
+      detail: parts.length ? `Posted ${parts.join('; ')}` : 'Manual reminder',
     });
     await writeStore(req.householdId, store);
-    res.json({ ok: true, sent: overdue.length, webhooks: okWh, push: pushRes.ok });
+    res.json({
+      ok: true,
+      sentOverdue: overdue.length,
+      sentDueToday: dueToday.length,
+      webhooksOverdue: okWhOverdue,
+      webhooksDueToday: okWhDueToday,
+      pushOverdue: pushOverdue.ok,
+      pushDueToday: pushDueToday.ok,
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to send' });
@@ -2353,6 +2636,7 @@ app.post('/api/import', async (req, res) => {
         store.quickChoreIds = store.chorePresets.slice(0, 6).map((x) => x.id);
       }
       store.discordReminderSentAt = {};
+      store.discordDueTodaySentAt = {};
       store.discordWebhook = normalizeDiscordWebhook(
         body.discordWebhook != null ? body.discordWebhook : null,
       );

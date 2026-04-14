@@ -76,6 +76,21 @@ test('discordWebhook invalid generic URL stripped', () => {
   assert.strictEqual(s.discordWebhook.genericWebhookUrl, '');
 });
 
+test('discordWebhook defaults channel toggles and due-today map', () => {
+  const s = normalizeStore({
+    entries: [],
+    discordWebhook: { enabled: true, url: 'https://discord.com/api/webhooks/x/y' },
+    chorePresets: [minimalPreset],
+    quickChoreIds: [minimalPreset.id],
+  });
+  assert.strictEqual(s.discordWebhook.overdueNotifyWebhooks, true);
+  assert.strictEqual(s.discordWebhook.overdueNotifyPush, true);
+  assert.strictEqual(s.discordWebhook.dueTodayEnabled, false);
+  assert.strictEqual(s.discordWebhook.dueTodayNotifyWebhooks, true);
+  assert.strictEqual(s.discordWebhook.dueTodayNotifyPush, true);
+  assert.deepStrictEqual(s.discordDueTodaySentAt, {});
+});
+
 test('entry inherits chore text from choreId preset', () => {
   const s = normalizeStore({
     entries: [

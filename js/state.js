@@ -53,6 +53,11 @@ export const app = {
     quietHoursEnd: '08:00',
     slackWebhookUrl: '',
     genericWebhookUrl: '',
+    overdueNotifyWebhooks: true,
+    overdueNotifyPush: true,
+    dueTodayEnabled: false,
+    dueTodayNotifyWebhooks: true,
+    dueTodayNotifyPush: true,
   },
   /** From `GET /api/account` after sign-in. */
   account: null,
