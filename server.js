@@ -24,6 +24,7 @@ const householdReg = require('./lib/households-registry.cjs');
 const { buildOpenApiDocument } = require('./lib/openapi-spec.cjs');
 const scheduledRecurrence = require('./lib/scheduled-recurrence.cjs');
 const pushSend = require('./lib/push-send.cjs');
+const vapidPersist = require('./lib/vapid-persist.cjs');
 
 const USE_SQLITE_PER_HOUSEHOLD = Boolean(
   process.env.CHORELOG_SQLITE_PATH && String(process.env.CHORELOG_SQLITE_PATH).trim(),
@@ -33,6 +34,35 @@ const USE_SQLITE_PER_HOUSEHOLD = Boolean(
 const BROWSER_PUSH_HOUSEHOLD_ID = 'default';
 function browserPushAllowedForHousehold(hid) {
   return String(hid || '').trim() === BROWSER_PUSH_HOUSEHOLD_ID;
+}
+
+/** @type {'environment' | 'file' | 'none'} */
+let VAPID_BOOT_SOURCE = 'none';
+(function initVapidKeysAtStartup() {
+  const hadEnv =
+    process.env.CHORELOG_VAPID_PUBLIC_KEY &&
+    String(process.env.CHORELOG_VAPID_PUBLIC_KEY).trim() &&
+    process.env.CHORELOG_VAPID_PRIVATE_KEY &&
+    String(process.env.CHORELOG_VAPID_PRIVATE_KEY).trim();
+  if (hadEnv) {
+    VAPID_BOOT_SOURCE = 'environment';
+    return;
+  }
+  if (vapidPersist.loadVapidFromDiskIfUnset(DATA_DIR)) {
+    VAPID_BOOT_SOURCE = 'file';
+  } else {
+    VAPID_BOOT_SOURCE = 'none';
+  }
+})();
+
+function requireAdminHousehold(req, res, next) {
+  if (!browserPushAllowedForHousehold(req.householdId)) {
+    return res.status(403).json({
+      error: 'This action requires the admin household.',
+      code: 'admin_only',
+    });
+  }
+  next();
 }
 
 let householdRegistry = null;
@@ -1197,6 +1227,104 @@ app.post('/api/push/test', async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Test failed' });
+  }
+});
+
+app.get('/api/admin/vapid', requireAdminHousehold, (req, res) => {
+  try {
+    const persistPath = vapidPersist.vapidEnvPath(DATA_DIR);
+    let persistRelativePath = path.relative(__dirname, persistPath);
+    if (!persistRelativePath || persistRelativePath.startsWith('..')) {
+      persistRelativePath = persistPath;
+    }
+    persistRelativePath = persistRelativePath.split(path.sep).join('/');
+    res.json({
+      publicKey: pushSend.getPublicVapidKey() || '',
+      privateKey: pushSend.getPrivateVapidKey() || '',
+      subject: pushSend.getVapidSubject(),
+      bootSource: VAPID_BOOT_SOURCE,
+      persistRelativePath,
+      persistFileExists: fs.existsSync(persistPath),
+      configured: pushSend.vapidKeysPresent(),
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to load VAPID settings' });
+  }
+});
+
+app.put('/api/admin/vapid', requireAdminHousehold, (req, res) => {
+  let webpushMod;
+  try {
+    webpushMod = require('web-push');
+  } catch {
+    return res.status(503).json({ error: 'web-push module is not available' });
+  }
+  try {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const publicKey = String(body.publicKey != null ? body.publicKey : '').trim();
+    const privateKey = String(body.privateKey != null ? body.privateKey : '').trim();
+    let subject = String(body.subject != null ? body.subject : '').trim();
+    if (!publicKey || !privateKey) {
+      return res.status(400).json({ error: 'publicKey and privateKey are required' });
+    }
+    if (!subject) subject = 'mailto:noreply@localhost';
+    try {
+      webpushMod.setVapidDetails(subject, publicKey, privateKey);
+    } catch (e) {
+      return res.status(400).json({
+        error: 'Invalid VAPID key pair or subject',
+        detail: e.message || String(e),
+      });
+    }
+    vapidPersist.writeVapidEnvFile(DATA_DIR, { publicKey, privateKey, subject });
+    if (!pushSend.setRuntimeVapidKeys(publicKey, privateKey, subject)) {
+      return res.status(500).json({ error: 'Could not apply VAPID keys at runtime' });
+    }
+    res.json({ ok: true, configured: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to save VAPID keys' });
+  }
+});
+
+app.post('/api/admin/vapid/generate', requireAdminHousehold, (req, res) => {
+  let webpushMod;
+  try {
+    webpushMod = require('web-push');
+  } catch {
+    return res.status(503).json({ error: 'web-push module is not available' });
+  }
+  try {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const keys = webpushMod.generateVAPIDKeys();
+    let subject = String(body.subject != null ? body.subject : '').trim();
+    if (!subject) {
+      subject = pushSend.getVapidSubject() || 'mailto:noreply@localhost';
+    }
+    try {
+      webpushMod.setVapidDetails(subject, keys.publicKey, keys.privateKey);
+    } catch (e) {
+      return res.status(400).json({ error: 'Invalid subject', detail: e.message || String(e) });
+    }
+    vapidPersist.writeVapidEnvFile(DATA_DIR, {
+      publicKey: keys.publicKey,
+      privateKey: keys.privateKey,
+      subject,
+    });
+    if (!pushSend.setRuntimeVapidKeys(keys.publicKey, keys.privateKey, subject)) {
+      return res.status(500).json({ error: 'Could not apply generated VAPID keys' });
+    }
+    res.json({
+      ok: true,
+      publicKey: keys.publicKey,
+      privateKey: keys.privateKey,
+      subject,
+      configured: true,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to generate VAPID keys' });
   }
 });
 

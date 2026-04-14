@@ -23,6 +23,12 @@ import {
   refreshPushNotificationsPanel,
   testBrowserPush,
 } from './push-notifications.js';
+import {
+  administrationTabVisible,
+  initAdministrationPanel,
+  loadAdministrationPanel,
+  syncAdministrationNavVisibility,
+} from './administration.js';
 
 async function loadAppVersion() {
   try {
@@ -420,6 +426,7 @@ async function load() {
     syncPersonSelect();
     syncLocationSelect();
     syncChoreDatalists();
+    syncAdministrationNavVisibility();
     void refreshPushNotificationsPanel();
   } catch (e) {
     app.entries = [];
@@ -1052,6 +1059,7 @@ const VALID_SETTINGS_TABS = new Set([
   'chores',
   'integrations',
   'account',
+  'administration',
   'audit',
   'data',
   'about',
@@ -1109,6 +1117,9 @@ function setSettingsTab(id) {
   if (id === 'account') {
     void loadAccountPanel();
   }
+  if (id === 'administration') {
+    void loadAdministrationPanel();
+  }
 }
 
 function initSettingsShell() {
@@ -1148,6 +1159,7 @@ document.getElementById('btnSettings').addEventListener('click', () => {
   renderChorePresetsEditor();
   renderQuickChoresEditor();
   syncDiscordWebhookForm();
+  syncAdministrationNavVisibility();
   void refreshPushNotificationsPanel();
   loadAuditLogIntoSettings();
   fillTranslatedSelectOptions();
@@ -1163,6 +1175,7 @@ document.getElementById('btnSettings').addEventListener('click', () => {
   } catch {
     /* ignore */
   }
+  if (tab === 'administration' && !administrationTabVisible()) tab = 'interface';
   setSettingsTab(tab);
   document.getElementById('settingsDialog').showModal();
 });
@@ -2196,6 +2209,11 @@ subscribeLocale(() => {
   if (accountPanel && !accountPanel.hidden) {
     void loadAccountPanel();
   }
+  syncAdministrationNavVisibility();
+  const adminPanel = document.getElementById('settingsPanelAdministration');
+  if (adminPanel && !adminPanel.hidden) {
+    void loadAdministrationPanel();
+  }
 });
 
 fillTranslatedSelectOptions();
@@ -2203,6 +2221,7 @@ syncScheduledRecurrenceUi();
 syncSettingsLocaleSelect();
 
 initSettingsShell();
+initAdministrationPanel();
 
 bootstrap();
 

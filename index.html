@@ -301,6 +301,7 @@
           <button type="button" class="settings-nav-item" id="settingsTabChores" role="tab" aria-selected="false" aria-controls="settingsPanelChores" data-settings-tab="chores" data-i18n="settings.sectionChores">Chores</button>
           <button type="button" class="settings-nav-item" id="settingsTabIntegrations" role="tab" aria-selected="false" aria-controls="settingsPanelIntegrations" data-settings-tab="integrations" data-i18n="settings.sectionIntegrations">Integrations</button>
           <button type="button" class="settings-nav-item" id="settingsTabAccount" role="tab" aria-selected="false" aria-controls="settingsPanelAccount" data-settings-tab="account" data-i18n="settings.sectionAccount">Account</button>
+          <button type="button" class="settings-nav-item" id="settingsTabAdministration" role="tab" aria-selected="false" aria-controls="settingsPanelAdministration" data-settings-tab="administration" data-i18n="settings.sectionAdministration" hidden>Administration</button>
           <button type="button" class="settings-nav-item" id="settingsTabAudit" role="tab" aria-selected="false" aria-controls="settingsPanelAudit" data-settings-tab="audit" data-i18n="settings.sectionAudit">Audit</button>
           <button type="button" class="settings-nav-item" id="settingsTabData" role="tab" aria-selected="false" aria-controls="settingsPanelData" data-settings-tab="data" data-i18n="settings.sectionData">Data & backup</button>
           <button type="button" class="settings-nav-item" id="settingsTabAbout" role="tab" aria-selected="false" aria-controls="settingsPanelAbout" data-settings-tab="about" data-i18n="settings.sectionAbout">About</button>
@@ -487,6 +488,28 @@
                 <div class="settings-actions">
                   <button type="button" class="btn-secondary" id="btnLogout" data-i18n="settings.logout">Log out</button>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel" id="settingsPanelAdministration" role="tabpanel" aria-labelledby="settingsTabAdministration" data-settings-panel="administration" hidden>
+            <div class="settings-section settings-section--flat">
+              <div class="settings-section-body">
+                <p class="settings-hint settings-hint--tight" data-i18n="settings.adminIntro">VAPID keys for Web Push (PWA). Values are saved to the server data directory so they survive restarts when environment variables are not set.</p>
+                <p class="settings-block-title" data-i18n="settings.adminVapidTitle">Web Push (VAPID) keys</p>
+                <p class="settings-hint" id="adminVapidBootHint" hidden role="note"></p>
+                <label class="analytics-filter-label" for="adminVapidPublic" data-i18n="settings.adminVapidPublic">Public key</label>
+                <textarea id="adminVapidPublic" class="settings-full-width settings-vapid-field" rows="3" spellcheck="false" autocomplete="off" data-i18n-aria="settings.adminVapidPublicAria" aria-label="VAPID public key"></textarea>
+                <label class="analytics-filter-label" for="adminVapidPrivate" data-i18n="settings.adminVapidPrivate">Private key</label>
+                <textarea id="adminVapidPrivate" class="settings-full-width settings-vapid-field" rows="3" spellcheck="false" autocomplete="off" data-i18n-aria="settings.adminVapidPrivateAria" aria-label="VAPID private key"></textarea>
+                <label class="analytics-filter-label" for="adminVapidSubject" data-i18n="settings.adminVapidSubject">Subject (contact)</label>
+                <input type="text" id="adminVapidSubject" class="settings-full-width discord-webhook-url" spellcheck="false" autocomplete="off" data-i18n-placeholder="settings.adminVapidSubjectPh" placeholder="mailto:you@example.com" data-i18n-aria="settings.adminVapidSubjectAria" aria-label="VAPID subject">
+                <p class="settings-hint" data-i18n="settings.adminVapidSubjectHint">Use a real mailto: or https: URL. Some push services reject placeholder contacts.</p>
+                <div class="settings-actions discord-webhook-actions">
+                  <button type="button" class="btn-secondary" id="btnAdminVapidSave" data-i18n="settings.save">Save</button>
+                  <button type="button" class="btn-secondary" id="btnAdminVapidGenerate" data-i18n="settings.adminVapidGenerate">Generate new keys</button>
+                </div>
+                <p class="settings-hint discord-webhook-status" id="adminVapidStatus" hidden role="status"></p>
               </div>
             </div>
           </div>
