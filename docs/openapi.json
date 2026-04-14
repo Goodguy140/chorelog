@@ -49,6 +49,10 @@
       "description": "Web Push (VAPID) for PWA browser notifications"
     },
     {
+      "name": "Admin",
+      "description": "Admin household (slug `default`) only — VAPID persistence and debugging"
+    },
+    {
       "name": "Export",
       "description": "Backup and CSV export"
     }
@@ -82,6 +86,10 @@
           },
           "household": {
             "type": "string"
+          },
+          "readOnly": {
+            "type": "boolean",
+            "description": "True when the session is guest / view-only (JWT ro)."
           }
         }
       },
@@ -101,6 +109,10 @@
           },
           "password": {
             "type": "string"
+          },
+          "guest": {
+            "type": "boolean",
+            "description": "When true, password must match CHORELOG_GUEST_PASSWORD; session is read-only."
           }
         }
       },
@@ -115,6 +127,10 @@
           },
           "password": {
             "type": "string"
+          },
+          "guest": {
+            "type": "boolean",
+            "description": "When true, password must match CHORELOG_GUEST_PASSWORD instead of the household password."
           }
         }
       },
@@ -140,6 +156,10 @@
           },
           "allowCreateHousehold": {
             "type": "boolean"
+          },
+          "guestLoginEnabled": {
+            "type": "boolean",
+            "description": "True when CHORELOG_GUEST_PASSWORD is set (guest / view-only sign-in available)."
           }
         }
       },
@@ -171,6 +191,10 @@
           "household": {
             "type": "string"
           },
+          "readOnly": {
+            "type": "boolean",
+            "description": "Guest / view-only session."
+          },
           "sessionExpiresAt": {
             "type": "string",
             "format": "date-time"
@@ -180,6 +204,22 @@
           },
           "openRegistration": {
             "type": "boolean"
+          },
+          "browserPushAllowed": {
+            "type": "boolean",
+            "description": "True when the session household may manage browser (Web Push) subscriptions (default / admin household only)."
+          }
+        }
+      },
+      "ReadOnlyError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "const": "read_only",
+            "description": "Mutating request rejected for guest / read-only session."
           }
         }
       }
@@ -224,6 +264,9 @@
                         },
                         "household": {
                           "type": "string"
+                        },
+                        "readOnly": {
+                          "type": "boolean"
                         }
                       }
                     }
@@ -320,6 +363,10 @@
                     },
                     "household": {
                       "type": "string"
+                    },
+                    "readOnly": {
+                      "type": "boolean",
+                      "description": "True for guest login sessions."
                     }
                   }
                 }
@@ -565,6 +612,15 @@
           },
           "400": {
             "description": "Validation error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadOnlyError"
+                }
+              }
+            }
           }
         }
       }
@@ -602,6 +658,15 @@
           },
           "401": {
             "description": "Current password wrong"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadOnlyError"
+                }
+              }
+            }
           }
         }
       }
@@ -793,7 +858,7 @@
         "tags": [
           "Entries"
         ],
-        "summary": "Delete a log entry",
+        "summary": "Soft-remove a log entry (hidden from stats; restorable)",
         "parameters": [
           {
             "name": "id",
@@ -806,7 +871,47 @@
         ],
         "responses": {
           "204": {
-            "description": "Deleted"
+            "description": "Removed"
+          },
+          "400": {
+            "description": "Already removed"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/api/entries/{id}/restore": {
+      "post": {
+        "tags": [
+          "Entries"
+        ],
+        "summary": "Restore a soft-removed log entry",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Restored entry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not removed"
           },
           "404": {
             "description": "Not found"
@@ -1252,6 +1357,117 @@
         }
       }
     },
+    "/api/admin/vapid": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Read current VAPID keys and boot metadata (admin household only)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "Not admin household"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Save VAPID keys to disk and apply at runtime (admin household only)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "publicKey",
+                  "privateKey"
+                ],
+                "properties": {
+                  "publicKey": {
+                    "type": "string"
+                  },
+                  "privateKey": {
+                    "type": "string"
+                  },
+                  "subject": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Invalid keys"
+          },
+          "403": {
+            "description": "Not admin household"
+          },
+          "503": {
+            "description": "web-push unavailable"
+          }
+        }
+      }
+    },
+    "/api/admin/vapid/generate": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Generate new VAPID keys, persist, and apply (admin household only)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subject": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "Not admin household"
+          },
+          "503": {
+            "description": "web-push unavailable"
+          }
+        }
+      }
+    },
     "/api/export": {
       "get": {
         "tags": [
@@ -1354,6 +1570,9 @@
           },
           "400": {
             "description": "Invalid import"
+          },
+          "500": {
+            "description": "Replace import may fail if a pre-replace backup cannot be written (see CHORELOG_IMPORT_BACKUP)"
           }
         }
       }

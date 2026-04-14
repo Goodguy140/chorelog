@@ -12,7 +12,7 @@
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="description" data-i18n="meta.description" content="Track household chores and monthly contributions.">
-  <meta name="theme-color" id="metaThemeColor" content="#1a1a18">
+  <meta name="theme-color" id="metaThemeColor" content="#f4f3ef">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -24,6 +24,7 @@
   <link rel="shortcut icon" href="/icons/app-icon.svg" type="image/svg+xml">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" sizes="180x180">
+  <link rel="icon" href="/icons/icon-192.png" type="image/png" sizes="192x192">
   <link rel="stylesheet" href="/css/chore-tracker-base.css">
   <link rel="stylesheet" href="/css/chore-tracker-dashboard.css">
   <link rel="stylesheet" href="/css/chore-tracker-scheduled.css">
@@ -61,13 +62,20 @@
 
         <div id="loginSignInStep1" class="login-step">
           <p class="login-step-heading" data-i18n="login.step1Heading">Sign in to your household</p>
-          <div class="login-field">
-            <label for="loginHousehold" data-i18n="login.household">Household id</label>
-            <input type="text" id="loginHousehold" name="household" autocomplete="organization" spellcheck="false" value="default" required maxlength="63" title="Household id (letters, numbers, underscore, hyphen)">
+          <div id="loginGuestModeWrap" class="login-field login-guest-wrap" hidden>
+            <label class="login-radio-label">
+              <input type="checkbox" id="loginGuestMode" />
+              <span data-i18n="login.guestMode">View only (guest)</span>
+            </label>
+            <p class="login-hint login-hint--tight" data-i18n="login.guestModeHint">Uses the server guest password — view stats and logs only.</p>
           </div>
           <div class="login-field">
-            <label for="loginPass" data-i18n="login.password">Password</label>
-            <input type="password" id="loginPass" name="password" autocomplete="current-password" required>
+            <label for="loginHousehold" data-i18n="login.household">Household id</label>
+            <input type="text" id="loginHousehold" name="household" autocomplete="organization" spellcheck="false" autocapitalize="none" enterkeyhint="next" value="default" required maxlength="63" title="Household id (letters, numbers, underscore, hyphen)">
+          </div>
+          <div class="login-field">
+            <label for="loginPass" id="loginPassLabel" data-i18n="login.password">Password</label>
+            <input type="password" id="loginPass" name="password" autocomplete="current-password" enterkeyhint="next" required>
           </div>
           <button type="button" class="btn-add login-submit" id="btnLoginStep1Continue" data-i18n="login.continue">Continue</button>
         </div>
@@ -102,7 +110,7 @@
         <div id="registerCreateFields">
           <div class="login-field">
             <label for="regCreateHouseholdId" data-i18n="login.newHouseholdId">New household id</label>
-            <input type="text" id="regCreateHouseholdId" autocomplete="off" spellcheck="false" maxlength="63" title="Household id (letters, numbers, underscore, hyphen)">
+            <input type="text" id="regCreateHouseholdId" autocomplete="off" spellcheck="false" autocapitalize="none" maxlength="63" title="Household id (letters, numbers, underscore, hyphen)">
           </div>
           <div class="login-field">
             <label for="regCreatePassword" data-i18n="login.choosePassword">Choose a password</label>
@@ -134,7 +142,7 @@
             <p class="login-step-heading" data-i18n="login.joinStep1Heading">Join a household</p>
             <div class="login-field">
               <label for="regJoinHousehold" data-i18n="login.householdIdToJoin">Household id to join</label>
-              <input type="text" id="regJoinHousehold" autocomplete="organization" spellcheck="false" maxlength="63" title="Household id (letters, numbers, underscore, hyphen)">
+              <input type="text" id="regJoinHousehold" autocomplete="organization" spellcheck="false" autocapitalize="none" maxlength="63" title="Household id (letters, numbers, underscore, hyphen)">
             </div>
             <div class="login-field">
               <label for="regJoinPassword" data-i18n="login.householdPassword">Household password</label>
@@ -168,9 +176,11 @@
       <div class="top-bar-actions">
         <button type="button" class="btn-settings" id="btnScheduled" aria-haspopup="dialog" data-i18n="app.scheduled">Scheduled</button>
         <button type="button" class="btn-settings" id="btnSettings" aria-haspopup="dialog" data-i18n="app.settings">Settings</button>
+        <button type="button" class="btn-secondary btn-guest-logout" id="btnGuestLogout" hidden data-i18n="app.guestLogout">Log out</button>
         <select id="monthSelect" class="month-select" data-i18n-aria="app.monthAria" aria-label="Month to view"></select>
       </div>
     </div>
+    <p id="readonlyBanner" class="readonly-banner" role="status" hidden data-i18n="app.readonlyBanner">View-only session — logging and settings are disabled.</p>
     <p id="loadError" class="empty" style="display:none;margin-bottom:12px;color:#E24B4A;"></p>
 
     <div class="analytics-filters" id="analyticsFiltersWrap">
@@ -262,6 +272,12 @@
         <div class="log-filter-row">
           <label class="log-filter-label" for="logSearch" data-i18n="logList.filterLabel">Filter log</label>
           <input type="search" id="logSearch" class="log-search-input" data-i18n-placeholder="logList.filterPh" placeholder="Search chore, person, date, locations…" autocomplete="off" enterkeyhint="search" data-i18n-aria="logList.filterAria" aria-label="Filter activity log">
+        </div>
+        <div class="log-removed-toggle-row">
+          <label class="log-removed-toggle-label">
+            <input type="checkbox" id="logShowRemoved" />
+            <span id="logShowRemovedLabel"></span>
+          </label>
         </div>
         <div class="log-list" id="logList"></div>
       </div>
@@ -362,6 +378,11 @@
                   <p class="settings-hint" data-i18n="settings.presetsHint">Title, points, and color for each selectable chore.</p>
                   <ul class="chore-presets-editor" id="chorePresetsList"></ul>
                   <button type="button" class="btn-secondary" id="btnAddChorePreset" data-i18n="settings.addChore">Add chore</button>
+                  <div id="chorePresetsArchivedWrap" class="chore-presets-archived-wrap" hidden>
+                    <p class="settings-block-title settings-block-title--sub" data-i18n="presets.archivedTitle">Archived presets</p>
+                    <p class="settings-hint" data-i18n="presets.archivedHint">Removed from quick log and suggestions; existing log lines keep their points. Restore to use again.</p>
+                    <ul class="chore-presets-archived" id="chorePresetsArchivedList"></ul>
+                  </div>
                 </div>
                 <div class="settings-subblock settings-subblock--stretch">
                   <p class="settings-block-title" data-i18n="settings.quickLog">Quick log</p>
@@ -667,7 +688,7 @@
         <button type="button" class="settings-close" id="deleteEntryDialogClose" data-i18n-aria="settings.closeAria" aria-label="Close">&times;</button>
       </div>
       <p class="delete-entry-preview" id="deleteEntryPreview"></p>
-      <p class="settings-hint" data-i18n="deleteEntry.hint">This removes it from your log.</p>
+        <p class="settings-hint" data-i18n="deleteEntry.hint">This hides the entry from stats and the main log; you can restore it later from “Show removed” for this month.</p>
       <div class="edit-entry-actions">
         <button type="button" class="btn-secondary" id="deleteEntryCancel" data-i18n="deleteEntry.cancel">Cancel</button>
         <button type="button" class="btn-secondary delete-entry-confirm" id="deleteEntryConfirm" data-i18n="deleteEntry.delete">Delete</button>

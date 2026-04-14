@@ -1,4 +1,5 @@
 import { app } from './state.js';
+import { activeChorePresets } from './presets.js';
 import { escapeAttr, escapeHtml } from './utils/html.js';
 
 /**
@@ -44,7 +45,7 @@ export function initChoreInputSuggest() {
   function showSuggestions() {
     const v = input.value;
     const query = segmentQuery(v);
-    filtered = app.chorePresets.filter((p) => p.title.toLowerCase().startsWith(query));
+    filtered = activeChorePresets().filter((p) => p.title.toLowerCase().startsWith(query));
     if (!filtered.length) {
       listEl.hidden = true;
       listEl.innerHTML = '';

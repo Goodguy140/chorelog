@@ -55,3 +55,36 @@ test('buildEntriesCsv includes points and preset title when choreId set', () => 
   assert.ok(lines[1].includes('Dishes'), 'preset title column');
   assert.ok(lines[1].includes(',3,'), 'points column');
 });
+
+test('buildEntriesCsv omits soft-deleted entries', () => {
+  const store = normalizeStore({
+    entries: [
+      {
+        id: 'e-gone',
+        d: '2026-01-03',
+        c: 'Hidden',
+        p: 'C',
+        choreId: null,
+        locationIds: [],
+        createdAt: '2026-01-03T12:00:00.000Z',
+        updatedAt: '2026-01-03T12:00:00.000Z',
+        deletedAt: '2026-01-04T12:00:00.000Z',
+      },
+      {
+        id: 'e-ok',
+        d: '2026-01-03',
+        c: 'Visible',
+        p: 'C',
+        choreId: null,
+        locationIds: [],
+        createdAt: '2026-01-03T12:00:00.000Z',
+        updatedAt: '2026-01-03T12:00:00.000Z',
+      },
+    ],
+    chorePresets: [preset],
+    quickChoreIds: [preset.id],
+  });
+  const csv = buildEntriesCsv(store);
+  assert.ok(!csv.includes('Hidden'));
+  assert.ok(csv.includes('Visible'));
+});

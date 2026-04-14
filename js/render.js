@@ -3,7 +3,13 @@ import { getLocaleBcp47, t } from './i18n.js';
 import { app, PALETTE } from './state.js';
 import { getMonthKey, getMonthLabel, nextDueDate } from './utils/date.js';
 import { escapeAttr, escapeHtml } from './utils/html.js';
-import { entryChorePoints, presetById, presetMatchingScheduledTitle, renderQuickChores } from './presets.js';
+import {
+  entryChorePoints,
+  entryIsActive,
+  presetById,
+  presetMatchingScheduledTitle,
+  renderQuickChores,
+} from './presets.js';
 import { intervalLabel, scheduledStatus } from './scheduled-logic.js';
 
 function colorFor(name) {
@@ -13,6 +19,7 @@ function colorFor(name) {
 }
 
 function entryMatchesAnalyticsFilters(e) {
+  if (!entryIsActive(e)) return false;
   if (app.analyticsPersonFilter && e.p !== app.analyticsPersonFilter) return false;
   if (app.analyticsLocationFilter) {
     const ids = Array.isArray(e.locationIds) ? e.locationIds : [];
@@ -162,6 +169,17 @@ function fullRender() {
     errEl.style.display = 'none';
   }
 
+  const shell = document.getElementById('appShell');
+  if (shell) shell.classList.toggle('app-shell--readonly', app.readOnly);
+  const rb = document.getElementById('readonlyBanner');
+  if (rb) rb.hidden = !app.readOnly;
+  const btnGuest = document.getElementById('btnGuestLogout');
+  const btnSet = document.getElementById('btnSettings');
+  const btnSched = document.getElementById('btnScheduled');
+  if (btnGuest) btnGuest.hidden = !app.readOnly;
+  if (btnSet) btnSet.hidden = app.readOnly;
+  if (btnSched) btnSched.hidden = app.readOnly;
+
   const months = getMonths();
   if (!months.includes(app.currentMonth) && months.length) app.currentMonth = months[0];
   const monthOptions = months.length ? months : [app.currentMonth];
@@ -291,29 +309,69 @@ function fullRender() {
   const monthEntries = app.entries
     .filter((e) => getMonthKey(e.d) === app.currentMonth)
     .sort((a, b) => b.d.localeCompare(a.d));
-  const filteredLogEntries = monthEntries.filter((e) => entryMatchesLogSearch(e, app.logSearchQuery));
+  const activeMonth = monthEntries.filter(entryIsActive);
+  const removedMonth = monthEntries.filter((e) => !entryIsActive(e));
+  const filteredLogEntries = activeMonth.filter((e) => entryMatchesLogSearch(e, app.logSearchQuery));
   const logList = document.getElementById('logList');
   const logSearchEl = document.getElementById('logSearch');
+  const logShowRemovedEl = document.getElementById('logShowRemoved');
   if (logSearchEl) logSearchEl.value = app.logSearchQuery;
-  if (!monthEntries.length) {
-    logList.innerHTML = `<p class="empty">${escapeHtml(t('logList.emptyMonth'))}</p>`;
-  } else if (!filteredLogEntries.length) {
-    logList.innerHTML = `<p class="empty">${escapeHtml(t('logList.emptySearch'))}</p>`;
-  } else {
-    logList.innerHTML = filteredLogEntries
-      .map((e) => {
-        const col = colorFor(e.p);
-        const [, m, d] = e.d.split('-');
-        const safeId = String(e.id).replace(/'/g, "\\'");
-        const pts = entryChorePoints(e);
-        const pr = e.choreId ? presetById(e.choreId) : null;
-        const barStyle = pr ? `border-left:4px solid ${escapeAttr(pr.color)};padding-left:8px` : '';
-        const ptsHtml =
-          pts != null ? `<span class="log-chore-points">${escapeHtml(t('logList.points', { n: pts }))}</span>` : '';
-        const locHtml = Array.isArray(e.locationIds) && e.locationIds.length
-          ? `<span class="log-chore-points">${escapeHtml(e.locationIds.join(', '))}</span>`
-          : '';
-        return `<div class="log-item" data-entry-id="${escapeHtml(e.id)}">
+  if (logShowRemovedEl) {
+    logShowRemovedEl.checked = app.showArchivedLogEntries;
+    logShowRemovedEl.disabled = removedMonth.length === 0;
+  }
+  const logShowRemovedLabel = document.getElementById('logShowRemovedLabel');
+  if (logShowRemovedLabel) {
+    logShowRemovedLabel.textContent =
+      removedMonth.length > 0
+        ? t('logList.showRemoved', { n: removedMonth.length })
+        : t('logList.showRemovedZero');
+  }
+
+  function logRowActive(e) {
+    const col = colorFor(e.p);
+    const [, m, d] = e.d.split('-');
+    const safeId = String(e.id).replace(/'/g, "\\'");
+    const pts = entryChorePoints(e);
+    const pr = e.choreId ? presetById(e.choreId) : null;
+    const barStyle = pr ? `border-left:4px solid ${escapeAttr(pr.color)};padding-left:8px` : '';
+    const ptsHtml =
+      pts != null ? `<span class="log-chore-points">${escapeHtml(t('logList.points', { n: pts }))}</span>` : '';
+    const locHtml = Array.isArray(e.locationIds) && e.locationIds.length
+      ? `<span class="log-chore-points">${escapeHtml(e.locationIds.join(', '))}</span>`
+      : '';
+    return `<div class="log-item" data-entry-id="${escapeHtml(e.id)}">
+    <div class="log-item-main" style="${barStyle}">
+      <span class="log-date">${m}/${d}</span>
+      <span class="log-chore">${escapeHtml(e.c)}</span>
+      ${ptsHtml}
+      ${locHtml}
+    </div>
+    <span class="log-person" style="background:${col.bar};color:${col.text};">${escapeHtml(e.p)}</span>
+    ${
+      app.readOnly
+        ? ''
+        : `<span class="log-item-actions">
+      <button type="button" class="btn-edit" onclick="openEditEntry('${safeId}')" aria-label="${escapeAttr(t('logList.edit'))}">${escapeHtml(t('logList.edit'))}</button>
+      <button type="button" class="btn-del" onclick="delEntry('${safeId}')" aria-label="${escapeAttr(t('logList.deleteAria'))}">×</button>
+    </span>`
+    }
+  </div>`;
+  }
+
+  function logRowRemoved(e) {
+    const col = colorFor(e.p);
+    const [, m, d] = e.d.split('-');
+    const safeId = String(e.id).replace(/'/g, "\\'");
+    const pts = entryChorePoints(e);
+    const pr = e.choreId ? presetById(e.choreId) : null;
+    const barStyle = pr ? `border-left:4px solid ${escapeAttr(pr.color)};padding-left:8px` : '';
+    const ptsHtml =
+      pts != null ? `<span class="log-chore-points">${escapeHtml(t('logList.points', { n: pts }))}</span>` : '';
+    const locHtml = Array.isArray(e.locationIds) && e.locationIds.length
+      ? `<span class="log-chore-points">${escapeHtml(e.locationIds.join(', '))}</span>`
+      : '';
+    return `<div class="log-item log-item--removed" data-entry-id="${escapeHtml(e.id)}">
     <div class="log-item-main" style="${barStyle}">
       <span class="log-date">${m}/${d}</span>
       <span class="log-chore">${escapeHtml(e.c)}</span>
@@ -322,13 +380,28 @@ function fullRender() {
     </div>
     <span class="log-person" style="background:${col.bar};color:${col.text};">${escapeHtml(e.p)}</span>
     <span class="log-item-actions">
-      <button type="button" class="btn-edit" onclick="openEditEntry('${safeId}')" aria-label="${escapeAttr(t('logList.edit'))}">${escapeHtml(t('logList.edit'))}</button>
-      <button type="button" class="btn-del" onclick="delEntry('${safeId}')" aria-label="${escapeAttr(t('logList.deleteAria'))}">×</button>
+      <button type="button" class="btn-secondary" onclick="restoreLogEntry('${safeId}')">${escapeHtml(t('logList.restore'))}</button>
     </span>
   </div>`;
-      })
-      .join('');
   }
+
+  let logHtml = '';
+  if (!monthEntries.length) {
+    logHtml = `<p class="empty">${escapeHtml(t('logList.emptyMonth'))}</p>`;
+  } else if (!activeMonth.length) {
+    logHtml = `<p class="empty">${escapeHtml(t('logList.onlyRemoved'))}</p>`;
+  } else if (!filteredLogEntries.length) {
+    logHtml = `<p class="empty">${escapeHtml(t('logList.emptySearch'))}</p>`;
+  } else {
+    logHtml = filteredLogEntries.map((e) => logRowActive(e)).join('');
+  }
+  if (app.showArchivedLogEntries && removedMonth.length) {
+    logHtml += `<div class="log-removed-section" role="region" aria-label="${escapeAttr(t('logList.removedHeading'))}">
+  <h3 class="log-removed-heading">${escapeHtml(t('logList.removedHeading'))}</h3>
+  ${removedMonth.map((e) => logRowRemoved(e)).join('')}
+</div>`;
+  }
+  logList.innerHTML = logHtml;
 
   const allMonths = getMonths();
   const prevMonth = allMonths[allMonths.indexOf(app.currentMonth) + 1];
@@ -384,15 +457,18 @@ function fullRender() {
       .map((s) => {
         const st = scheduledStatus(s);
         const safeId = String(s.id).replace(/'/g, "\\'");
+        const actions = app.readOnly
+          ? ''
+          : `<div class="scheduled-card-actions">
+    <button type="button" class="scheduled-btn-done" onclick="markScheduledDone('${safeId}')">${escapeHtml(t('scheduled.markDone'))}</button>
+  </div>`;
         return `<div class="scheduled-card">
   <div>
     <div class="scheduled-card-title">${escapeHtml(s.title)}</div>
     <div class="scheduled-card-meta">${escapeHtml(t('scheduled.metaLine', { interval: intervalLabel(s), nextDue: st.nextHuman }))}</div>
   </div>
   <span class="scheduled-status ${st.cls}">${escapeHtml(st.label)}</span>
-  <div class="scheduled-card-actions">
-    <button type="button" class="scheduled-btn-done" onclick="markScheduledDone('${safeId}')">${escapeHtml(t('scheduled.markDone'))}</button>
-  </div>
+  ${actions}
 </div>`;
       })
       .join('');
@@ -401,6 +477,10 @@ function fullRender() {
   const schedSuggestBox = document.getElementById('scheduledLogSuggestions');
   const schedSuggestWrap = document.getElementById('scheduledLogSuggestionsWrap');
   if (schedSuggestBox && schedSuggestWrap) {
+    if (app.readOnly) {
+      schedSuggestWrap.hidden = true;
+      schedSuggestBox.innerHTML = '';
+    } else {
     const urgent = app.scheduledChores
       .map((s) => {
         const st = scheduledStatus(s);
@@ -427,6 +507,7 @@ function fullRender() {
         })
         .join('');
     }
+    }
   }
 
   renderQuickChores();
@@ -437,5 +518,6 @@ setRenderRenderer(fullRender);
 export function switchMonth(m) {
   app.currentMonth = m;
   app.logSearchQuery = '';
+  app.showArchivedLogEntries = false;
   render();
 }

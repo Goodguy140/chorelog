@@ -4,8 +4,22 @@ import { app } from './state.js';
 import { escapeAttr, escapeHtml } from './utils/html.js';
 import { render } from './render-registry.js';
 
+export function isPresetActive(p) {
+  return Boolean(p && !p.deletedAt);
+}
+
+export function entryIsActive(e) {
+  return Boolean(e && !e.deletedAt);
+}
+
+export function activeChorePresets() {
+  return app.chorePresets.filter(isPresetActive);
+}
+
 export function syncChoreDatalists() {
-  const opts = app.chorePresets.map((p) => `<option value="${escapeAttr(p.title)}"></option>`).join('');
+  const opts = activeChorePresets()
+    .map((p) => `<option value="${escapeAttr(p.title)}"></option>`)
+    .join('');
   const dl = document.getElementById('editChoreDatalist');
   if (dl) dl.innerHTML = opts;
 }
@@ -40,14 +54,14 @@ function levenshtein(a, b) {
 export function presetMatchingScheduledTitle(scheduledTitle) {
   const t = String(scheduledTitle).trim().toLowerCase();
   if (!t) return null;
-  const exact = app.chorePresets.find((p) => p.title.trim().toLowerCase() === t);
+  const exact = activeChorePresets().find((p) => p.title.trim().toLowerCase() === t);
   if (exact) return exact;
   if (t.length < 4) return null;
 
   const maxDist = Math.min(4, Math.max(2, Math.ceil(t.length * 0.12)));
   let best = null;
   let bestD = Infinity;
-  for (const p of app.chorePresets) {
+  for (const p of activeChorePresets()) {
     const pl = p.title.trim().toLowerCase();
     if (!pl) continue;
     const d = levenshtein(t, pl);
@@ -71,14 +85,40 @@ export function entryChorePoints(e) {
   return pr.points;
 }
 
+/**
+ * Resolve one chore field segment to an active preset: exact case-insensitive match,
+ * then Levenshtein fuzzy match (same budget as scheduled suggestions) when segment length ≥ 4.
+ */
+export function matchActivePresetForSegment(part) {
+  const trimmed = String(part || '').trim();
+  if (!trimmed) return null;
+  const t = trimmed.toLowerCase();
+  const exact = activeChorePresets().find((p) => p.title.trim().toLowerCase() === t);
+  if (exact) return exact;
+  if (trimmed.length < 4) return null;
+
+  const maxDist = Math.min(4, Math.max(2, Math.ceil(trimmed.length * 0.12)));
+  let best = null;
+  let bestD = Infinity;
+  for (const p of activeChorePresets()) {
+    const pl = p.title.trim().toLowerCase();
+    if (!pl) continue;
+    const d = levenshtein(t, pl);
+    if (d < bestD) {
+      bestD = d;
+      best = p;
+    }
+  }
+  if (best && bestD <= maxDist) return best;
+  return null;
+}
+
 export function resolveChorePayloadRows(raw) {
   const parts = raw.split(';').map((s) => s.trim()).filter(Boolean);
   if (!parts.length) return { ok: false, reason: 'empty' };
   const rows = [];
   for (const part of parts) {
-    const preset = app.chorePresets.find(
-      (p) => p.title.toLowerCase() === part.toLowerCase(),
-    );
+    const preset = matchActivePresetForSegment(part);
     if (!preset) {
       return { ok: false, reason: 'unknown', unknownPart: part };
     }
@@ -112,6 +152,7 @@ export async function saveChorePresetsAndQuick() {
 export function readChorePresetsFromDom() {
   const rows = document.querySelectorAll('#chorePresetsList .chore-preset-row');
   const out = [];
+  const activeIds = new Set();
   rows.forEach((row) => {
     const id = row.getAttribute('data-id');
     const title = row.querySelector('.chore-preset-title')?.value?.trim() || '';
@@ -120,15 +161,26 @@ export function readChorePresetsFromDom() {
     const scoringMode = row.querySelector('.chore-preset-scoring')?.value === 'per_location' ? 'per_location' : 'flat';
     if (!id || !title) return;
     if (!Number.isFinite(points)) points = 1;
+    activeIds.add(id);
     out.push({ id, title, points, color, scoringMode });
   });
+  for (const p of app.chorePresets) {
+    if (p.deletedAt && !activeIds.has(p.id)) {
+      out.push({ ...p });
+    }
+  }
   return out;
 }
 
 export function renderChorePresetsEditor() {
   const ul = document.getElementById('chorePresetsList');
+  const archivedUl = document.getElementById('chorePresetsArchivedList');
+  const archivedWrap = document.getElementById('chorePresetsArchivedWrap');
   if (!ul) return;
-  ul.innerHTML = app.chorePresets
+  const active = activeChorePresets();
+  const archived = app.chorePresets.filter((p) => p.deletedAt);
+  const canRemoveActive = active.length > 1;
+  ul.innerHTML = active
     .map(
       (p) => `
     <li class="chore-preset-row" data-id="${escapeAttr(p.id)}">
@@ -139,10 +191,21 @@ export function renderChorePresetsEditor() {
         <option value="per_location" ${p.scoringMode === 'per_location' ? 'selected' : ''}>${escapeHtml(t('presets.perLocation'))}</option>
       </select>
       <input type="color" class="chore-preset-color" value="${escapeAttr(p.color)}" aria-label="${escapeAttr(t('presets.colorAria'))}">
-      <button type="button" class="btn-secondary chore-preset-remove" data-remove="${escapeAttr(p.id)}" ${app.chorePresets.length <= 1 ? 'disabled' : ''}>${escapeHtml(t('settings.remove'))}</button>
+      <button type="button" class="btn-secondary chore-preset-remove" data-remove="${escapeAttr(p.id)}" ${!canRemoveActive ? 'disabled' : ''}>${escapeHtml(t('settings.remove'))}</button>
     </li>`,
     )
     .join('');
+  if (archivedUl && archivedWrap) {
+    archivedWrap.hidden = archived.length === 0;
+    archivedUl.innerHTML = archived
+      .map(
+        (p) => `<li class="chore-preset-archived-row">
+  <span class="chore-preset-archived-title" style="border-left:4px solid ${escapeAttr(p.color)}">${escapeHtml(p.title)}</span>
+  <button type="button" class="btn-secondary chore-preset-restore" data-restore="${escapeAttr(p.id)}">${escapeHtml(t('presets.restore'))}</button>
+</li>`,
+      )
+      .join('');
+  }
 }
 
 export function renderQuickChoresEditor() {
@@ -165,7 +228,7 @@ export function renderQuickChoresEditor() {
     .join('');
   if (sel) {
     const inQuick = new Set(app.quickChoreIds);
-    sel.innerHTML = app.chorePresets
+    sel.innerHTML = activeChorePresets()
       .filter((p) => !inQuick.has(p.id))
       .map((p) => `<option value="${escapeAttr(p.id)}">${escapeHtml(p.title)}</option>`)
       .join('');
@@ -179,12 +242,15 @@ export function renderQuickChores() {
   const wrap = document.getElementById('quickChoreButtons');
   if (!wrap) return;
   const section = wrap.closest('.quick-chores');
-  const hasQuick = app.quickChoreIds.some((id) => presetById(id));
+  const hasQuick = app.quickChoreIds.some((id) => {
+    const pr = presetById(id);
+    return pr && isPresetActive(pr);
+  });
   if (section) section.hidden = !hasQuick;
   wrap.innerHTML = app.quickChoreIds
     .map((id) => {
       const preset = presetById(id);
-      if (!preset) return '';
+      if (!preset || !isPresetActive(preset)) return '';
       const safe = escapeHtml(preset.title);
       const col = escapeAttr(preset.color);
       return `<button type="button" class="quick-chore-btn" data-chore-id="${escapeAttr(preset.id)}" style="border-color:${col};background:color-mix(in srgb, ${col} 20%, transparent)" title="${escapeAttr(t('logForm.quickTitle', { name: preset.title }))}">${safe}</button>`;

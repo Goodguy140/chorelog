@@ -41,13 +41,18 @@
     "newHouseholdIdRequired": "Bitte eine ID für den neuen Haushalt eingeben.",
     "masterPasswordRequired": "Bitte das Server-Masterpasswort eingeben.",
     "errorFailed": "Anmeldung fehlgeschlagen.",
-    "errorServer": "Server nicht erreichbar."
+    "errorServer": "Server nicht erreichbar.",
+    "guestMode": "Nur ansehen (Gast)",
+    "guestModeHint": "Nutzt das Gast-Passwort des Servers — nur Statistik und Log, keine Änderungen.",
+    "guestPassword": "Gast-Passwort"
   },
   "app": {
     "title": "Haushaltsplaner",
     "scheduled": "Geplant",
     "settings": "Einstellungen",
-    "monthAria": "Anzuzeigender Monat"
+    "monthAria": "Anzuzeigender Monat",
+    "guestLogout": "Abmelden",
+    "readonlyBanner": "Nur-Lese-Sitzung — Eintragen und Einstellungen sind deaktiviert."
   },
   "errors": {
     "loadFailed": "Aufgaben konnten nicht geladen werden. `npm start` ausführen und die Seite über die App-URL öffnen (nicht file://).",
@@ -58,7 +63,9 @@
     "selectLocation": "Mindestens einen Ort für „{{title}}“ auswählen.",
     "saveChore": "Aufgabe konnte nicht gespeichert werden. Läuft der Server?",
     "savePresets": "Aufgaben-Vorlagen konnten nicht gespeichert werden.",
-    "deleteEntry": "Eintrag konnte nicht gelöscht werden. Läuft der Server?",
+    "deleteEntry": "Eintrag konnte nicht entfernt werden. Läuft der Server?",
+    "restoreEntry": "Eintrag konnte nicht wiederhergestellt werden. Läuft der Server?",
+    "atLeastOnePreset": "Mindestens eine aktive Aufgaben-Vorlage behalten.",
     "updateEntry": "Eintrag konnte nicht aktualisiert werden.",
     "completeScheduled": "Geplante Aufgabe konnte nicht abgeschlossen werden.",
     "scheduledCompletedDateRequired": "Bitte das Erledigungsdatum wählen (Kalendertag der Ausführung).",
@@ -230,8 +237,13 @@
     "filterAria": "Aktivitätslog filtern",
     "emptyMonth": "Noch keine Einträge in diesem Monat.",
     "emptySearch": "Keine Treffer für die Suche.",
+    "onlyRemoved": "Keine aktiven Einträge in diesem Monat — alle Zeilen wurden entfernt. „Entfernte anzeigen“ unten aktivieren zum Wiederherstellen.",
+    "showRemoved": "{{n}} entfernte anzeigen",
+    "showRemovedZero": "Entfernte anzeigen",
+    "removedHeading": "Aus dem Log entfernt",
+    "restore": "Wiederherstellen",
     "edit": "Bearbeiten",
-    "deleteAria": "Eintrag löschen",
+    "deleteAria": "Eintrag aus dem Log entfernen",
     "points": "+{{n}} Pkt."
   },
   "mom": {
@@ -446,12 +458,15 @@
     "personAria": "Person"
   },
   "deleteEntry": {
-    "title": "Diesen Eintrag löschen?",
-    "hint": "Er wird aus dem Log entfernt.",
+    "title": "Diesen Eintrag entfernen?",
+    "hint": "Er verschwindet aus Statistik und Haupt-Log; später über „Entfernte anzeigen“ für diesen Monat wiederherstellen.",
     "cancel": "Abbrechen",
-    "delete": "Löschen"
+    "delete": "Entfernen"
   },
   "presets": {
+    "archivedTitle": "Archivierte Vorlagen",
+    "archivedHint": "Aus Schnell-Log und Vorschlägen entfernt; bestehende Log-Zeilen behalten ihre Punkte. Wiederherstellen zum erneuten Nutzen.",
+    "restore": "Wiederherstellen",
     "titleAria": "Aufgabentitel",
     "pointsAria": "Punkte",
     "pointsModeAria": "Punkte-Modus",

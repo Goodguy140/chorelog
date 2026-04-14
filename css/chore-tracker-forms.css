@@ -212,6 +212,47 @@ select {
   background: var(--color-background-tertiary);
 }
 
+.log-removed-toggle-row {
+  margin: 6px 0 10px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.log-removed-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.log-removed-toggle-label input {
+  width: 1rem;
+  height: 1rem;
+}
+
+.log-removed-section {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border-tertiary);
+}
+
+.log-removed-heading {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: var(--color-text-secondary);
+}
+
+.log-item--removed {
+  opacity: 0.88;
+}
+
+.log-item--removed .log-item-main {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--color-text-secondary) 55%, transparent);
+}
+
 .log-filter-row {
   margin-bottom: 10px;
 }

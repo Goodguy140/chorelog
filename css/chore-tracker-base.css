@@ -179,7 +179,7 @@ body {
   left: 50%;
   transform: translate(-50%, -50%);
   width: min(420px, calc(100vw - 1.25rem));
-  max-height: min(92vh, 720px);
+  max-height: min(92dvh, 92vh, 720px);
   margin: 0;
   padding: 0;
   border: 0.5px solid var(--color-border-secondary);
@@ -187,6 +187,7 @@ body {
   background: var(--color-background-primary);
   color: var(--color-text-primary);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+  overscroll-behavior: contain;
 }
 
 .settings-dialog::backdrop {
@@ -194,35 +195,49 @@ body {
 }
 
 .settings-inner {
-  padding: 0.75rem 0.85rem 0.9rem;
+  box-sizing: border-box;
+  padding:
+    max(0.75rem, env(safe-area-inset-top, 0px))
+    max(0.85rem, env(safe-area-inset-right, 0px))
+    max(0.9rem, env(safe-area-inset-bottom, 0px))
+    max(0.85rem, env(safe-area-inset-left, 0px));
   display: flex;
   flex-direction: column;
   gap: 0;
-  max-height: min(88vh, 680px);
+  min-height: 0;
+  max-height: min(88dvh, 88vh, 680px);
   overflow: hidden;
 }
 
 @media (min-width: 560px) {
   .settings-dialog {
     width: min(520px, calc(100vw - 2rem));
-    max-height: min(92vh, 800px);
+    max-height: min(92dvh, 92vh, 800px);
   }
 
   .settings-inner {
-    max-height: min(90vh, 760px);
-    padding: 0.85rem 1rem 1rem;
+    max-height: min(90dvh, 90vh, 760px);
+    padding:
+      max(0.85rem, env(safe-area-inset-top, 0px))
+      max(1rem, env(safe-area-inset-right, 0px))
+      max(1rem, env(safe-area-inset-bottom, 0px))
+      max(1rem, env(safe-area-inset-left, 0px));
   }
 }
 
 @media (min-width: 900px) {
   .settings-dialog {
     width: min(920px, calc(100vw - 2.5rem));
-    max-height: min(94vh, 900px);
+    max-height: min(94dvh, 94vh, 900px);
   }
 
   .settings-inner {
-    max-height: min(92vh, 860px);
-    padding: 0.9rem 1.15rem 1.15rem;
+    max-height: min(92dvh, 92vh, 860px);
+    padding:
+      max(0.9rem, env(safe-area-inset-top, 0px))
+      max(1.15rem, env(safe-area-inset-right, 0px))
+      max(1.15rem, env(safe-area-inset-bottom, 0px))
+      max(1.15rem, env(safe-area-inset-left, 0px));
   }
 }
 
@@ -256,18 +271,24 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 0.5px solid var(--color-border-secondary);
   border-radius: var(--border-radius-md);
   background: var(--color-background-secondary);
   color: var(--color-text-primary);
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .settings-nav-toggle:hover {
   border-color: var(--color-text-tertiary);
+}
+
+.settings-nav-toggle:focus-visible {
+  outline: 2px solid var(--color-text-primary);
+  outline-offset: 2px;
 }
 
 .settings-nav-toggle-bars {
@@ -381,7 +402,7 @@ body {
     border-right: 0.5px solid var(--color-border-tertiary);
     box-shadow: none;
     align-self: stretch;
-    min-height: min(56vh, 520px);
+    min-height: 0;
     max-height: none;
   }
 }
@@ -421,27 +442,24 @@ body {
 
 .settings-content {
   position: relative;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
-  min-height: min(52vh, 420px);
-  max-height: min(58vh, 480px);
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding: 10px 14px 14px;
 }
 
 @media (min-width: 768px) {
   .settings-content {
-    min-height: min(56vh, 520px);
-    max-height: min(62vh, 560px);
     padding: 14px 22px 20px;
   }
 }
 
 @media (min-width: 900px) {
   .settings-content {
-    max-height: min(65vh, 640px);
     padding: 16px 26px 22px;
   }
 }
@@ -551,10 +569,22 @@ body {
   color: var(--color-text-tertiary);
   cursor: pointer;
   padding: 4px 8px;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--border-radius-md);
+  touch-action: manipulation;
 }
 
 .settings-close:hover {
   color: var(--color-text-primary);
+}
+
+.settings-close:focus-visible {
+  outline: 2px solid var(--color-text-primary);
+  outline-offset: 2px;
 }
 
 .settings-block-title {
@@ -827,6 +857,21 @@ body {
   margin-bottom: 6px;
   font-size: 12px;
   color: var(--color-text-secondary);
+}
+
+.readonly-banner {
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-border-secondary);
+  background: var(--color-background-secondary);
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.app-shell--readonly .section--log-chore {
+  display: none;
 }
 
 @media (max-width: 560px) {

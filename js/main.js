@@ -3,6 +3,8 @@ import { applyStaticDom, getLocale, getLocaleBcp47, setLocale, subscribeLocale, 
 import { render } from './render-registry.js';
 import { switchMonth } from './render.js';
 import {
+  entryIsActive,
+  isPresetActive,
   presetById,
   readChorePresetsFromDom,
   renderChorePresetsEditor,
@@ -66,11 +68,14 @@ async function loadAccountInfo() {
     const r = await apiFetch('/api/account');
     if (!r.ok) {
       app.account = null;
+      app.readOnly = false;
       return;
     }
     app.account = await r.json();
+    app.readOnly = !!app.account.readOnly;
   } catch {
     app.account = null;
+    app.readOnly = false;
   }
 }
 
@@ -225,7 +230,8 @@ function syncThemeMeta() {
   if (mode === 'dark') dark = true;
   else if (mode === 'light') dark = false;
   else dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  el.content = dark ? '#1e1e1c' : '#1a1a18';
+  /* Match app chrome for PWA status / theme bars (iOS/Android). */
+  el.content = dark ? '#1e1e1c' : '#f4f3ef';
 }
 
 function applyTheme(mode) {
@@ -566,7 +572,7 @@ async function addEntry() {
 
 function fillChoreFromPreset(presetId) {
   const preset = presetById(presetId);
-  if (!preset) return false;
+  if (!preset || !isPresetActive(preset)) return false;
   const el = document.getElementById('inChore');
   if (el) el.value = preset.title;
   if (preset.scoringMode === 'per_location') {
@@ -640,7 +646,7 @@ function fillEditEntryLocationSelect(locationIds) {
 
 function openEditEntry(id) {
   const e = app.entries.find((x) => x.id === id);
-  if (!e) return;
+  if (!e || !entryIsActive(e)) return;
   app.pendingEditEntryId = id;
   document.getElementById('editEntryDate').value = e.d;
   syncChoreDatalists();
@@ -850,10 +856,18 @@ async function bootstrap() {
   try {
     const r = await apiFetch('/api/auth');
     if (!r.ok) throw new Error('not authed');
+    let authJson = null;
+    try {
+      authJson = await r.json();
+    } catch {
+      /* ignore */
+    }
+    app.readOnly = !!(authJson && authJson.readOnly);
     document.getElementById('loginScreen').hidden = true;
     document.getElementById('appShell').hidden = false;
     await startApp();
   } catch {
+    app.readOnly = false;
     document.getElementById('loginScreen').hidden = false;
     document.getElementById('appShell').hidden = true;
   }
@@ -1644,20 +1658,45 @@ document.getElementById('logSearch').addEventListener('input', (e) => {
   render();
 });
 
+document.getElementById('logShowRemoved')?.addEventListener('change', (e) => {
+  app.showArchivedLogEntries = e.target.checked;
+  render();
+});
+
 document.getElementById('chorePresetsList').addEventListener('change', async () => {
   const next = readChorePresetsFromDom();
-  if (next.length) {
-    app.chorePresets = next;
-    await saveChorePresetsAndQuick();
+  if (!next.filter((p) => !p.deletedAt).length) {
+    app.loadError = t('errors.atLeastOnePreset');
+    renderChorePresetsEditor();
+    render();
+    return;
   }
+  app.chorePresets = next;
+  await saveChorePresetsAndQuick();
 });
 
 document.getElementById('chorePresetsList').addEventListener('click', async (e) => {
   const btn = e.target.closest('.chore-preset-remove');
   if (!btn) return;
   const id = btn.getAttribute('data-remove');
-  app.chorePresets = app.chorePresets.filter((p) => p.id !== id);
+  const p = app.chorePresets.find((x) => x.id === id);
+  if (!p) return;
+  const activeCount = app.chorePresets.filter((x) => !x.deletedAt).length;
+  if (!p.deletedAt && activeCount <= 1) return;
+  p.deletedAt = new Date().toISOString();
   app.quickChoreIds = app.quickChoreIds.filter((q) => q !== id);
+  renderChorePresetsEditor();
+  renderQuickChoresEditor();
+  await saveChorePresetsAndQuick();
+});
+
+document.getElementById('chorePresetsArchivedList')?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.chore-preset-restore');
+  if (!btn) return;
+  const id = btn.getAttribute('data-restore');
+  const p = app.chorePresets.find((x) => x.id === id);
+  if (!p || !p.deletedAt) return;
+  delete p.deletedAt;
   renderChorePresetsEditor();
   renderQuickChoresEditor();
   await saveChorePresetsAndQuick();
@@ -1721,7 +1760,7 @@ document.getElementById('logList').addEventListener('click', (ev) => {
   if (ev.target.closest('.btn-del') || ev.target.closest('.btn-edit')) return;
   if (!window.matchMedia('(max-width: 560px)').matches) return;
   const row = ev.target.closest('.log-item');
-  if (!row) return;
+  if (!row || row.classList.contains('log-item--removed')) return;
   const id = row.getAttribute('data-entry-id');
   if (id) openEditEntry(id);
 });
@@ -1804,11 +1843,11 @@ function fillMemberSelect(selectEl, people) {
   }
 }
 
-async function fetchHouseholdMembers(household, password) {
+async function fetchHouseholdMembers(household, password, guest = false) {
   const r = await apiFetch('/api/login/members', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ household, password }),
+    body: JSON.stringify({ household, password, guest: !!guest }),
   });
   let j = null;
   try {
@@ -1890,12 +1929,12 @@ function applyRegisterInfoToForm(info) {
   }
 }
 
-async function completeLoginSession(household, username, password) {
+async function completeLoginSession(household, username, password, opts = {}) {
   const errEl = document.getElementById('loginError');
   const r = await apiFetch('/api/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ household, username, password }),
+    body: JSON.stringify({ household, username, password, guest: !!opts.guest }),
   });
   if (!r.ok) {
     let msg = t('login.errorFailed');
@@ -1909,6 +1948,13 @@ async function completeLoginSession(household, username, password) {
     errEl.hidden = false;
     return false;
   }
+  let loginJson = null;
+  try {
+    loginJson = await r.json();
+  } catch {
+    /* ignore */
+  }
+  app.readOnly = !!loginJson?.readOnly;
   try {
     localStorage.setItem('chorelog-household', String(household).toLowerCase());
   } catch {
@@ -1935,9 +1981,10 @@ async function submitLoginSignInStep1() {
     errEl.hidden = false;
     return;
   }
+  const guest = document.getElementById('loginGuestMode')?.checked;
   try {
-    const people = await fetchHouseholdMembers(household, password);
-    pendingSignIn = { household, password };
+    const people = await fetchHouseholdMembers(household, password, guest);
+    pendingSignIn = { household, password, guest: !!guest };
     fillMemberSelect(document.getElementById('loginMemberSelect'), people);
     setLoginSignInStep(2);
   } catch (e) {
@@ -1979,7 +2026,9 @@ document.getElementById('loginFormSignIn')?.addEventListener('submit', async (e)
     return;
   }
   try {
-    await completeLoginSession(pendingSignIn.household, username, pendingSignIn.password);
+    await completeLoginSession(pendingSignIn.household, username, pendingSignIn.password, {
+      guest: pendingSignIn.guest,
+    });
   } catch {
     errEl.textContent = t('login.errorServer');
     errEl.hidden = false;
@@ -2196,6 +2245,7 @@ document.getElementById('btnLogout').addEventListener('click', async () => {
   } catch {
     /* still show login */
   }
+  app.readOnly = false;
   document.getElementById('settingsDialog').close();
   document.getElementById('loginScreen').hidden = false;
   document.getElementById('appShell').hidden = true;
@@ -2216,9 +2266,23 @@ document.getElementById('btnLogout').addEventListener('click', async () => {
   resetSignInToStep1();
 });
 
+async function restoreLogEntry(id) {
+  if (!id) return;
+  try {
+    const r = await apiFetch(`/api/entries/${encodeURIComponent(id)}/restore`, { method: 'POST' });
+    if (!r.ok) throw new Error('restore failed');
+    await load();
+    render();
+  } catch {
+    app.loadError = t('errors.restoreEntry');
+    render();
+  }
+}
+
 window.addEntry = addEntry;
 window.openEditEntry = openEditEntry;
 window.delEntry = delEntry;
+window.restoreLogEntry = restoreLogEntry;
 window.quickLogChore = quickLogChore;
 window.markScheduledDone = markScheduledDone;
 window.deleteScheduledChore = deleteScheduledChore;
@@ -2269,7 +2333,39 @@ syncSettingsLocaleSelect();
 initSettingsShell();
 initAdministrationPanel();
 
-bootstrap();
+async function initLoginGuestUi() {
+  try {
+    const r = await apiFetch('/api/register-info');
+    if (r.ok) {
+      const info = await r.json();
+      const wrap = document.getElementById('loginGuestModeWrap');
+      if (wrap && info.guestLoginEnabled) wrap.hidden = false;
+    }
+  } catch {
+    /* ignore */
+  }
+  const guestCb = document.getElementById('loginGuestMode');
+  const passLabel = document.getElementById('loginPassLabel');
+  if (guestCb && passLabel) {
+    guestCb.addEventListener('change', () => {
+      passLabel.textContent = guestCb.checked ? t('login.guestPassword') : t('login.password');
+    });
+  }
+}
+
+document.getElementById('btnGuestLogout')?.addEventListener('click', async () => {
+  try {
+    await apiFetch('/api/logout', { method: 'POST' });
+  } catch {
+    /* ignore */
+  }
+  app.readOnly = false;
+  document.getElementById('loginScreen').hidden = false;
+  document.getElementById('appShell').hidden = true;
+  resetSignInToStep1();
+});
+
+void initLoginGuestUi().then(() => bootstrap());
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

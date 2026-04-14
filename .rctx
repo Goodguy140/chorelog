@@ -1,243 +1,320 @@
-# Local AI / contributor context index
+Local AI / contributor context index
 
-**Do not delete this file.** It is the navigation map for humans and agents; extend it when behavior or layout changes.
+Do not delete this file. It is the navigation map for humans and agents; extend it when behavior or layout changes.
 
-**Tracked in git** (not ignored) so clones keep the map. Edit anchors if line numbers drift.
+Tracked in git (not ignored) so clones keep the map. Line-number anchors drift over time; use search or grep in files instead of trusting exact line numbers.
 
----
 
-## Quick navigation
+QUICK NAVIGATION
 
-| Area | Primary files |
-|------|----------------|
-| HTTP API + multi-household persistence | `server.js`, `lib/households-registry.cjs`, `lib/login-throttle.cjs`, `lib/sqlite-store.cjs` |
-| **OpenAPI 3** (integrators) | **`lib/openapi-spec.cjs`** (source of truth) · live **`GET /api/openapi.json`** · committed snapshot **`docs/openapi.json`** (`npm run docs:openapi`) · drift vs `server.js`: **`scripts/check-api-routes.cjs`** (runs after **`npm test`**) — see **When changing HTTP routes** below |
-| HTML shell + ids | `index.html` |
-| Events, auth, mutations | `js/main.js` |
-| i18n (`t`, locales, language in Settings) | `js/i18n.js`, `locales/en.json`, `locales/de.json` |
-| Dashboard + log + scheduled DOM | `js/render.js` |
-| Presets, points, quick bar | `js/presets.js` |
-| Shared state | `js/state.js` |
-| Styles (split by feature) | `css/chore-tracker-*.css` |
-| Docker (prod image, compose, GitHub clone / auto-pull) | `Dockerfile`, `docker-compose.yml`, `Dockerfile.gitclone`, `Dockerfile.autopull`, `docker-compose.autopull.yml`, `docker/entrypoint.sh`, `docker/ensure-vapid.sh`, `docker/generate-vapid-env.cjs`, `docker/entrypoint-sync.sh`, `.github/workflows/docker-image.yml` |
-| Automated tests (Node built-in runner, CI) | `test/*.test.cjs`, `npm test`, `.github/workflows/ci.yml` |
+HTTP API + multi-household persistence
+  server.js, lib/households-registry.cjs, lib/login-throttle.cjs, lib/sqlite-store.cjs
 
----
+OpenAPI 3 (integrators)
+  lib/openapi-spec.cjs (source of truth), GET /api/openapi.json, committed snapshot docs/openapi.json (npm run docs:openapi), drift check scripts/check-api-routes.cjs (runs after npm test). See "When changing HTTP routes" in Feature map.
 
-`server.js` — API + multi-household persistence + import/export/store normalization; **`module.exports = { normalizeStore, buildEntriesCsv }`** for tests; **`if (require.main === module)`** wraps listen + Discord reminder interval (so `npm test` does not bind a port or start the timer). Imports **`buildOpenApiDocument`** from **`lib/openapi-spec.cjs`**; **`GET /api/openapi.json`** is public (see **`requireApiAuth`** bypass list).
-- `135` `normalizeEntry(row)` — entry shape, `choreId`, `locationIds`.
-- `163` `normalizeChorePreset(row)` — validates title/points/color/scoringMode.
-- `178` `normalizeChorePresets(arr)` — array normalization for presets.
-- `188` `normalizeQuickChoreIds(ids, presets)` — validates quick bar ids against presets.
-- `291` `normalizeStore(raw)` — canonicalizes store object read from disk (`discordWebhook`, `discordReminderSentAt`, **`pushSubscriptions`**, **`auditLog`**).
-- `GET /api/audit` — recent audit events (auth required); **`appendAudit`** on entry/settings/scheduled/import/discord user actions.
-- `451` `app.get('/api/entries', ...)` — list entries + `discordWebhook` for settings UI.
-- Discord / Slack / generic webhooks + **Web Push (VAPID)**: `POST /api/discord-webhook/test`, `POST /api/discord-webhook/remind-now` (digest to webhooks and/or push); **`GET /api/push/vapid-public`**, **`GET/POST /api/push/subscriptions|subscribe|unsubscribe`**, **`POST /api/push/test`**; background timer sends overdue reminders per `discordReminderSentAt` to webhooks and/or registered push endpoints; **quiet hours** skip both; `discordWebhook` holds `quietHours*`, `slackWebhookUrl`, `genericWebhookUrl`; store **`pushSubscriptions`** (per household, max 24). Env **`CHORELOG_VAPID_PUBLIC_KEY`**, **`CHORELOG_VAPID_PRIVATE_KEY`**, optional **`CHORELOG_VAPID_SUBJECT`**; `npm run vapid:keys` generates keys; **Docker** `docker/entrypoint.sh` + **`docker/ensure-vapid.sh`** create **`data/vapid-keys.env`** on first run if unset (persisted volume).
-- `469`–`542` scheduled chore routes; `PUT /api/scheduled-chores/:id` supports title/interval/**startsOn**/**reminderEnabled** updates; `542` `POST .../complete` writes completion entry.
-- `588` `app.put('/api/settings', ...)` — settings write (people/presets/quick ids/locations/**discordWebhook** with quiet hours + extra webhook URLs).
-- `657` `app.post('/api/import', ...)` — import handler (replace/merge modes).
-- `634` `app.get('/api/export', ...)` — export.
-- `768` `app.post('/api/entries', ...)` — add entry (supports `choreId`, locations).
-- `830` `app.put('/api/entries/:id', ...)` — update entry.
+HTML shell + ids
+  index.html
 
-`index.html` — app shell, dialogs, script bootstrap.
-- Settings: **Audit log** (`#auditLogList`, …); **Integrations** tab — **Discord reminders** + quiet hours + Slack/generic URLs (`#discordWebhookEnabled`, …, test / post-now) + **browser push** (`#btnPushSubscribe`, `#btnPushUnsubscribe`, `#btnPushTest`, `js/push-notifications.js`, **`sw.js`** `push` / `notificationclick`); **nav** (`#settingsNav`, tab panels).
-- `62`–`74` **analytics filters** `#analyticsPersonFilter`, `#analyticsLocationFilter`, hint `#analyticsFilterHint`; then `analytics-stats-row` / `statsGrid`, `statsGridPoints`.
-- `76`–`94` `section-pair`: contributions (`barsArea`, `barsAreaPoints`) + heatmap `taskHeatmap`.
-- `114`–`145` log form: `inChore`, `#scheduledLogSuggestionsWrap` / `#scheduledLogSuggestions` (due soon / overdue, preset title match), `inLocations`, quick log.
-- `147`+ `log-mom-row`: **log filter** `#logSearch`, `#logList`, `momGrid`, `momGridPoints`.
-- (approx.) `<script type="module" src="/js/chore-tracker.js">` at end of body.
+Events, auth, mutations
+  js/main.js
 
-`js/chore-tracker.js` — thin entrypoint → `main.js`.
+i18n (t, locales, language in Settings)
+  js/i18n.js, locales/en.json, locales/de.json
 
-`js/main.js` — event wiring, auth/bootstrap, mutations, import/export UI flows.
-- `205` `load()` — fetch entries/settings, populate state.
-- `295` `addEntry()` — main add flow; semicolon payload, posts `/api/entries`.
-- `fillChoreFromPreset(presetId)` — sets `#inChore` + per-location locations (shared with quick log).
-- `quickLogChore(presetId)` — `fillChoreFromPreset` then `addEntry()`.
-- `initScheduledLogSuggestions()` — delegated click on `#scheduledLogSuggestions` → fill + focus chore field.
-- `saveScheduledStartDate(id, domKey)` — updates scheduled chore `startsOn` from manage-list date input.
-- `setScheduledReminderEnabled` — toggles per-chore **`reminderEnabled`** via `PUT /api/scheduled-chores/:id`.
-- Settings shell — **`initSettingsShell`**, **`setSettingsTab`**, sessionStorage tab key; mobile nav toggle + backdrop for `#settingsNav`.
-- `524` `startApp()` — init date field, load, pick month, `render()`.
-- `534` `bootstrap()` — session check + app/login visibility.
-- `#monthSelect` → `switchMonth` (clears log search only).
-- `#analyticsPersonFilter` / `#analyticsLocationFilter` `change` → `app.analyticsPersonFilter` / `app.analyticsLocationFilter`, `render()`.
-- `#logSearch` `input` → `app.logSearchQuery`, `render()`.
-- export/import handlers (`/api/export`, `/api/import`).
-- `initQuickChores()`; `initScheduledLogSuggestions()`; chore suggest init nearby.
+Dashboard + log + scheduled DOM
+  js/render.js
 
-`js/presets.js` — chore presets + quick log editor + payload resolution.
-- `6` `syncChoreDatalists()` — syncs edit dialog datalist.
-- `16` `entryChorePoints(e)` — points from preset + per_location × locations.
-- `presetMatchingScheduledTitle(title)` — preset match for scheduled log suggestions (exact, then small Levenshtein budget).
-- `27` `resolveChorePayloadRows(raw)` — splits `;` and resolves preset ids.
-- `43` `saveChorePresetsAndQuick()` — persists settings to `/api/settings`.
-- preset/quick editors + `renderQuickChores`.
+Presets, points, quick bar
+  js/presets.js
 
-`js/chore-input-suggest.js` — custom suggestion list for `#inChore`.
-- `initChoreInputSuggest()` — keyboard/mouse + segment-aware filtering.
+Shared state
+  js/state.js
 
-`js/render.js` — render pipeline for dashboard/log/scheduled views.
-- `14` `entryMatchesAnalyticsFilters` / `entriesForAnalyticsMonth` — person + location filters for stats/bars/heatmap/MoM (location = entry `locationIds` includes selected name).
-- `entryMatchesLogSearch` — log-only text filter (whitespace AND tokens).
-- `countsByPerson` / `pointsByPerson` / `taskCountsByDay` — use `entriesForAnalyticsMonth`.
-- `fullRender()` — analytics filters, dual stat grids, bars, heatmap, log list, **scheduled log suggestion buttons** (`scheduledStatus` overdue/today/soon + `presetMatchingScheduledTitle`), dual MoM, scheduled dashboard.
-- `switchMonth` — sets `app.currentMonth`, clears `app.logSearchQuery`, `render()`.
-- `setRenderRenderer(fullRender)` registration.
+Styles (split by feature)
+  css/chore-tracker-*.css
 
-`js/state.js` — shared mutable app state (`app.entries`, `app.currentMonth`, `app.logSearchQuery`, **`app.analyticsPersonFilter`**, **`app.analyticsLocationFilter`**, …).
+Docker (prod image, compose, GitHub clone / auto-pull)
+  Dockerfile, docker-compose.yml, Dockerfile.gitclone, Dockerfile.autopull, docker-compose.autopull.yml, docker/entrypoint.sh, docker/ensure-vapid.sh, docker/generate-vapid-env.cjs, docker/entrypoint-sync.sh, .github/workflows/docker-image.yml
 
-`js/render-registry.js` — indirection to avoid import cycles.
+Automated tests (Node built-in runner, CI)
+  test/*.test.cjs, npm test, .github/workflows/ci.yml
 
-`js/scheduled-logic.js` — `scheduledStatus(s)` (overdue / today / soon ≤3 days / later); `intervalLabel`.
 
-`js/utils/date.js` — date helpers and month keys.
+server.js — API + multi-household persistence + import/export/store normalization; module.exports includes normalizeStore, buildEntriesCsv for tests; if (require.main === module) wraps listen + Discord reminder interval so npm test does not bind a port or start the timer. Imports buildOpenApiDocument from lib/openapi-spec.cjs; GET /api/openapi.json is public (see requireApiAuth bypass list).
 
-`js/api-fetch.js` — fetch wrapper with auth redirect behavior.
+Line references below are approximate; search for symbol names in server.js.
 
-`css/chore-tracker-base.css` — reset/theme/shell, top bar, settings dialog, toast.
-- `:root` includes `--layout-max-width` (820px; widens at `1100px` / `1440px`).
-- `.wrap` uses `var(--layout-max-width)`.
+- normalizeEntry(row) — entry shape, choreId, locationIds.
+- normalizeChorePreset(row) — validates title/points/color/scoringMode.
+- normalizeChorePresets(arr) — array normalization for presets.
+- normalizeQuickChoreIds(ids, presets) — validates quick bar ids against presets.
+- normalizeStore(raw) — canonicalizes store read from disk (discordWebhook, discordReminderSentAt, pushSubscriptions, auditLog).
+- GET /api/audit — recent audit events (auth required); appendAudit on entry/settings/scheduled/import/discord user actions.
+- GET /api/entries — list entries + discordWebhook for settings UI.
+- Discord / Slack / generic webhooks + Web Push (VAPID): POST /api/discord-webhook/test, POST /api/discord-webhook/remind-now (digest to webhooks and/or push); GET /api/push/vapid-public, GET/POST /api/push/subscriptions, subscribe, unsubscribe, POST /api/push/test; background timer sends overdue reminders per discordReminderSentAt; quiet hours skip both; discordWebhook holds quietHours*, slackWebhookUrl, genericWebhookUrl; store pushSubscriptions (per household, max 24). Env CHORELOG_VAPID_PUBLIC_KEY, CHORELOG_VAPID_PRIVATE_KEY, optional CHORELOG_VAPID_SUBJECT; npm run vapid:keys generates keys; Docker docker/entrypoint.sh + docker/ensure-vapid.sh create data/vapid-keys.env on first run if unset (persisted volume).
+- Scheduled chore routes; PUT /api/scheduled-chores/:id supports title/interval/startsOn/reminderEnabled; POST .../complete writes completion entry.
+- PUT /api/settings — settings write (people/presets/quick ids/locations/discordWebhook with quiet hours + extra webhook URLs).
+- POST /api/import — import handler (replace/merge modes).
+- GET /api/export — export.
+- POST /api/entries — add entry (supports choreId, locations).
+- PUT /api/entries/:id — update entry.
 
-`css/chore-tracker-dashboard.css` — **`.analytics-filters`**, stats, sections, heatmap, bars, MoM, desktop side-by-side rows.
+index.html — app shell, dialogs, script bootstrap.
 
-`css/chore-tracker-forms.css` — log form, edit dialog, **`.log-filter-row` / `.log-search-input`**, `.log-list` height (taller at `1100px` + `log-mom-row`).
+- Settings: Audit log (#auditLogList); Integrations — Discord reminders + quiet hours + Slack/generic URLs (#discordWebhookEnabled, test / post-now) + browser push (#btnPushSubscribe, #btnPushUnsubscribe, #btnPushTest, js/push-notifications.js, sw.js push / notificationclick); nav (#settingsNav, tab panels).
+- Analytics filters #analyticsPersonFilter, #analyticsLocationFilter, hint #analyticsFilterHint; then analytics-stats-row / statsGrid, statsGridPoints.
+- section-pair: contributions (barsArea, barsAreaPoints) + heatmap taskHeatmap.
+- Log form: inChore, #scheduledLogSuggestionsWrap / #scheduledLogSuggestions (due soon / overdue, preset title match), inLocations, quick log.
+- log-mom-row: log filter #logSearch, #logList, momGrid, momGridPoints.
+- Script: type module src=/js/chore-tracker.js at end of body.
 
-`css/chore-tracker-scheduled.css` — scheduled dashboard + dialogs + start-date editor (`.scheduled-start-edit`) + **`.scheduled-log-suggestions`** / `.scheduled-suggest-btn`.
+js/chore-tracker.js — thin entrypoint to main.js.
 
-`css/chore-tracker-auth.css` — login screen visibility, card, **Sign in / Create account** tabs.
+js/main.js — event wiring, auth/bootstrap, mutations, import/export UI flows.
 
-`css/chore-tracker-extras.css` — chore suggest, preset editors, `#inLocations`, `.log-chore-points`.
+- load() — fetch entries/settings, populate state.
+- addEntry() — main add flow; semicolon payload, posts /api/entries.
+- fillChoreFromPreset(presetId) — sets #inChore + per-location locations (shared with quick log).
+- quickLogChore(presetId) — fillChoreFromPreset then addEntry().
+- initScheduledLogSuggestions() — delegated click on #scheduledLogSuggestions → fill + focus chore field.
+- saveScheduledStartDate(id, domKey) — updates scheduled chore startsOn from manage-list date input.
+- setScheduledReminderEnabled — toggles per-chore reminderEnabled via PUT /api/scheduled-chores/:id.
+- Settings shell — initSettingsShell, setSettingsTab, sessionStorage tab key; mobile nav toggle + backdrop for #settingsNav.
+- startApp() — init date field, load, pick month, render().
+- bootstrap() — session check + app/login visibility.
+- #monthSelect → switchMonth (clears log search only).
+- #analyticsPersonFilter / #analyticsLocationFilter change → app filters, render().
+- #logSearch input → app.logSearchQuery, render().
+- export/import handlers (/api/export, /api/import).
+- initQuickChores(); initScheduledLogSuggestions(); chore suggest init nearby.
 
-**`data/households/registry.db`** — SQLite **`household_registry`** table (per-household **scrypt** credentials); legacy **`registry.json`** is imported once then renamed. **`data/households/<id>/chores.json`** (or **`chores.db`** when per-household SQLite is enabled) — persisted store (`entries`, `people`, …). Legacy root **`data/chores.json`** is migrated into **`households/default/`** on first run.
+js/presets.js — chore presets + quick log editor + payload resolution.
 
----
+- syncChoreDatalists() — syncs edit dialog datalist.
+- entryChorePoints(e) — points from preset + per_location × locations.
+- presetMatchingScheduledTitle(title) — preset match for scheduled log suggestions (exact, then small Levenshtein budget).
+- resolveChorePayloadRows(raw) — splits ; and resolves preset ids.
+- saveChorePresetsAndQuick() — persists settings to /api/settings.
+- preset/quick editors + renderQuickChores.
 
-## Analytics filters (client-only)
+js/chore-input-suggest.js — custom suggestion list for #inChore.
 
-- State: `app.analyticsPersonFilter` (empty = all), `app.analyticsLocationFilter` (empty = all). Not cleared on month change.
-- UI: `#analyticsPersonFilter`, `#analyticsLocationFilter`, `#analyticsFilterHint` above the stat grids.
-- Scope: task + points stats, contribution bars, daily heatmap, month-over-month (current vs previous month both use the same filters). **Does not** change the activity log (`#logList`); use log search there.
-- Location: an entry matches only if `locationIds` includes the selected location (entries with no locations excluded when a location is selected).
+- initChoreInputSuggest() — keyboard/mouse + segment-aware filtering.
 
-## Log search / filter (client-only)
+js/render.js — render pipeline for dashboard/log/scheduled views.
 
-- State: `app.logSearchQuery` (string). Cleared when the month dropdown changes (`switchMonth`).
-- UI: `#logSearch` under “Log for …”; styles in `chore-tracker-forms.css`.
-- Matching: `entryMatchesLogSearch` — whitespace tokens AND; haystack = date, chore, person, locations, points. Only affects `#logList`.
+- entryMatchesAnalyticsFilters / entriesForAnalyticsMonth — person + location filters for stats/bars/heatmap/MoM (location = entry locationIds includes selected name).
+- entryMatchesLogSearch — log-only text filter (whitespace AND tokens).
+- countsByPerson / pointsByPerson / taskCountsByDay — use entriesForAnalyticsMonth.
+- fullRender() — analytics filters, dual stat grids, bars, heatmap, log list, scheduled log suggestion buttons (scheduledStatus overdue/today/soon + presetMatchingScheduledTitle), dual MoM, scheduled dashboard.
+- switchMonth — sets app.currentMonth, clears app.logSearchQuery, render().
+- setRenderRenderer(fullRender) registration.
 
-## Scheduled log suggestions (client-only)
+js/state.js — shared mutable app state (app.entries, app.currentMonth, app.logSearchQuery, app.analyticsPersonFilter, app.analyticsLocationFilter, app.readOnly, …).
 
-- Shown when a scheduled chore is **overdue**, **due today**, or **due within 3 days** (`scheduledStatus` `soon`), and its **title matches a chore preset** (exact case-insensitive, or close fuzzy match via `presetMatchingScheduledTitle` — e.g. “Wipe …” vs “Wiped …”).
-- Renders under “Log a chore”, above Quick log. Tap fills `#inChore` (and per-location selects like quick log); user picks person/date and **Add**. Does **not** call scheduled “complete” API — use Scheduled dashboard **Mark done** to reset the timer.
+js/render-registry.js — indirection to avoid import cycles.
 
----
+js/scheduled-logic.js — scheduledStatus(s) (overdue / today / soon ≤3 days / later); intervalLabel.
 
-## Feature map
+js/utils/date.js — date helpers and month keys.
 
-### Auth and server
+js/api-fetch.js — fetch wrapper with auth redirect behavior.
 
-- **Households (multi-tenant)** — isolated stores under **`data/households/<id>/`**; **scrypt** password hashes per household slug (`[a-z0-9][a-z0-9_-]{0,62}`) live in SQLite **`data/households/registry.db`** (Node **22+**). Legacy **`registry.json`** is imported once then renamed to **`registry.json.migrated`**. On first start, legacy **`data/chores.json`** is moved to **`data/households/default/chores.json`** and the registry seeds household **`default`** with password from **`CHORELOG_PASSWORD`** (default `monkey`). **`POST /api/households`** (no auth cookie) creates a household when **`CHORELOG_OPEN_REGISTRATION=1`** (body **`id`**, **`password`** ≥8 chars) **or** when **`CHORELOG_MASTER_PASSWORD`** is set and **`masterPassword`** in the body matches; otherwise **`403`** JSON. **`409`** if the id already exists.
-- **Login** — `POST /api/login` with **`household`**, **`username`** (display name for audit), **`password`**; **logout** `POST /api/logout`. Session cookie payload **`v:2`** includes **`household`** + **`user`**.
-- **Login members (unauthenticated)** — **`POST /api/login/members`** with **`household`**, **`password`** — same password check as login; returns **`{ people: string[] }`** from the household store’s **People** list (sorted). Same brute-force throttle as login on failures; used by the login UI **step 1 → step 2** (pick a person from a dropdown). Does not set a session.
-- **Registration (unauthenticated)** — **`GET /api/register-info`** — `{ openRegistration, hasMasterPassword, allowCreateHousehold }` for the login **Create account** tab (create vs join household, master field visibility). Login UI: **Sign in** vs **Create account**; join = household + password then member dropdown; create = **`POST /api/households`** then member dropdown then **`POST /api/login`**.
-- **Account (authenticated)** — **`GET /api/account`** — `{ user, household, sessionExpiresAt, canCreateHouseholds (master password set), openRegistration }`. **`PUT /api/account/display-name`** — JSON **`{ user }`**; re-issues cookie with updated display name. **`POST /api/account/password`** — JSON **`{ currentPassword, newPassword }`** (≥8); updates **this household’s** registry password after verifying the current password.
-- **Brute-force protection** — failed sign-ins are tracked **per client IP** (`lib/login-throttle.cjs`); after `CHORELOG_LOGIN_MAX_FAILURES` (default 8) failures within `CHORELOG_LOGIN_WINDOW_MS` (default 15 min), the IP is locked out for `CHORELOG_LOGIN_LOCKOUT_MS` (default 15 min). State in **`data/login-throttle.json`** (survives restarts). **`429`** with `Retry-After` and JSON `{ error, retryAfterSeconds }` when locked out. **`CHORELOG_TRUST_PROXY=1`** sets Express `trust proxy` so `req.ip` reflects `X-Forwarded-For` behind a reverse proxy.
-- **Session** — signed HMAC cookie (`chorelog_auth`) includes **`user`** and **`household`**; ~30-day expiry; secret from `CHORELOG_SECRET` (dev default in code). **`GET /api/auth`** returns `{ authenticated, user, household }` when valid.
-- **API guard** — unauthenticated: **`GET /api/auth`**, **`GET /api/version`**, **`GET /api/register-info`**, **`GET /api/openapi.json`**, **`POST /api/login`**, **`POST /api/login/members`**, **`POST /api/logout`**, **`POST /api/households`**. Everything else under **`/api/*`** requires a valid cookie tied to a known household (`requireApiAuth` sets `req.authPayload`, `req.householdId`).
-- **OpenAPI (integrators)** — **`GET /api/openapi.json`** returns OpenAPI **3.0.3** JSON; `servers[0].url` reflects the request host. Source: **`lib/openapi-spec.cjs`** (`buildOpenApiDocument`). Committed snapshot: **`docs/openapi.json`** (regenerate with **`npm run docs:openapi`** after spec edits). **`scripts/check-api-routes.cjs`** ensures every `app.(get|post|put|delete)('/api/…')` in **`server.js`** matches a path+method in the spec (also runs at end of **`npm test`**; CI fails on drift).
-- **When changing HTTP routes** — (1) implement in **`server.js`** (and **`requireApiAuth`** bypass list if public). (2) Update **`lib/openapi-spec.cjs`** (`paths`, `components`, `tags` as needed). (3) Run **`npm run docs:openapi`** to refresh **`docs/openapi.json`**. (4) Run **`npm test`** (includes route check). (5) Adjust **`.rctx`** Feature map / API guard bullets if behavior or auth changed.
-- **Persistence (per household)** — JSON **`data/households/<id>/chores.json`** (atomic write). **Optional SQLite**: if **`CHORELOG_SQLITE_PATH`** is set (any non-empty value), each household uses **`data/households/<id>/chores.db`** (`node:sqlite`, WAL); empty DB imports sibling **`chores.json`** once. **`ensureSeed`** seeds demo data per household when empty.
-- **Version** — **`GET /api/version`** — without auth: `version`, `nodeVersion`, `exportSchemaVersion`, `multiHousehold`, optional **`gitHubBuild`** (`repository`, `sha`, `ref`, `runId`, `runNumber`, `workflow`, `actionsRunUrl`) from **`GITHUB_*`** or **`CHORELOG_GITHUB_*`** env at deploy. With cookie: also **`household`**, **`persistence`**, **`databaseRelativePath`**, optional SQLite engine fields. Footer + Settings **About** tab.
+css/chore-tracker-base.css — reset/theme/shell, top bar, settings dialog (flex scroll, safe-area, dvh), toast.
 
-### Data model (store)
+- :root includes --layout-max-width (820px; widens at 1100px / 1440px).
+- .wrap uses var(--layout-max-width).
 
-- **Entries** — `d`, `c`, `p`, optional `choreId`, `locationIds`, `createdAt` / `updatedAt`.
-- **People & locations** — editable lists; at least one each enforced in UI.
-- **Chore presets** — `title`, `points` (clamped), hex `color`, `scoringMode` `flat` | **`per_location`**.
-- **Quick bar** — up to **24** preset ids validated against presets.
-- **Scheduled chores** — `intervalDays`, `startsOn`, `lastCompletedAt`, **`reminderEnabled`** (omit or true = include in overdue webhook reminders), timestamps; next due from last completion or start date.
-- **`discordWebhook`** — `enabled`, `url` (Discord), `reminderIntervalMinutes`, **`quietHoursEnabled`**, **`quietHoursStart`/`End`** (server local `HH:MM`), **`slackWebhookUrl`** (`hooks.slack.com`), **`genericWebhookUrl`** (HTTPS, Discord-shaped JSON); see `normalizeDiscordWebhook` in `server.js`.
-- **Audit log** — `auditLog[]` (`id`, `at`, `actor`, `action`, `target`, optional `detail`); newest first; capped (e.g. 500); one household store = one audit stream.
+css/chore-tracker-dashboard.css — .analytics-filters, stats, sections, heatmap, bars, MoM, desktop side-by-side rows.
 
-### Chore logging
+css/chore-tracker-forms.css — log form, edit dialog, .log-filter-row / .log-search-input, .log-list height (taller at 1100px + log-mom-row).
 
-- **Main form** — date, person, chore text, multi-select locations (for `per_location` presets).
-- **Semicolon bundles** — `;` separates multiple preset/title segments in one submit; server/client resolve rows (`resolveChorePayloadRows`).
-- **Preset resolution** — optional `choreId` + free-text `c`; points from preset + locations when applicable.
-- **Quick log** — one tap from bar; **`fillChoreFromPreset`** sets chore field + locations when none selected for per-location presets.
-- **Custom suggestions** — `chore-input-suggest.js`: preset picker **per segment** (query after last `;`), keyboard/mouse, color stripe from preset; avoids whole-field `<datalist>` matching.
-- **Add toast** — success message + **Undo** (removes last created entries via API).
+css/chore-tracker-scheduled.css — scheduled dashboard + dialogs + start-date editor (.scheduled-start-edit) + .scheduled-log-suggestions / .scheduled-suggest-btn.
 
-### Activity log (month-scoped)
+css/chore-tracker-auth.css — login screen (safe-area, guest card, focus styles, touch targets), Sign in / Create account tabs.
 
-- **List** — current **month** only (from month selector); sorted by date descending.
-- **Row UI** — date, chore text, person chip; **preset color** left border when `choreId` set; **+N pts** and **location names** when present.
-- **Edit** — dialog with date, chore (datalist), person, locations; **`PUT /api/entries/:id`**.
-- **Delete** — confirm dialog; **`DELETE /api/entries/:id`**.
-- **Log search** — client-only AND-of-tokens across date/chore/person/locations/points; cleared on month change.
+css/chore-tracker-extras.css — chore suggest, preset editors, #inLocations, .log-chore-points.
 
-### Analytics and dashboard
+data/households/registry.db — SQLite household_registry table (per-household scrypt credentials); legacy registry.json is imported once then renamed. data/households/<id>/chores.json (or chores.db when per-household SQLite is enabled) — persisted store (entries, people, …). Legacy root data/chores.json is migrated into households/default/ on first run.
 
-- **Month picker** — options from distinct entry months (newest first); drives all dashboard + log views.
-- **Dual metrics** — **task counts** vs **preset points** (parallel stat cards, bars, MoM columns).
-- **Stat cards** — totals, most active / top earner, active days, members with activity, **balance %** (fairness across people), avg points per task (points grid).
-- **Contribution bars** — per-person horizontal bars for tasks and points (separate max scaling).
-- **Heatmap** — tasks per calendar day in selected month; intensity vs busiest day; weekday header; “busiest day” footer; respects analytics filters.
-- **Analytics filters** — **person** and **location** (entry must include location when filtered); apply to stats, bars, heatmap, MoM — **not** the activity log.
-- **Month-over-month** — previous month vs current for tasks and points; **% change** with up/down styling; handles “no previous month”.
 
-### Scheduled chores
+ANALYTICS FILTERS (CLIENT-ONLY)
 
-- **Intervals** — day, week, 2–3 weeks, ~month, 2–3 months (stored as `intervalDays`).
-- **Due logic** — overdue / today / soon (≤3 days) / later (`scheduled-logic.js`); human-readable next due.
-- **Main dashboard strip** — cards with status + **Mark done**; section **hidden** when there are no scheduled chores.
-- **Manage dialog** — add (title + interval), list with **start date** edits, **per-chore “Remind when overdue (webhooks)”** checkbox (`reminderEnabled`), remove; **`PUT`/`DELETE`** routes.
-- **Mark done flow** — dialog picks person; **`POST .../complete`** adds log line with scheduled title and resets timer; optional **`completedDate`** (calendar day).
-- **Overdue reminders** — optional **Discord**, **Slack** (`hooks.slack.com`), **generic HTTPS** URLs, and/or **Web Push** to subscribed PWA devices (VAPID); **quiet hours** (server local clock, can span midnight); per-chore **`reminderEnabled`**; **server timer** + min interval per chore (`discordReminderSentAt`); **test** and **post overdue now** endpoints.
-- **Log-form suggestions** — buttons for urgent scheduled titles that **match a preset** (exact/fuzzy); fill chore + locations only; does not complete scheduled item (use Mark done for timer).
+State: app.analyticsPersonFilter (empty = all), app.analyticsLocationFilter (empty = all). Not cleared on month change.
 
-### Settings and data lifecycle
+UI: #analyticsPersonFilter, #analyticsLocationFilter, #analyticsFilterHint above the stat grids.
 
-- **Settings layout** — tabbed **nav** (`#settingsNav`, categories: Interface, Household, Chores, Integrations, Account, Audit, Data, **About**); **About** loads **`GET /api/version`** (app version, Node, optional **GitHub Actions** build links when env is set, storage type, data file path, SQLite engine + journal mode when applicable, export schema version); scrollable **panel** content; hamburger + backdrop on small viewports; last tab in `sessionStorage` (`chorelog-settings-tab`).
-- **Account** — **`GET /api/account`** on open; session summary (household id, display name, expiry), edit display name (**`PUT /api/account/display-name`**), change household password (**`POST /api/account/password`**), optional **create household** (**`POST /api/households`**) when **`CHORELOG_OPEN_REGISTRATION=1`** and/or **`CHORELOG_MASTER_PASSWORD`** is set; **Log out** (**`POST /api/logout`**). `js/main.js`: `loadAccountPanel` / `loadAccountInfo`.
-- **Integrations** — overdue reminders: Discord URL, reminder interval, **quiet hours**, optional **Slack** + **generic HTTPS** URLs; **browser push** on each device (Settings); Save / Send test / Post overdue now (`js/main.js`, `js/push-notifications.js`, `server.js`, `lib/push-send.cjs`).
-- **Appearance** — theme **system / light / dark** (`localStorage` + inline head script to prevent flash); **`syncThemeMeta`** for `theme-color`.
-- **People / locations / presets / quick bar** — CRUD in UI; **`PUT /api/settings`** batches updates.
-- **Export** — **`GET /api/export`** (full JSON backup) and **`GET /api/export/entries.csv`** (log rows only, UTF-8 BOM, RFC 4180-style quoting); Settings → Data **Export JSON** / **Export CSV**.
-- **Import** — file upload; **replace** or **merge** with confirmation; backup may include **`auditLog`** (export v5).
-- **Audit log UI** — Settings → load **`GET /api/audit`** on open + Refresh; shows actor (signed-in account) and action summaries.
-- **PWA** — `site.webmanifest` (standalone, icons); **`sw.js`** — installability hook, **no caching** of `/api` (see file comment); Apple touch icon / meta tags.
+Scope: task + points stats, contribution bars, daily heatmap, month-over-month (current vs previous month both use the same filters). Does not change the activity log (#logList); use log search there.
 
-### Client infrastructure
+Location: an entry matches only if locationIds includes the selected location (entries with no locations excluded when a location is selected).
 
-- **`api-fetch.js`** — shared fetch behavior (e.g. auth failures).
-- **Render registry** — breaks import cycles between render and main.
-- **Responsive shell** — `--layout-max-width` steps at ~820px / 1100px / 1440px; log + MoM side-by-side on wide layouts.
-- **i18n** — `localStorage` key `chorelog-locale` (`en` | `de`); nested JSON flattened to dotted keys; `t(key, vars)`; `initI18n()` in `chore-tracker.js` before `main.js`; Settings → Language; month names and dates use `getLocaleBcp47()` (`en-US` / `de-DE`).
-- **Automated tests** — `npm test` runs **`node --test`** on `test/*.test.cjs`, then **`scripts/check-api-routes.cjs`** (OpenAPI vs `server.js`). Tests: `normalizeStore` (via `module.exports` from `server.js`, no listen/timer when required), **next due** for scheduled chores (**`lib/scheduled-recurrence.cjs`**, mirrored in **`js/utils/date.js`**), **semicolon resolve** rules (mirrors `resolveChorePayloadRows`), **household registry** JSON→SQLite migration (`test/households-registry.test.cjs`). GitHub Actions: `.github/workflows/ci.yml` on push/PR to `main`/`master`. Further ideas: HTTP import-merge, `scheduledStatus` labels with i18n stubs.
 
-## Completed future ideas
+LOG SEARCH / FILTER (CLIENT-ONLY)
 
-- **Brute-force protection** — lockout on failed `POST /api/login` (`lib/login-throttle.cjs`, `data/login-throttle.json`). Details: **Auth and server**.
-- **Optional SQLite backend** — `CHORELOG_SQLITE_PATH`, `lib/sqlite-store.cjs`, migration from JSON. Details: **Auth and server** (Persistence).
-- **CSV / spreadsheet export** — `GET /api/export/entries.csv`, Settings → Data **Export CSV**.
-- **Multi-household accounts** — isolated stores (`data/households/`), registry + login **`household`** field; **`POST /api/households`** with open registration and/or **`CHORELOG_MASTER_PASSWORD`**. Details: **Auth and server**.
-- **OpenAPI for integrators** — **`GET /api/openapi.json`**, **`lib/openapi-spec.cjs`**, **`docs/openapi.json`**, route drift check. Details: **Auth and server** (OpenAPI bullet) and **When changing HTTP routes**.
-- **Calendar-native recurrence** — scheduled chores support **`recurrence`**: `interval` (rolling **`intervalDays`**) or **`monthlyWeekday`** with **`monthOrdinal`** 1–4 (first–fourth weekday in month) or **5** (last such weekday), **`weekday`** 0–6 (Sun–Sat). Shared logic: **`lib/scheduled-recurrence.cjs`** / **`js/scheduled-recurrence.js`**; UI in scheduled dialog (**Repeat** + week/day). Server normalizes monthly rows with **`intervalDays`** 30 for legacy fields.
-- **Web Push (PWA)** — alternative to Discord for overdue reminders: **`web-push`** + VAPID env keys; **`pushSubscriptions`** in household store; **`sw.js`** shows notifications; Integrations UI enables per device.
+State: app.logSearchQuery (string). Cleared when the month dropdown changes (switchMonth).
 
-## Future ideas (implementation-oriented)
+UI: #logSearch under “Log for …”; styles in chore-tracker-forms.css.
 
-- **Soft delete** or archive for presets and log rows.
-- **Fuzzy / typo-tolerant** matching for each `;` segment in the chore field (beyond current suggest list).
-- **Backup snapshots** — timestamped copy of `chores.json` before destructive import or on a schedule.
-- **True offline mode** — cache static assets + read-only queue in SW; conflict rules for writes.
-- **Read-only or guest** role (view stats, no edit).
-- **Tags or categories** orthogonal to presets.
-- **Streaks / goals** — weekly targets, gentle nudges in UI.
-- **Attachments** — optional photo per log entry (storage + privacy policy).
-- **More locales** — extend `locales/*.json` and `SUPPORTED_LOCALES` in `js/i18n.js`.
-- **Helm chart** or raw Kubernetes manifests for multi-replica deploys.
+Matching: entryMatchesLogSearch — whitespace tokens AND; haystack = date, chore, person, locations, points. Only affects #logList.
 
+
+SCHEDULED LOG SUGGESTIONS (CLIENT-ONLY)
+
+Shown when a scheduled chore is overdue, due today, or due within 3 days (scheduledStatus soon), and its title matches a chore preset (exact case-insensitive, or close fuzzy match via presetMatchingScheduledTitle).
+
+Renders under “Log a chore”, above Quick log. Tap fills #inChore (and per-location selects like quick log); user picks person/date and Add. Does not call scheduled “complete” API — use Scheduled dashboard Mark done to reset the timer.
+
+
+FEATURE MAP
+
+Auth and server
+
+- Households (multi-tenant): isolated stores under data/households/<id>/; scrypt password hashes per household slug ([a-z0-9][a-z0-9_-]{0,62}) in SQLite data/households/registry.db (Node 22+). Legacy registry.json is imported once then renamed to registry.json.migrated. On first start, legacy data/chores.json is moved to data/households/default/chores.json and the registry seeds household default with password from CHORELOG_PASSWORD (default monkey). POST /api/households (no auth cookie) creates a household when CHORELOG_OPEN_REGISTRATION=1 (body id, password ≥8 chars) or when CHORELOG_MASTER_PASSWORD is set and masterPassword in the body matches; otherwise 403 JSON. 409 if the id already exists.
+
+- Login: POST /api/login with household, username (display name for audit), password; optional guest: true with CHORELOG_GUEST_PASSWORD set on the server issues a read-only session (same person list rules as normal login). Logout: POST /api/logout. Session cookie payload v:2 includes household + user and optional ro (read-only).
+
+- Login members (unauthenticated): POST /api/login/members with household, password — household password or, when guest: true, the guest password (CHORELOG_GUEST_PASSWORD); returns { people: string[] } from the household People list (sorted). Same brute-force throttle as login on failures; used by login UI step 1 → step 2 (pick a person). Does not set a session.
+
+- Registration (unauthenticated): GET /api/register-info — openRegistration, hasMasterPassword, allowCreateHousehold, guestLoginEnabled for the Create account tab and View only (guest) when guest login is enabled. Sign in vs Create account; join = household + password then member dropdown; create = POST /api/households then member dropdown then POST /api/login.
+
+- Account (authenticated): GET /api/account — user, household, sessionExpiresAt, canCreateHouseholds (master password set), openRegistration, readOnly. PUT /api/account/display-name — JSON { user }; re-issues cookie. POST /api/account/password — JSON { currentPassword, newPassword } (≥8); updates this household’s registry password after verifying the current password.
+
+- Brute-force protection: failed sign-ins tracked per client IP (lib/login-throttle.cjs); after CHORELOG_LOGIN_MAX_FAILURES (default 8) failures within CHORELOG_LOGIN_WINDOW_MS (default 15 min), lockout for CHORELOG_LOGIN_LOCKOUT_MS (default 15 min). State in data/login-throttle.json. 429 with Retry-After and JSON { error, retryAfterSeconds } when locked out. CHORELOG_TRUST_PROXY=1 sets Express trust proxy so req.ip reflects X-Forwarded-For behind a reverse proxy.
+
+- Session: signed HMAC cookie chorelog_auth includes user and household and optional ro (read-only / guest); ~30-day expiry; secret from CHORELOG_SECRET (dev default in code). GET /api/auth returns authenticated, user, household, readOnly when valid.
+
+- Read-only enforcement: mutating routes use requireReadWrite after requireApiAuth; if the session has ro, respond 403 JSON { error, code: read_only } (entries, settings, scheduled chores, import, account password/display, push subscribe, Discord test/remind-now, admin VAPID, etc.). Read-only sessions still use GET / export / audit read paths as usual.
+
+- API guard — unauthenticated: GET /api/auth, GET /api/version, GET /api/register-info, GET /api/openapi.json, POST /api/login, POST /api/login/members, POST /api/logout, POST /api/households. Everything else under /api/* requires a valid cookie tied to a known household (requireApiAuth sets req.authPayload, req.householdId).
+
+- OpenAPI (integrators): GET /api/openapi.json returns OpenAPI 3.0.3 JSON; servers[0].url reflects the request host. Source: lib/openapi-spec.cjs (buildOpenApiDocument). Committed snapshot: docs/openapi.json (regenerate with npm run docs:openapi after spec edits). scripts/check-api-routes.cjs ensures every app.(get|post|put|delete)('/api/…') in server.js matches a path+method in the spec (also runs at end of npm test; CI fails on drift).
+
+- When changing HTTP routes: (1) implement in server.js (and requireApiAuth bypass list if public). (2) Update lib/openapi-spec.cjs (paths, components, tags as needed). (3) Run npm run docs:openapi to refresh docs/openapi.json. (4) Run npm test (includes route check). (5) Adjust .rctx Feature map / API guard bullets if behavior or auth changed.
+
+- Persistence (per household): JSON data/households/<id>/chores.json (atomic write). Optional SQLite: if CHORELOG_SQLITE_PATH is set (any non-empty value), each household uses data/households/<id>/chores.db (node:sqlite, WAL); empty DB imports sibling chores.json once. ensureSeed seeds demo data per household when empty.
+
+- Version: GET /api/version — without auth: version, nodeVersion, exportSchemaVersion, multiHousehold, optional gitHubBuild from GITHUB_* or CHORELOG_GITHUB_* env at deploy. With cookie: also household, persistence, databaseRelativePath, optional SQLite engine fields. Footer + Settings About tab.
+
+
+Data model (store)
+
+- Entries — d, c, p, optional choreId, locationIds, createdAt / updatedAt.
+- People & locations — editable lists; at least one each enforced in UI.
+- Chore presets — title, points (clamped), hex color, scoringMode flat or per_location.
+- Quick bar — up to 24 preset ids validated against presets.
+- Scheduled chores — intervalDays, startsOn, lastCompletedAt, reminderEnabled (omit or true = include in overdue webhook reminders), timestamps; next due from last completion or start date.
+- discordWebhook — enabled, url (Discord), reminderIntervalMinutes, quietHoursEnabled, quietHoursStart/End (server local HH:MM), slackWebhookUrl (hooks.slack.com), genericWebhookUrl (HTTPS, Discord-shaped JSON); see normalizeDiscordWebhook in server.js.
+- Audit log — auditLog[] (id, at, actor, action, target, optional detail); newest first; capped (e.g. 500); one household store = one audit stream.
+
+
+Chore logging
+
+- Main form — date, person, chore text, multi-select locations (for per_location presets).
+- Semicolon bundles — ; separates multiple preset/title segments in one submit; server/client resolve rows (resolveChorePayloadRows).
+- Preset resolution — optional choreId + free-text c; points from preset + locations when applicable.
+- Quick log — one tap from bar; fillChoreFromPreset sets chore field + locations when none selected for per-location presets.
+- Custom suggestions — chore-input-suggest.js: preset picker per segment (query after last ;), keyboard/mouse, color stripe from preset.
+- Add toast — success message + Undo (removes last created entries via API).
+
+
+Activity log (month-scoped)
+
+- List — current month only (from month selector); sorted by date descending.
+- Row UI — date, chore text, person chip; preset color left border when choreId set; +N pts and location names when present.
+- Edit — dialog with date, chore (datalist), person, locations; PUT /api/entries/:id.
+- Delete — confirm dialog; DELETE /api/entries/:id.
+- Log search — client-only AND-of-tokens across date/chore/person/locations/points; cleared on month change.
+
+
+Analytics and dashboard
+
+- Month picker — options from distinct entry months (newest first); drives all dashboard + log views.
+- Dual metrics — task counts vs preset points (parallel stat cards, bars, MoM columns).
+- Stat cards — totals, most active / top earner, active days, members with activity, balance % (fairness across people), avg points per task (points grid).
+- Contribution bars — per-person horizontal bars for tasks and points (separate max scaling).
+- Heatmap — tasks per calendar day in selected month; intensity vs busiest day; weekday header; busiest day footer; respects analytics filters.
+- Analytics filters — person and location (entry must include location when filtered); apply to stats, bars, heatmap, MoM — not the activity log.
+- Month-over-month — previous month vs current for tasks and points; % change with up/down styling; handles no previous month.
+
+
+Scheduled chores
+
+- Intervals — day, week, 2–3 weeks, ~month, 2–3 months (stored as intervalDays).
+- Due logic — overdue / today / soon (≤3 days) / later (scheduled-logic.js); human-readable next due.
+- Main dashboard strip — cards with status + Mark done; section hidden when there are no scheduled chores.
+- Manage dialog — add (title + interval), list with start date edits, per-chore Remind when overdue (webhooks) checkbox (reminderEnabled), remove; PUT/DELETE routes.
+- Mark done flow — dialog picks person; POST .../complete adds log line with scheduled title and resets timer; optional completedDate (calendar day).
+- Overdue reminders — optional Discord, Slack (hooks.slack.com), generic HTTPS URLs, and/or Web Push to subscribed PWA devices (VAPID); quiet hours (server local clock, can span midnight); per-chore reminderEnabled; server timer + min interval per chore (discordReminderSentAt); test and post overdue now endpoints.
+- Log-form suggestions — buttons for urgent scheduled titles that match a preset (exact/fuzzy); fill chore + locations only; does not complete scheduled item (use Mark done for timer).
+
+
+Settings and data lifecycle
+
+- Settings layout — tabbed nav (#settingsNav): Interface, Household, Chores, Integrations, Account, Audit, Data, About; About loads GET /api/version (app version, Node, optional GitHub Actions build links when env is set, storage type, data file path, SQLite engine + journal mode when applicable, export schema version); scrollable panel; hamburger + backdrop on small viewports; last tab in sessionStorage (chorelog-settings-tab).
+
+- Account — GET /api/account on open; session summary (household id, display name, expiry, readOnly), edit display name (PUT /api/account/display-name), change household password (POST /api/account/password), optional create household (POST /api/households) when CHORELOG_OPEN_REGISTRATION=1 and/or CHORELOG_MASTER_PASSWORD is set; Log out (POST /api/logout). Read-only / guest: banner + hidden write affordances (js/render.js). js/main.js: loadAccountPanel / loadAccountInfo.
+
+- Integrations — overdue reminders: Discord URL, reminder interval, quiet hours, optional Slack + generic HTTPS URLs; browser push on each device (Settings); Save / Send test / Post overdue now (js/main.js, js/push-notifications.js, server.js, lib/push-send.cjs).
+
+- Appearance — theme system / light / dark (localStorage + inline head script to prevent flash); syncThemeMeta for theme-color (light shell uses cream #f4f3ef for PWA status bar).
+
+- People / locations / presets / quick bar — CRUD in UI; PUT /api/settings batches updates.
+
+- Export — GET /api/export (full JSON backup) and GET /api/export/entries.csv (log rows only, UTF-8 BOM, RFC 4180-style quoting); Settings → Data Export JSON / Export CSV.
+
+- Import — file upload; replace or merge with confirmation; replace triggers a JSON snapshot under households/<id>/backups/ unless CHORELOG_IMPORT_BACKUP=0; imported backup may include auditLog (export v5).
+
+- Audit log UI — Settings → load GET /api/audit on open + Refresh; shows actor (signed-in account) and action summaries.
+
+- PWA — site.webmanifest (standalone); icons: PNG icons/icon-192.png, icons/icon-512.png (install / maskable), SVG icons/app-icon.svg, Apple: icons/apple-touch-icon.png + meta tags; sw.js — installability + Web Push + offline shell: same-origin GET responses cached (/api/* excluded); on network failure, serve cached assets; navigate requests can fall back to cached / or /index.html. Mutations still require network.
+
+
+Client infrastructure
+
+- api-fetch.js — shared fetch behavior (e.g. auth failures).
+- Render registry — breaks import cycles between render and main.
+- Responsive shell — --layout-max-width steps at ~820px / 1100px / 1440px; log + MoM side-by-side on wide layouts.
+- i18n — localStorage key chorelog-locale (en | de); nested JSON flattened to dotted keys; t(key, vars); initI18n() in chore-tracker.js before main.js; Settings → Language; month names and dates use getLocaleBcp47() (en-US / de-DE).
+
+- Automated tests — npm test runs node --test on test/*.test.cjs, then scripts/check-api-routes.cjs (OpenAPI vs server.js). Tests: normalizeStore (via module.exports from server.js, no listen/timer when required), next due for scheduled chores (lib/scheduled-recurrence.cjs, mirrored in js/utils/date.js), semicolon resolve rules (mirrors resolveChorePayloadRows / matchActivePresetForSegment — exact + Levenshtein when segment length ≥ 4), household registry JSON→SQLite migration (test/households-registry.test.cjs). GitHub Actions: .github/workflows/ci.yml on push/PR to main/master. Further ideas: HTTP import-merge, scheduledStatus labels with i18n stubs.
+
+
+COMPLETED FUTURE IDEAS
+
+- Brute-force protection — lockout on failed POST /api/login (lib/login-throttle.cjs, data/login-throttle.json). See Auth and server.
+
+- Optional SQLite backend — CHORELOG_SQLITE_PATH, lib/sqlite-store.cjs, migration from JSON. See Auth and server (Persistence).
+
+- CSV / spreadsheet export — GET /api/export/entries.csv, Settings → Data Export CSV.
+
+- Multi-household accounts — isolated stores (data/households/), registry + login household field; POST /api/households with open registration and/or CHORELOG_MASTER_PASSWORD. See Auth and server.
+
+- OpenAPI for integrators — GET /api/openapi.json, lib/openapi-spec.cjs, docs/openapi.json, route drift check. See Auth and server (OpenAPI) and When changing HTTP routes.
+
+- Calendar-native recurrence — scheduled chores support recurrence: interval (rolling intervalDays) or monthlyWeekday with monthOrdinal 1–4 (first–fourth weekday in month) or 5 (last such weekday), weekday 0–6 (Sun–Sat). Shared logic: lib/scheduled-recurrence.cjs / js/scheduled-recurrence.js; UI in scheduled dialog (Repeat + week/day). Server normalizes monthly rows with intervalDays 30 for legacy fields.
+
+- Web Push (PWA) — alternative to Discord for overdue reminders: web-push + VAPID env keys; pushSubscriptions in household store; sw.js shows notifications; Integrations UI enables per device.
+
+- Soft delete — presets and log rows use deletedAt; restore via UI / POST /api/entries/:id/restore; CSV omits removed entries; see js/presets.js, server.js (entry.archive / entry.restore).
+
+- Typo-tolerant semicolon segments — matchActivePresetForSegment in js/presets.js: exact match then Levenshtein (same budget as scheduled suggestions) per segment at submit time.
+
+- Import backups — before replace import: export-shaped JSON snapshot under data/households/<id>/backups/pre-import-replace-<timestamp>.json (skipped if CHORELOG_IMPORT_BACKUP=0). Retention CHORELOG_BACKUP_RETENTION (default 25). Optional interval CHORELOG_SCHEDULED_BACKUP_MS (≥ 60000) backs up all households on a timer.
+
+- Offline shell + guest view — sw.js read-through cache for static assets (see PWA); CHORELOG_GUEST_PASSWORD + sign-in View only (guest) for dashboard/log/stats without writes (requireReadWrite, js/render.js + js/main.js, i18n). See Auth and server and Settings (PWA).
+
+
+FUTURE IDEAS (IMPLEMENTATION-ORIENTED)
+
+-**Offline writes / sync** — the service worker does not queue POST/PUT/DELETE to /api; supporting edits while offline would need a queued write model, conflict rules, and likely API changes (beyond the current read-through static cache).
+
+- **Tags or categories** orthogonal to presets (schema + filters + UI).
+
+- **Streaks / goals** — weekly targets, optional nudges (mostly client + maybe scheduled checks).
+
+- **Attachments** — optional image per log entry (object storage, quotas, retention, privacy copy).
+
+- **More locales** — add files under locales/, register codes in SUPPORTED_LOCALES (js/i18n.js), translate keys parallel to en.json.
+
+- **Helm / Kubernetes — production notes**: one writable data/households/ volume (or equivalent) for current SQLite/JSON layout; multiple replicas need shared storage and coherent session handling unless the app is refactored (e.g. external DB). Raw manifests or a small chart could document env, volume, and ingress.

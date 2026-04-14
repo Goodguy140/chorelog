@@ -39,6 +39,8 @@ export const app = {
   currentMonth: thisCalendarMonthKey(),
   /** Client-side filter for the activity log (current month only); cleared when month changes. */
   logSearchQuery: '',
+  /** When true, show soft-removed log rows for the current month (with restore). */
+  showArchivedLogEntries: false,
   /** Empty = all people. Narrows stats, bars, heatmap, MoM (not the log list). */
   analyticsPersonFilter: '',
   /** Empty = all locations. Matches entries whose `locationIds` includes this name. */
@@ -61,4 +63,6 @@ export const app = {
   },
   /** From `GET /api/account` after sign-in. */
   account: null,
+  /** Guest / read-only session: no mutations (server enforces `403`). */
+  readOnly: false,
 };

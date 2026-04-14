@@ -249,7 +249,11 @@ function normalizeEntry(row) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(createdAt)) createdAt = `${createdAt}T12:00:00.000Z`;
   let updatedAt = typeof row.updatedAt === 'string' ? row.updatedAt : createdAt;
   if (/^\d{4}-\d{2}-\d{2}$/.test(updatedAt)) updatedAt = `${updatedAt}T12:00:00.000Z`;
-  return { id, d, c, p, choreId, locationIds, createdAt, updatedAt };
+  const out = { id, d, c, p, choreId, locationIds, createdAt, updatedAt };
+  if (typeof row.deletedAt === 'string' && row.deletedAt.trim()) {
+    out.deletedAt = row.deletedAt.trim();
+  }
+  return out;
 }
 
 function normalizeChorePreset(row) {
@@ -264,7 +268,11 @@ function normalizeChorePreset(row) {
   let color = typeof row.color === 'string' ? row.color.trim() : '#378ADD';
   if (!/^#[0-9A-Fa-f]{6}$/.test(color)) color = '#378ADD';
   const scoringMode = row.scoringMode === 'per_location' ? 'per_location' : 'flat';
-  return { id, title, points, color, scoringMode };
+  const out = { id, title, points, color, scoringMode };
+  if (typeof row.deletedAt === 'string' && row.deletedAt.trim()) {
+    out.deletedAt = row.deletedAt.trim();
+  }
+  return out;
 }
 
 function normalizeChorePresets(arr) {
@@ -278,7 +286,7 @@ function normalizeChorePresets(arr) {
 }
 
 function normalizeQuickChoreIds(ids, presets) {
-  const valid = new Set(presets.map((x) => x.id));
+  const valid = new Set(presets.filter((p) => !p.deletedAt).map((x) => x.id));
   if (!Array.isArray(ids)) return [];
   const out = [];
   for (const id of ids) {
@@ -750,12 +758,13 @@ function normalizeStore(raw) {
   let chorePresets = normalizeChorePresets(raw.chorePresets);
   let quickChoreIds = normalizeQuickChoreIds(raw.quickChoreIds, chorePresets);
   const quickKeyPresent = raw && Object.prototype.hasOwnProperty.call(raw, 'quickChoreIds');
-  if (!chorePresets.length) {
+  if (!chorePresets.filter((p) => !p.deletedAt).length) {
     chorePresets = defaultChorePresets();
     quickChoreIds = chorePresets.slice(0, 6).map((x) => x.id);
   } else if (!quickChoreIds.length && !quickKeyPresent) {
     /* Legacy stores without quickChoreIds: default the bar. Explicit [] means user cleared it. */
-    quickChoreIds = chorePresets.slice(0, Math.min(6, chorePresets.length)).map((x) => x.id);
+    const activePresets = chorePresets.filter((p) => !p.deletedAt);
+    quickChoreIds = activePresets.slice(0, Math.min(6, activePresets.length)).map((x) => x.id);
   }
   const presetMap = new Map(chorePresets.map((p) => [p.id, p]));
   let entries = rawEntries.map(normalizeEntry).filter(Boolean);
@@ -862,6 +871,89 @@ async function writeStore(householdId, data) {
   await fs.promises.rename(tmp, dataFile);
 }
 
+const IMPORT_BACKUP_ENABLED =
+  process.env.CHORELOG_IMPORT_BACKUP !== '0' && process.env.CHORELOG_IMPORT_BACKUP !== 'false';
+const BACKUP_RETENTION = Math.max(1, Math.min(200, Number(process.env.CHORELOG_BACKUP_RETENTION) || 25));
+const SCHEDULED_BACKUP_MS = (() => {
+  const n = Number(process.env.CHORELOG_SCHEDULED_BACKUP_MS);
+  return Number.isFinite(n) && n >= 60000 ? Math.floor(n) : 0;
+})();
+
+async function pruneHouseholdBackups(backupDir, keep) {
+  let names;
+  try {
+    names = await fs.promises.readdir(backupDir);
+  } catch {
+    return;
+  }
+  const stats = [];
+  for (const name of names) {
+    if (!name.endsWith('.json')) continue;
+    const fp = path.join(backupDir, name);
+    try {
+      const st = await fs.promises.stat(fp);
+      stats.push({ fp, mtime: st.mtimeMs });
+    } catch {
+      /* ignore */
+    }
+  }
+  stats.sort((a, b) => b.mtime - a.mtime);
+  for (let i = keep; i < stats.length; i++) {
+    await fs.promises.unlink(stats[i].fp).catch(() => {});
+  }
+}
+
+/** Export-shaped JSON under `data/households/<id>/backups/` (works for JSON or SQLite-backed store). */
+async function writeHouseholdBackupSnapshot(householdId, reason) {
+  ensureRegistryLoaded();
+  const hid = String(householdId || '').trim();
+  if (!hid || !householdRegistry.households[hid]) {
+    throw new Error('Invalid household');
+  }
+  const store = await readStore(hid);
+  const backupDir = path.join(householdReg.householdsRoot(DATA_DIR), hid, 'backups');
+  await fs.promises.mkdir(backupDir, { recursive: true });
+  const ts = new Date().toISOString().replace(/[:.]/g, '-');
+  const safeReason = String(reason || 'backup')
+    .replace(/[^a-zA-Z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48) || 'backup';
+  const filename = `${safeReason}-${ts}.json`;
+  const payload = {
+    version: EXPORT_SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    backupReason: reason,
+    people: store.people,
+    locations: store.locations || [],
+    entries: store.entries,
+    scheduledChores: store.scheduledChores || [],
+    chorePresets: store.chorePresets || [],
+    quickChoreIds: store.quickChoreIds || [],
+    discordWebhook: store.discordWebhook || normalizeDiscordWebhook(null),
+    discordReminderSentAt: store.discordReminderSentAt || {},
+    discordDueTodaySentAt: store.discordDueTodaySentAt || {},
+    pushSubscriptions: store.pushSubscriptions || [],
+    auditLog: store.auditLog || [],
+  };
+  const fp = path.join(backupDir, filename);
+  const tmp = `${fp}.${process.pid}.tmp`;
+  await fs.promises.writeFile(tmp, JSON.stringify(payload, null, 2), 'utf8');
+  await fs.promises.rename(tmp, fp);
+  await pruneHouseholdBackups(backupDir, BACKUP_RETENTION);
+}
+
+async function runScheduledBackupsForAllHouseholds() {
+  ensureRegistryLoaded();
+  const ids = Object.keys(householdRegistry.households || {});
+  for (const hid of ids) {
+    try {
+      await writeHouseholdBackupSnapshot(hid, 'scheduled');
+    } catch (e) {
+      console.error(`Chorelog: scheduled backup failed for household "${hid}":`, e.message || e);
+    }
+  }
+}
+
 async function ensureSeed(householdId) {
   const store = await readStore(householdId);
   if (store.entries.length > 0) return;
@@ -901,7 +993,7 @@ function parseCookieHeader(cookieHeader, name) {
   return null;
 }
 
-function createAuthToken(username, householdId) {
+function createAuthToken(username, householdId, opts = {}) {
   const user = String(username || '')
     .trim()
     .slice(0, 120) || 'member';
@@ -909,6 +1001,7 @@ function createAuthToken(username, householdId) {
     .trim()
     .slice(0, 64);
   const payload = { v: 2, exp: Date.now() + COOKIE_MAX_AGE_MS, user, household };
+  if (opts.readOnly) payload.ro = true;
   const data = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
   const sig = crypto.createHmac('sha256', getSessionSecret()).update(data).digest('base64url');
   return `${data}.${sig}`;
@@ -960,6 +1053,17 @@ function requireApiAuth(req, res, next) {
   }
   req.authPayload = payload;
   req.householdId = hid;
+  next();
+}
+
+/** Block mutating API calls for read-only (guest) sessions. Mount after `requireApiAuth` on POST/PUT/DELETE handlers. */
+function requireReadWrite(req, res, next) {
+  if (!req.authPayload) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  if (req.authPayload.ro) {
+    return res.status(403).json({ error: 'Read-only session', code: 'read_only' });
+  }
   next();
 }
 
@@ -1088,6 +1192,7 @@ app.get('/api/auth', (req, res) => {
   }
   res.json({
     authenticated: true,
+    readOnly: Boolean(payload.ro),
     user:
       typeof payload.user === 'string' && payload.user.trim()
         ? payload.user.trim()
@@ -1107,10 +1212,12 @@ app.get('/api/version', (req, res) => {
 app.get('/api/register-info', (req, res) => {
   const open = process.env.CHORELOG_OPEN_REGISTRATION === '1';
   const master = Boolean(process.env.CHORELOG_MASTER_PASSWORD);
+  const guestPw = process.env.CHORELOG_GUEST_PASSWORD && String(process.env.CHORELOG_GUEST_PASSWORD);
   res.json({
     openRegistration: open,
     hasMasterPassword: master,
     allowCreateHousehold: open || master,
+    guestLoginEnabled: Boolean(guestPw && guestPw.trim()),
   });
 });
 
@@ -1150,7 +1257,7 @@ app.get('/api/push/subscriptions', async (req, res) => {
   }
 });
 
-app.post('/api/push/subscribe', async (req, res) => {
+app.post('/api/push/subscribe', requireReadWrite, async (req, res) => {
   try {
     if (!browserPushAllowedForHousehold(req.householdId)) {
       return res.status(403).json({
@@ -1197,7 +1304,7 @@ app.post('/api/push/subscribe', async (req, res) => {
   }
 });
 
-app.post('/api/push/unsubscribe', async (req, res) => {
+app.post('/api/push/unsubscribe', requireReadWrite, async (req, res) => {
   try {
     if (!browserPushAllowedForHousehold(req.householdId)) {
       return res.status(403).json({
@@ -1226,7 +1333,7 @@ app.post('/api/push/unsubscribe', async (req, res) => {
   }
 });
 
-app.post('/api/push/test', async (req, res) => {
+app.post('/api/push/test', requireReadWrite, async (req, res) => {
   try {
     if (!browserPushAllowedForHousehold(req.householdId)) {
       return res.status(403).json({
@@ -1296,7 +1403,7 @@ app.get('/api/admin/vapid', requireAdminHousehold, (req, res) => {
   }
 });
 
-app.put('/api/admin/vapid', requireAdminHousehold, (req, res) => {
+app.put('/api/admin/vapid', requireReadWrite, requireAdminHousehold, (req, res) => {
   let webpushMod;
   try {
     webpushMod = require('web-push');
@@ -1331,7 +1438,7 @@ app.put('/api/admin/vapid', requireAdminHousehold, (req, res) => {
   }
 });
 
-app.post('/api/admin/vapid/generate', requireAdminHousehold, (req, res) => {
+app.post('/api/admin/vapid/generate', requireReadWrite, requireAdminHousehold, (req, res) => {
   let webpushMod;
   try {
     webpushMod = require('web-push');
@@ -1381,6 +1488,7 @@ app.get('/api/account', (req, res) => {
     res.json({
       user: typeof p.user === 'string' && p.user.trim() ? p.user.trim() : 'member',
       household: hid,
+      readOnly: Boolean(p.ro),
       sessionExpiresAt: new Date(p.exp).toISOString(),
       canCreateHouseholds: Boolean(process.env.CHORELOG_MASTER_PASSWORD),
       openRegistration: process.env.CHORELOG_OPEN_REGISTRATION === '1',
@@ -1392,7 +1500,7 @@ app.get('/api/account', (req, res) => {
   }
 });
 
-app.put('/api/account/display-name', (req, res) => {
+app.put('/api/account/display-name', requireReadWrite, (req, res) => {
   try {
     const p = req.authPayload;
     if (!p || !p.household) return res.status(401).json({ error: 'Unauthorized' });
@@ -1411,7 +1519,7 @@ app.put('/api/account/display-name', (req, res) => {
   }
 });
 
-app.post('/api/account/password', (req, res) => {
+app.post('/api/account/password', requireReadWrite, (req, res) => {
   try {
     ensureRegistryLoaded();
     const hid = req.householdId;
@@ -1445,7 +1553,7 @@ app.get('/api/audit', async (req, res) => {
   }
 });
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
   const ip = clientIp(req);
   const throttle = loginThrottle.check(ip);
   if (!throttle.allowed) {
@@ -1464,13 +1572,53 @@ app.post('/api/login', (req, res) => {
     loginThrottle.recordFailure(ip);
     return res.status(400).json({ error: 'Invalid household id' });
   }
+  const u = String(req.body && req.body.username != null ? req.body.username : '').trim();
+  const p = String(req.body && req.body.password != null ? req.body.password : '');
+  const guestMode = req.body && req.body.guest === true;
+  const guestSecret =
+    process.env.CHORELOG_GUEST_PASSWORD && String(process.env.CHORELOG_GUEST_PASSWORD).trim();
+
+  if (guestMode) {
+    if (!guestSecret) {
+      loginThrottle.recordFailure(ip);
+      return res.status(403).json({ error: 'Guest login is disabled on this server.' });
+    }
+    if (p !== guestSecret) {
+      loginThrottle.recordFailure(ip);
+      return res.status(401).json({ error: 'Unknown household or wrong password' });
+    }
+    const rec = householdReg.householdRecord(householdRegistry, hid);
+    if (!rec) {
+      loginThrottle.recordFailure(ip);
+      return res.status(401).json({ error: 'Unknown household or wrong password' });
+    }
+    try {
+      const store = await readStore(hid);
+      const people = Array.isArray(store.people) ? store.people : [];
+      if (!u || !people.includes(u)) {
+        loginThrottle.recordFailure(ip);
+        return res.status(400).json({ error: 'Choose a valid household member' });
+      }
+    } catch (e) {
+      console.error(e);
+      loginThrottle.recordFailure(ip);
+      return res.status(500).json({ error: 'Failed to verify member' });
+    }
+    loginThrottle.recordSuccess(ip);
+    const token = createAuthToken(u, hid, { readOnly: true });
+    const maxAgeSec = Math.floor(COOKIE_MAX_AGE_MS / 1000);
+    res.setHeader(
+      'Set-Cookie',
+      `${AUTH_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAgeSec}; HttpOnly; SameSite=Lax`,
+    );
+    return res.json({ ok: true, household: hid, readOnly: true });
+  }
+
   const rec = householdReg.householdRecord(householdRegistry, hid);
   if (!rec) {
     loginThrottle.recordFailure(ip);
     return res.status(401).json({ error: 'Unknown household or wrong password' });
   }
-  const u = String(req.body && req.body.username != null ? req.body.username : '').trim();
-  const p = String(req.body && req.body.password != null ? req.body.password : '');
   if (!householdReg.verifyPassword(p, rec.salt, rec.hash)) {
     loginThrottle.recordFailure(ip);
     return res.status(401).json({ error: 'Unknown household or wrong password' });
@@ -1482,7 +1630,7 @@ app.post('/api/login', (req, res) => {
     'Set-Cookie',
     `${AUTH_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAgeSec}; HttpOnly; SameSite=Lax`,
   );
-  res.json({ ok: true, household: hid });
+  res.json({ ok: true, household: hid, readOnly: false });
 });
 
 /**
@@ -1515,7 +1663,15 @@ app.post('/api/login/members', async (req, res) => {
       return res.status(401).json({ error: 'Unknown household or wrong password' });
     }
     const p = String(req.body && req.body.password != null ? req.body.password : '');
-    if (!householdReg.verifyPassword(p, rec.salt, rec.hash)) {
+    const guestMode = req.body && req.body.guest === true;
+    const guestSecret =
+      process.env.CHORELOG_GUEST_PASSWORD && String(process.env.CHORELOG_GUEST_PASSWORD).trim();
+    if (guestMode) {
+      if (!guestSecret || p !== guestSecret) {
+        loginThrottle.recordFailure(ip);
+        return res.status(401).json({ error: 'Unknown household or wrong password' });
+      }
+    } else if (!householdReg.verifyPassword(p, rec.salt, rec.hash)) {
       loginThrottle.recordFailure(ip);
       return res.status(401).json({ error: 'Unknown household or wrong password' });
     }
@@ -1595,7 +1751,7 @@ app.get('/api/entries', async (req, res) => {
   }
 });
 
-app.post('/api/scheduled-chores', async (req, res) => {
+app.post('/api/scheduled-chores', requireReadWrite, async (req, res) => {
   try {
     const title = String(req.body && req.body.title ? req.body.title : '').trim();
     if (!title) return res.status(400).json({ error: 'title is required' });
@@ -1656,7 +1812,7 @@ app.post('/api/scheduled-chores', async (req, res) => {
   }
 });
 
-app.put('/api/scheduled-chores/:id', async (req, res) => {
+app.put('/api/scheduled-chores/:id', requireReadWrite, async (req, res) => {
   try {
     const { id } = req.params;
     const store = await readStore(req.householdId);
@@ -1724,7 +1880,7 @@ app.put('/api/scheduled-chores/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/scheduled-chores/:id', async (req, res) => {
+app.delete('/api/scheduled-chores/:id', requireReadWrite, async (req, res) => {
   try {
     const { id } = req.params;
     const store = await readStore(req.householdId);
@@ -1751,7 +1907,7 @@ app.delete('/api/scheduled-chores/:id', async (req, res) => {
   }
 });
 
-app.post('/api/scheduled-chores/:id/complete', async (req, res) => {
+app.post('/api/scheduled-chores/:id/complete', requireReadWrite, async (req, res) => {
   try {
     const { id } = req.params;
     const person = String(req.body && req.body.person ? req.body.person : '').trim();
@@ -1808,7 +1964,7 @@ app.post('/api/scheduled-chores/:id/complete', async (req, res) => {
   }
 });
 
-app.put('/api/settings', async (req, res) => {
+app.put('/api/settings', requireReadWrite, async (req, res) => {
   try {
     const body = req.body || {};
     const store = await readStore(req.householdId);
@@ -1832,8 +1988,8 @@ app.put('/api/settings', async (req, res) => {
     }
     if (body.chorePresets != null) {
       const next = normalizeChorePresets(body.chorePresets);
-      if (!next.length) {
-        return res.status(400).json({ error: 'At least one chore preset is required' });
+      if (!next.filter((p) => !p.deletedAt).length) {
+        return res.status(400).json({ error: 'At least one active chore preset is required' });
       }
       store.chorePresets = next;
       store.quickChoreIds = normalizeQuickChoreIds(store.quickChoreIds, store.chorePresets);
@@ -2316,7 +2472,7 @@ async function runDiscordReminders() {
   }
 }
 
-app.post('/api/discord-webhook/test', async (req, res) => {
+app.post('/api/discord-webhook/test', requireReadWrite, async (req, res) => {
   try {
     const store = await readStore(req.householdId);
     const w = store.discordWebhook || normalizeDiscordWebhook(null);
@@ -2349,7 +2505,7 @@ app.post('/api/discord-webhook/test', async (req, res) => {
   }
 });
 
-app.post('/api/discord-webhook/remind-now', async (req, res) => {
+app.post('/api/discord-webhook/remind-now', requireReadWrite, async (req, res) => {
   try {
     const store = await readStore(req.householdId);
     const w = store.discordWebhook || normalizeDiscordWebhook(null);
@@ -2515,6 +2671,7 @@ function buildEntriesCsv(store) {
   ];
   const lines = [headers.map(csvEscapeCell).join(',')];
   for (const e of entries) {
+    if (e.deletedAt) continue;
     const pr = e.choreId ? presetMap.get(e.choreId) : null;
     const presetTitle = pr ? pr.title : '';
     const pts = entryPointsForCsvExport(e, presetMap);
@@ -2576,7 +2733,7 @@ app.get('/api/export', async (req, res) => {
   }
 });
 
-app.post('/api/import', async (req, res) => {
+app.post('/api/import', requireReadWrite, async (req, res) => {
   try {
     const body = req.body || {};
     const mode = body.mode === 'merge' ? 'merge' : 'replace';
@@ -2593,6 +2750,14 @@ app.post('/api/import', async (req, res) => {
     const store = await readStore(req.householdId);
 
     if (mode === 'replace') {
+      if (IMPORT_BACKUP_ENABLED) {
+        try {
+          await writeHouseholdBackupSnapshot(req.householdId, 'pre-import-replace');
+        } catch (e) {
+          console.error(e);
+          return res.status(500).json({ error: 'Failed to create backup before import' });
+        }
+      }
       const nextEntries = [];
       for (const row of incomingEntries) {
         if (!row || typeof row.d !== 'string' || typeof row.p !== 'string') continue;
@@ -2611,6 +2776,7 @@ app.post('/api/import', async (req, res) => {
           locationIds: Array.isArray(row.locationIds) ? row.locationIds : [],
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
+          deletedAt: row.deletedAt,
         });
         if (e) nextEntries.push(e);
       }
@@ -2627,6 +2793,9 @@ app.post('/api/import', async (req, res) => {
       }));
       if (incomingPresets.length) {
         store.chorePresets = incomingPresets.map((p) => normalizeChorePreset(p)).filter(Boolean);
+        if (!store.chorePresets.filter((p) => !p.deletedAt).length) {
+          return res.status(400).json({ error: 'Import must include at least one active chore preset' });
+        }
         store.quickChoreIds = normalizeQuickChoreIds(
           Array.isArray(body.quickChoreIds) ? body.quickChoreIds : [],
           store.chorePresets,
@@ -2670,6 +2839,7 @@ app.post('/api/import', async (req, res) => {
           locationIds: Array.isArray(row.locationIds) ? row.locationIds : [],
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
+          deletedAt: row.deletedAt,
         });
         if (e) store.entries.push(e);
       }
@@ -2706,7 +2876,7 @@ app.post('/api/import', async (req, res) => {
   }
 });
 
-app.post('/api/entries', async (req, res) => {
+app.post('/api/entries', requireReadWrite, async (req, res) => {
   try {
     const body = req.body;
     const items = Array.isArray(body.entries) ? body.entries : null;
@@ -2728,7 +2898,7 @@ app.post('/api/entries', async (req, res) => {
       let locationIds = [];
       const cid = typeof row.choreId === 'string' ? row.choreId.trim() : '';
       if (cid) {
-        const preset = presets.find((x) => x.id === cid);
+        const preset = presets.find((x) => x.id === cid && !x.deletedAt);
         if (!preset) return res.status(400).json({ error: 'Unknown choreId' });
         c = preset.title;
         choreId = cid;
@@ -2781,7 +2951,32 @@ app.post('/api/entries', async (req, res) => {
   }
 });
 
-app.put('/api/entries/:id', async (req, res) => {
+app.post('/api/entries/:id/restore', requireReadWrite, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const store = await readStore(req.householdId);
+    const idx = store.entries.findIndex((e) => e.id === id);
+    if (idx === -1) return res.status(404).json({ error: 'Not found' });
+    const row = store.entries[idx];
+    if (!row.deletedAt) {
+      return res.status(400).json({ error: 'Entry is not removed' });
+    }
+    delete row.deletedAt;
+    row.updatedAt = nowISO();
+    appendAudit(store, req, {
+      action: 'entry.restore',
+      target: row.c.slice(0, 200),
+      detail: `${row.d} · ${row.p}`,
+    });
+    await writeStore(req.householdId, store);
+    res.json({ entry: row });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to restore entry' });
+  }
+});
+
+app.put('/api/entries/:id', requireReadWrite, async (req, res) => {
   try {
     const { id } = req.params;
     const d = parseCalendarDateParam(req.body && req.body.d);
@@ -2799,7 +2994,7 @@ app.put('/api/entries/:id', async (req, res) => {
     let locationIds = [];
     const cid = typeof req.body.choreId === 'string' ? req.body.choreId.trim() : '';
     if (cid) {
-      const preset = presets.find((x) => x.id === cid);
+      const preset = presets.find((x) => x.id === cid && !x.deletedAt);
       if (!preset) return res.status(400).json({ error: 'Unknown choreId' });
       c = preset.title;
       choreId = cid;
@@ -2819,6 +3014,9 @@ app.put('/api/entries/:id', async (req, res) => {
     const idx = store.entries.findIndex((e) => e.id === id);
     if (idx === -1) return res.status(404).json({ error: 'Not found' });
     const prev = store.entries[idx];
+    if (prev.deletedAt) {
+      return res.status(400).json({ error: 'Cannot edit a removed entry; restore it first' });
+    }
     const createdAt = typeof prev.createdAt === 'string' ? prev.createdAt : nowISO();
     store.entries[idx] = { id, d, c, p, choreId, locationIds, createdAt, updatedAt: nowISO() };
     appendAudit(store, req, {
@@ -2834,18 +3032,22 @@ app.put('/api/entries/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/entries/:id', async (req, res) => {
+app.delete('/api/entries/:id', requireReadWrite, async (req, res) => {
   try {
     const { id } = req.params;
     const store = await readStore(req.householdId);
     const idx = store.entries.findIndex((e) => e.id === id);
     if (idx === -1) return res.status(404).json({ error: 'Not found' });
-    const gone = store.entries[idx];
-    store.entries.splice(idx, 1);
+    const row = store.entries[idx];
+    if (row.deletedAt) {
+      return res.status(400).json({ error: 'Entry already removed' });
+    }
+    row.deletedAt = nowISO();
+    row.updatedAt = nowISO();
     appendAudit(store, req, {
-      action: 'entry.delete',
-      target: gone.c.slice(0, 200),
-      detail: `${gone.d} · ${gone.p}`,
+      action: 'entry.archive',
+      target: row.c.slice(0, 200),
+      detail: `${row.d} · ${row.p}`,
     });
     await writeStore(req.householdId, store);
     res.status(204).end();
@@ -2877,6 +3079,12 @@ if (require.main === module) {
   setInterval(() => {
     runDiscordReminders().catch((e) => console.error(e));
   }, 60 * 1000);
+
+  if (SCHEDULED_BACKUP_MS > 0) {
+    setInterval(() => {
+      runScheduledBackupsForAllHouseholds().catch((e) => console.error(e));
+    }, SCHEDULED_BACKUP_MS);
+  }
 
   app.listen(PORT, () => {
     console.log(`Chore tracker: http://127.0.0.1:${PORT}/`);

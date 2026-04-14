@@ -41,13 +41,18 @@
     "newHouseholdIdRequired": "Enter an id for the new household.",
     "masterPasswordRequired": "Enter the server master password.",
     "errorFailed": "Sign in failed.",
-    "errorServer": "Could not reach server."
+    "errorServer": "Could not reach server.",
+    "guestMode": "View only (guest)",
+    "guestModeHint": "Uses the server guest password — view stats and logs only.",
+    "guestPassword": "Guest password"
   },
   "app": {
     "title": "Chore tracker",
     "scheduled": "Scheduled",
     "settings": "Settings",
-    "monthAria": "Month to view"
+    "monthAria": "Month to view",
+    "guestLogout": "Log out",
+    "readonlyBanner": "View-only session — logging and settings are disabled."
   },
   "errors": {
     "loadFailed": "Could not load chores from the server. Run `npm start` and open this page from the app URL (not file://).",
@@ -58,7 +63,9 @@
     "selectLocation": "Select at least one location for \"{{title}}\".",
     "saveChore": "Could not save chore. Is the server running?",
     "savePresets": "Could not save chore presets.",
-    "deleteEntry": "Could not delete entry. Is the server running?",
+    "deleteEntry": "Could not remove entry. Is the server running?",
+    "restoreEntry": "Could not restore entry. Is the server running?",
+    "atLeastOnePreset": "Keep at least one active chore preset.",
     "updateEntry": "Could not update entry.",
     "completeScheduled": "Could not complete scheduled chore.",
     "scheduledCompletedDateRequired": "Choose the completion date (calendar day the chore was done).",
@@ -230,8 +237,13 @@
     "filterAria": "Filter activity log",
     "emptyMonth": "No entries yet this month.",
     "emptySearch": "No entries match your search.",
+    "onlyRemoved": "No active entries this month — all log lines here were removed. Turn on “Show removed” below to restore.",
+    "showRemoved": "Show {{n}} removed",
+    "showRemovedZero": "Show removed",
+    "removedHeading": "Removed from log",
+    "restore": "Restore",
     "edit": "Edit",
-    "deleteAria": "Delete entry",
+    "deleteAria": "Remove entry from log",
     "points": "+{{n}} pts"
   },
   "mom": {
@@ -446,12 +458,15 @@
     "personAria": "Person"
   },
   "deleteEntry": {
-    "title": "Delete this entry?",
-    "hint": "This removes it from your log.",
+    "title": "Remove this entry?",
+    "hint": "This hides the entry from stats and the main log; you can restore it later from “Show removed” for this month.",
     "cancel": "Cancel",
-    "delete": "Delete"
+    "delete": "Remove"
   },
   "presets": {
+    "archivedTitle": "Archived presets",
+    "archivedHint": "Removed from quick log and suggestions; existing log lines keep their points. Restore to use again.",
+    "restore": "Restore",
     "titleAria": "Chore title",
     "pointsAria": "Points",
     "pointsModeAria": "Points mode",

@@ -14,8 +14,15 @@
   justify-content: center;
   min-height: 100vh;
   min-height: 100dvh;
-  padding: 1.5rem;
-  overflow: hidden;
+  padding:
+    max(1.5rem, env(safe-area-inset-top, 0px))
+    max(1rem, env(safe-area-inset-right, 0px))
+    max(1.5rem, env(safe-area-inset-bottom, 0px))
+    max(1rem, env(safe-area-inset-left, 0px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .login-backdrop {
@@ -41,6 +48,7 @@
   z-index: 1;
   width: 100%;
   max-width: 420px;
+  margin: auto;
   padding: 2rem 1.85rem 1.85rem;
   background: var(--color-background-primary);
   border: 1px solid var(--color-border-tertiary);
@@ -92,6 +100,18 @@
   background: var(--color-background-secondary);
   color: var(--color-text-primary);
   box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.login-field input:focus {
+  border-color: var(--color-text-tertiary);
+}
+
+.login-field input:focus-visible,
+.login-select:focus-visible {
+  outline: none;
+  border-color: var(--color-text-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-text-primary) 18%, transparent);
 }
 
 .login-select {
@@ -119,8 +139,17 @@
   margin-top: 0.35rem;
   justify-content: center;
   padding: 12px 16px;
+  min-height: 48px;
   font-size: 15px;
   font-weight: 600;
+  touch-action: manipulation;
+}
+
+.login-submit:focus-visible,
+.login-actions-row .btn-add:focus-visible,
+.login-actions-row .btn-secondary:focus-visible {
+  outline: 2px solid var(--color-text-primary);
+  outline-offset: 2px;
 }
 
 .login-error {
@@ -139,11 +168,13 @@
   border-radius: var(--border-radius-md);
   background: var(--color-background-secondary);
   border: 1px solid var(--color-border-tertiary);
+  touch-action: manipulation;
 }
 
 .login-tab {
   flex: 1;
   padding: 10px 12px;
+  min-height: 44px;
   font-size: 14px;
   font-weight: 600;
   border-radius: calc(var(--border-radius-md) - 2px);
@@ -152,6 +183,12 @@
   color: var(--color-text-secondary);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
+  touch-action: manipulation;
+}
+
+.login-tab:focus-visible {
+  outline: 2px solid var(--color-text-primary);
+  outline-offset: 2px;
 }
 
 .login-tab.is-active {
@@ -262,9 +299,11 @@
 }
 
 .login-register-mode {
-  border: none;
-  padding: 0;
+  border: 1px solid var(--color-border-tertiary);
+  padding: 12px 14px;
   margin: 0 0 1.1rem;
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-secondary);
 }
 
 .login-register-legend {
@@ -287,6 +326,24 @@
 
 .login-radio-label input {
   margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-text-primary);
+}
+
+.login-guest-wrap {
+  padding: 10px 12px;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-border-tertiary);
+  background: var(--color-background-secondary);
+}
+
+.login-guest-wrap .login-radio-label {
+  margin-bottom: 6px;
+}
+
+.login-guest-wrap .login-hint--tight {
+  margin-bottom: 0;
 }
 
 .login-hint {
