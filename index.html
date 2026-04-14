@@ -575,12 +575,13 @@
     </div>
   </dialog>
 
-  <dialog class="settings-dialog" id="scheduledDialog" aria-labelledby="scheduledDialogTitle">
-    <div class="settings-inner">
+  <dialog class="settings-dialog settings-dialog--scheduled" id="scheduledDialog" aria-labelledby="scheduledDialogTitle">
+    <div class="settings-inner settings-inner--scheduled">
       <div class="settings-header">
         <h2 id="scheduledDialogTitle" data-i18n="scheduled.dialogTitle">Scheduled chores</h2>
         <button type="button" class="settings-close" id="scheduledDialogClose" data-i18n-aria="settings.closeAria" aria-label="Close">&times;</button>
       </div>
+      <div class="scheduled-dialog-scroll">
       <p class="settings-hint" data-i18n="scheduled.dialogHint">Next due is computed from the last time you marked done, or from the start date if never done. You can edit start date per chore below.</p>
       <form class="scheduled-add-form" id="addScheduledForm">
         <input type="text" name="title" id="scheduledNewTitle" data-i18n-placeholder="scheduled.choreNamePh" placeholder="Chore name" maxlength="120" required autocomplete="off">
@@ -622,6 +623,7 @@
         <button type="submit" class="btn-secondary" data-i18n="scheduled.add">Add</button>
       </form>
       <ul class="scheduled-manage-list" id="scheduledManageList"></ul>
+      </div>
     </div>
   </dialog>
 
@@ -679,8 +681,12 @@
         <h2 id="scheduledDoneHeading" data-i18n="scheduled.doneHeading">Who completed this?</h2>
         <button type="button" class="settings-close" id="scheduledDoneDialogClose" data-i18n-aria="settings.closeAria" aria-label="Close">&times;</button>
       </div>
-      <p class="settings-hint" data-i18n="scheduled.doneHint">Adds one entry to today’s chore log with the scheduled task name, then resets the timer.</p>
+      <p class="settings-hint" data-i18n="scheduled.doneHint">Choose the calendar day the chore was actually done. The log entry uses that date, and the next due date is calculated from it.</p>
       <p class="scheduled-done-chore-title" id="scheduledDoneChoreTitle"></p>
+      <label class="scheduled-done-label" for="scheduledDoneCompletedDate" data-i18n="scheduled.doneDateLabel">Completed on</label>
+      <div class="date-input-shell scheduled-done-date-shell">
+        <input type="date" id="scheduledDoneCompletedDate" required autocomplete="off" data-i18n-aria="scheduled.doneDateAria" aria-label="Completion date">
+      </div>
       <label class="scheduled-done-label" for="scheduledDonePerson" data-i18n="logForm.person">Person</label>
       <select id="scheduledDonePerson" class="scheduled-done-select" data-i18n-aria="scheduled.donePersonAria" aria-label="Who completed"></select>
       <div class="scheduled-done-actions">

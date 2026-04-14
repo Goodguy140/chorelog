@@ -1,3 +1,25 @@
+/* Long scheduled-chore list scrolls inside the modal (flex min-height + overflow). */
+.settings-dialog--scheduled {
+  overscroll-behavior: contain;
+}
+
+.settings-inner--scheduled {
+  min-height: 0;
+}
+
+.settings-dialog--scheduled .settings-header {
+  flex-shrink: 0;
+}
+
+.settings-dialog--scheduled .scheduled-dialog-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
 .scheduled-dashboard {
   display: flex;
   flex-direction: column;
@@ -261,6 +283,10 @@
   font-size: 13px;
   color: var(--color-text-secondary);
   margin-bottom: 6px;
+}
+
+.scheduled-done-date-shell {
+  margin-bottom: 16px;
 }
 
 .scheduled-done-select {

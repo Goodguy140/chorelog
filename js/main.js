@@ -726,6 +726,12 @@ function openScheduledCompleteDialog(id) {
   if (!s) return;
   app.pendingScheduledCompleteId = id;
   document.getElementById('scheduledDoneChoreTitle').textContent = s.title;
+  const today = localDateISO();
+  const dateInp = document.getElementById('scheduledDoneCompletedDate');
+  if (dateInp) {
+    dateInp.value = today;
+    dateInp.max = today;
+  }
   fillScheduledDonePersonSelect();
   document.getElementById('scheduledDoneDialog').showModal();
 }
@@ -733,12 +739,24 @@ function openScheduledCompleteDialog(id) {
 async function confirmScheduledComplete() {
   const id = app.pendingScheduledCompleteId;
   const person = document.getElementById('scheduledDonePerson').value.trim();
+  const completedDateRaw = document.getElementById('scheduledDoneCompletedDate')?.value?.trim() || '';
   if (!id || !person) return;
+  if (!completedDateRaw || !/^\d{4}-\d{2}-\d{2}$/.test(completedDateRaw)) {
+    app.loadError = t('errors.scheduledCompletedDateRequired');
+    render();
+    return;
+  }
+  const today = localDateISO();
+  if (completedDateRaw > today) {
+    app.loadError = t('errors.scheduledCompletedDateFuture');
+    render();
+    return;
+  }
   try {
     const r = await apiFetch(`/api/scheduled-chores/${encodeURIComponent(id)}/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ person, completedDate: localDateISO() }),
+      body: JSON.stringify({ person, completedDate: completedDateRaw }),
     });
     if (!r.ok) throw new Error();
     document.getElementById('scheduledDoneDialog').close();
@@ -1465,6 +1483,9 @@ document.getElementById('scheduledDialogClose').addEventListener('click', () => 
 });
 document.getElementById('scheduledDialog').addEventListener('click', (e) => {
   if (e.target === document.getElementById('scheduledDialog')) e.target.close();
+});
+document.getElementById('scheduledDialog').addEventListener('toggle', (e) => {
+  document.body.style.overflow = e.target.open ? 'hidden' : '';
 });
 
 document.getElementById('scheduledDoneDialogClose').addEventListener('click', () => {
