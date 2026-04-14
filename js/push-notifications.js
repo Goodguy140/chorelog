@@ -25,6 +25,20 @@ function pushSupportedInThisBrowser() {
   );
 }
 
+function isAppleMobileDevice() {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+}
+
+function isPwaStandaloneDisplay() {
+  if (typeof window === 'undefined') return false;
+  if (window.navigator.standalone === true) return true;
+  if (typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia('(display-mode: standalone)').matches;
+}
+
 /** @returns {Promise<boolean>} */
 async function serverHasVapid() {
   try {
@@ -65,6 +79,12 @@ export async function refreshPushNotificationsPanel() {
       : window.location.protocol === 'https:' || window.location.hostname === 'localhost';
   if (httpsHint) {
     httpsHint.hidden = secure;
+  }
+
+  const iosHint = document.getElementById('pushIosHint');
+  if (iosHint) {
+    const showIosHint = vapidOk && isAppleMobileDevice() && !isPwaStandaloneDisplay();
+    iosHint.hidden = !showIosHint;
   }
 
   if (!pushSupportedInThisBrowser()) {

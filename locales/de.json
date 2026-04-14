@@ -322,6 +322,7 @@
     "pushHint": "Überfällige Erinnerungen auf diesem Gerät, wenn die App geschlossen ist (PWA). Oben „Überfällige Erinnerungen automatisch senden“ aktivieren (ohne Webhook-URL möglich, nur Push). Gleiches Intervall und Ruhezeiten. Jedes Gerät registriert sich separat.",
     "pushServerOff": "Push ist auf diesem Server nicht eingerichtet (Administrator muss VAPID-Schlüssel setzen).",
     "pushRequiresHttps": "Für Push-Benachrichtigungen HTTPS (oder localhost) verwenden.",
+    "pushIosHint": "Auf iPhone und iPad: Chorelog zum Home-Bildschirm hinzufügen (Teilen → Zum Home-Bildschirm) und von dort öffnen — Web-Push läuft nicht in einem normalen Safari-Tab. Erfordert iOS/iPadOS 16.4 oder neuer. Wenn Push weiter fehlschlägt, VAPID-Betreff auf dem Server auf eine echte Adresse setzen (mailto:user@ihre-domain.de); Apple lehnt oft localhost-ähnliche Werte ab.",
     "pushEnable": "Auf diesem Gerät aktivieren",
     "pushDisable": "Auf diesem Gerät deaktivieren",
     "pushTest": "Test-Push senden",
