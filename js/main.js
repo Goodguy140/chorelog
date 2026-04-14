@@ -1035,34 +1035,18 @@ function fillTranslatedSelectOptions() {
       if (v) opt.textContent = t(`discordIntervals.${v}`);
     });
   }
-  const schedSel = document.getElementById('scheduledNewInterval');
-  if (schedSel) {
-    const map = {
-      1: 'scheduled.intEveryDay',
-      7: 'scheduled.intEveryWeek',
-      14: 'scheduled.intEvery2w',
-      21: 'scheduled.intEvery3w',
-      30: 'scheduled.intEveryMonth',
-      60: 'scheduled.intEvery2m',
-      90: 'scheduled.intEvery3m',
-    };
-    [...schedSel.options].forEach((opt) => {
-      const key = map[Number(opt.value)];
-      if (key) opt.textContent = t(key);
-    });
-  }
 }
 
 function syncScheduledRecurrenceUi() {
   const modeEl = document.getElementById('scheduledRecurrenceMode');
   const intervalWrap = document.getElementById('scheduledIntervalWrap');
   const monthlyWrap = document.getElementById('scheduledMonthlyWrap');
-  const intSel = document.getElementById('scheduledNewInterval');
+  const intInp = document.getElementById('scheduledIntervalDays');
   const ordSel = document.getElementById('scheduledMonthOrdinal');
   const wdSel = document.getElementById('scheduledWeekday');
   if (!modeEl || !intervalWrap || !monthlyWrap) return;
   const monthly = modeEl.value === 'monthlyWeekday';
-  if (intSel) intSel.disabled = monthly;
+  if (intInp) intInp.disabled = monthly;
   if (ordSel) ordSel.disabled = !monthly;
   if (wdSel) wdSel.disabled = !monthly;
   intervalWrap.classList.toggle('scheduled-add-row--muted', monthly);
@@ -1587,12 +1571,17 @@ document.getElementById('addScheduledForm').addEventListener('submit', async (e)
           monthOrdinal: Number(document.getElementById('scheduledMonthOrdinal').value),
           weekday: Number(document.getElementById('scheduledWeekday').value),
         }
-      : {
-          title,
-          startsOn,
-          recurrence: 'interval',
-          intervalDays: Number(document.getElementById('scheduledNewInterval').value),
-        };
+      : (() => {
+          let intervalDays = Math.round(Number(document.getElementById('scheduledIntervalDays')?.value));
+          if (!Number.isFinite(intervalDays) || intervalDays < 1) intervalDays = 7;
+          if (intervalDays > 3650) intervalDays = 3650;
+          return {
+            title,
+            startsOn,
+            recurrence: 'interval',
+            intervalDays,
+          };
+        })();
   try {
     const r = await apiFetch('/api/scheduled-chores', {
       method: 'POST',
@@ -1602,6 +1591,8 @@ document.getElementById('addScheduledForm').addEventListener('submit', async (e)
     if (!r.ok) throw new Error();
     await load();
     document.getElementById('scheduledNewTitle').value = '';
+    const intEl = document.getElementById('scheduledIntervalDays');
+    if (intEl) intEl.value = '7';
     render();
     renderScheduledManageList();
   } catch {

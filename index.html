@@ -592,16 +592,12 @@
           </select>
         </div>
         <div class="scheduled-add-row" id="scheduledIntervalWrap">
-          <label for="scheduledNewInterval" class="scheduled-add-label" data-i18n="scheduled.intervalEveryLabel">How often</label>
-          <select name="intervalDays" id="scheduledNewInterval" data-i18n-aria="scheduled.intervalAria" aria-label="Interval">
-            <option value="1">Every day</option>
-            <option value="7" selected>Every week</option>
-            <option value="14">Every 2 weeks</option>
-            <option value="21">Every 3 weeks</option>
-            <option value="30">Every month (~30 days)</option>
-            <option value="60">Every 2 months</option>
-            <option value="90">Every 3 months</option>
-          </select>
+          <label for="scheduledIntervalDays" class="scheduled-add-label" data-i18n="scheduled.intervalEveryLabel">Repeat every</label>
+          <div class="scheduled-interval-days-wrap">
+            <input type="number" name="intervalDays" id="scheduledIntervalDays" min="1" max="3650" step="1" value="7" inputmode="numeric" required class="scheduled-interval-days-input" data-i18n-aria="scheduled.intervalAria" aria-label="Days between due dates">
+            <span class="scheduled-interval-days-suffix" data-i18n="scheduled.intervalDaysSuffix">days</span>
+          </div>
+          <p class="scheduled-interval-hint settings-hint settings-hint--tight" data-i18n="scheduled.intervalDaysHint">Between 1 and 3650 days between due dates.</p>
         </div>
         <div class="scheduled-add-row scheduled-add-row--monthly" id="scheduledMonthlyWrap">
           <label for="scheduledMonthOrdinal" class="scheduled-add-label" data-i18n="scheduled.monthOrdinalLabel">Week</label>
