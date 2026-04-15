@@ -9,7 +9,9 @@ QUICK NAVIGATION
 
 HTTP API + multi-household persistence
   server.js, lib/households-registry.cjs, lib/login-throttle.cjs, lib/sqlite-store.cjs,
-  lib/build-meta.cjs, lib/webhook-channels.cjs, lib/push-subscriptions.cjs, lib/reminder-payloads.cjs
+  lib/build-meta.cjs, lib/webhook-channels.cjs, lib/push-subscriptions.cjs, lib/reminder-payloads.cjs,
+  lib/store-normalize.cjs, lib/server-dates.cjs, lib/audit-log.cjs, lib/auth-session.cjs, lib/csv-export.cjs,
+  lib/backup-manager.cjs, lib/store-access.cjs, lib/reminder-engine.cjs
 
 OpenAPI 3 (integrators)
   lib/openapi-spec.cjs (source of truth), GET /api/openapi.json, committed snapshot docs/openapi.json (npm run docs:openapi), drift check scripts/check-api-routes.cjs (runs after npm test). See "When changing HTTP routes" in Feature map.
@@ -42,7 +44,7 @@ Automated tests (Node built-in runner, CI)
   test/*.test.cjs, npm test, .github/workflows/ci.yml
 
 
-server.js — API routes + multi-household orchestration + import/export/store normalization; helper domains are split into lib/build-meta.cjs (About/version GitHub Actions metadata), lib/webhook-channels.cjs (Discord/Slack/generic webhook validation + quiet hours + test send), lib/push-subscriptions.cjs (PushSubscription key decode/normalize + caps), and lib/reminder-payloads.cjs (Discord/Slack/push overdue + due-today payload builders). module.exports includes normalizeStore, buildEntriesCsv for tests; if (require.main === module) wraps listen + Discord reminder interval so npm test does not bind a port or start the timer. Imports buildOpenApiDocument from lib/openapi-spec.cjs; GET /api/openapi.json is public (see requireApiAuth bypass list).
+server.js — API routes + multi-household orchestration + import/export; helper domains are split into lib/build-meta.cjs (About/version GitHub Actions metadata), lib/webhook-channels.cjs (Discord/Slack/generic webhook validation + quiet hours + test send), lib/push-subscriptions.cjs (PushSubscription key decode/normalize + caps), lib/reminder-payloads.cjs (Discord/Slack/push overdue + due-today payload builders), lib/store-normalize.cjs (store normalization/defaults), lib/server-dates.cjs (calendar/date helpers + next due), lib/audit-log.cjs (audit row normalization/append), lib/auth-session.cjs (cookie/token + auth middleware builders), lib/csv-export.cjs (CSV export renderer), lib/backup-manager.cjs (scheduled/import backup snapshots + retention), lib/store-access.cjs (registry/sqlite store access, read/write, seed initialization), and lib/reminder-engine.cjs (webhook/push reminder delivery + periodic reminder loop). module.exports includes normalizeStore, buildEntriesCsv for tests; if (require.main === module) wraps listen + Discord reminder interval so npm test does not bind a port or start the timer. Imports buildOpenApiDocument from lib/openapi-spec.cjs; GET /api/openapi.json is public (see requireApiAuth bypass list).
 
 Line references below are approximate; search for symbol names in server.js.
 

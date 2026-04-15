@@ -22,23 +22,51 @@ const { createLoginThrottle } = require('./lib/login-throttle.cjs');
 const { openSqliteStore } = require('./lib/sqlite-store.cjs');
 const householdReg = require('./lib/households-registry.cjs');
 const { buildOpenApiDocument } = require('./lib/openapi-spec.cjs');
-const scheduledRecurrence = require('./lib/scheduled-recurrence.cjs');
 const pushSend = require('./lib/push-send.cjs');
 const vapidPersist = require('./lib/vapid-persist.cjs');
 const { buildGitHubBuildMeta } = require('./lib/build-meta.cjs');
+const { MAX_AUDIT_ENTRIES, appendAudit } = require('./lib/audit-log.cjs');
+const {
+  formatCalendarDateHuman,
+  localCalendarDateISO,
+  nextDueDateScheduled,
+  nowISO,
+  parseCalendarDateParam,
+} = require('./lib/server-dates.cjs');
+const {
+  DEFAULT_LOCATIONS,
+  DEFAULT_PEOPLE,
+  defaultChorePresets,
+  normalizeChorePreset,
+  normalizeChorePresets,
+  normalizeEntry,
+  normalizeLocations,
+  normalizePeople,
+  normalizeQuickChoreIds,
+  normalizeScheduledChores,
+  normalizeStore,
+} = require('./lib/store-normalize.cjs');
+const {
+  AUTH_COOKIE,
+  COOKIE_MAX_AGE_MS,
+  buildRequireApiAuth,
+  createAuthToken,
+  requireReadWrite,
+  verifyAuthCookie,
+} = require('./lib/auth-session.cjs');
+const { buildEntriesCsv } = require('./lib/csv-export.cjs');
+const { createBackupManager } = require('./lib/backup-manager.cjs');
+const { createStoreAccess } = require('./lib/store-access.cjs');
+const { createReminderEngine } = require('./lib/reminder-engine.cjs');
 const {
   hasReminderDestination,
   isDiscordWebhookUrl,
   isGenericHttpsWebhookUrl,
   isInReminderQuietHours,
   isSlackIncomingWebhookUrl,
-  normalizeDiscordDueTodaySentAt,
-  normalizeDiscordReminderSentAt,
   normalizeDiscordWebhook,
   postDiscordWebhook,
   postSlackIncomingWebhook,
-  pruneDiscordDueTodaySentAt,
-  pruneDiscordReminderSentAt,
   sendTestToAllWebhookChannels,
 } = require('./lib/webhook-channels.cjs');
 const {
@@ -87,42 +115,16 @@ function requireAdminHousehold(req, res, next) {
   next();
 }
 
-let householdRegistry = null;
-const sqliteStoreByHousehold = new Map();
-
-function ensureRegistryLoaded() {
-  if (!householdRegistry) {
-    householdRegistry = householdReg.ensureRegistry(DATA_DIR, LEGACY_DATA_FILE, process.env.CHORELOG_PASSWORD);
-  }
-  return householdRegistry;
-}
-
-function householdDataFile(hid) {
-  return path.join(householdReg.householdsRoot(DATA_DIR), hid, 'chores.json');
-}
-
-function householdSqlitePath(hid) {
-  if (!USE_SQLITE_PER_HOUSEHOLD) return null;
-  return path.join(householdReg.householdsRoot(DATA_DIR), hid, 'chores.db');
-}
-
-function getSqliteStoreForHousehold(hid) {
-  if (!USE_SQLITE_PER_HOUSEHOLD) return null;
-  if (sqliteStoreByHousehold.has(hid)) return sqliteStoreByHousehold.get(hid);
-  const dbPath = householdSqlitePath(hid);
-  const jsonPath = householdDataFile(hid);
-  const st = openSqliteStore(dbPath, jsonPath);
-  if (st.migratedFromJson) {
-    console.log(`Chorelog: migrated household "${hid}" store from JSON to SQLite`);
-  }
-  sqliteStoreByHousehold.set(hid, st);
-  return st;
-}
+let ensureRegistryLoaded;
+let ensureSeed;
+let getRegistry;
+let getSqliteStoreForHousehold;
+let householdDataFile;
+let householdSqlitePath;
+let readStore;
+let writeStore;
 
 const loginThrottle = createLoginThrottle({ dataDir: DATA_DIR });
-
-const DEFAULT_PEOPLE = ['Dylan', 'Rachel', 'Vic', 'Christian'];
-const DEFAULT_LOCATIONS = ['Upstairs', 'Stairs', 'Hallway', 'Kitchen', 'Living room', 'Front porch', 'Back porch'];
 
 /** Same shape as the original HTML SEED: one row per log line, chores can contain `;` */
 const RAW_SEED = [
@@ -207,438 +209,31 @@ function expandRaw(raw) {
   return out;
 }
 
+({
+  ensureRegistryLoaded,
+  ensureSeed,
+  getRegistry,
+  getSqliteStoreForHousehold,
+  householdDataFile,
+  householdSqlitePath,
+  readStore,
+  writeStore,
+} = createStoreAccess({
+  DATA_DIR,
+  LEGACY_DATA_FILE,
+  DEFAULT_PEOPLE,
+  DEFAULT_LOCATIONS,
+  USE_SQLITE_PER_HOUSEHOLD,
+  openSqliteStore,
+  householdReg,
+  normalizeEntry,
+  normalizeStore,
+  expandRaw,
+  RAW_SEED,
+}));
+
 function newId() {
   return crypto.randomUUID();
-}
-
-/** Calendar YYYY-MM-DD in the Node process timezone (not UTC). */
-function localCalendarDateISO() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-/** Validates YYYY-MM-DD; rejects invalid calendar dates. */
-function parseCalendarDateParam(raw) {
-  if (raw == null) return null;
-  const s = String(raw).trim().slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
-  const [y, m, d] = s.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
-  return s;
-}
-
-function nowISO() {
-  return new Date().toISOString();
-}
-
-/** Local calendar YYYY-MM-DD from an ISO datetime string (process timezone). */
-function calendarDateFromISO(iso) {
-  if (typeof iso !== 'string' || !iso.includes('T')) return localCalendarDateISO();
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return localCalendarDateISO();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function normalizeEntry(row) {
-  if (!row || typeof row.d !== 'string' || typeof row.p !== 'string') return null;
-  const id = typeof row.id === 'string' && row.id ? row.id : newId();
-  const d = row.d.trim();
-  const p = row.p.trim();
-  let c = typeof row.c === 'string' ? row.c.trim() : '';
-  let choreId = null;
-  let locationIds = [];
-  if (row.choreId != null && typeof row.choreId === 'string') {
-    const t = row.choreId.trim();
-    if (t) choreId = t;
-  }
-  if (Array.isArray(row.locationIds)) {
-    locationIds = row.locationIds
-      .filter((x) => typeof x === 'string')
-      .map((x) => x.trim())
-      .filter(Boolean);
-  }
-  if (!d || !p) return null;
-  if (!c && !choreId) return null;
-  const fallbackIso = `${d}T12:00:00.000Z`;
-  let createdAt = typeof row.createdAt === 'string' ? row.createdAt : fallbackIso;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(createdAt)) createdAt = `${createdAt}T12:00:00.000Z`;
-  let updatedAt = typeof row.updatedAt === 'string' ? row.updatedAt : createdAt;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(updatedAt)) updatedAt = `${updatedAt}T12:00:00.000Z`;
-  const out = { id, d, c, p, choreId, locationIds, createdAt, updatedAt };
-  if (typeof row.deletedAt === 'string' && row.deletedAt.trim()) {
-    out.deletedAt = row.deletedAt.trim();
-  }
-  return out;
-}
-
-function normalizeChorePreset(row) {
-  if (!row || typeof row.title !== 'string') return null;
-  const title = row.title.trim();
-  if (!title) return null;
-  const id = typeof row.id === 'string' && row.id ? row.id : newId();
-  let points = Number(row.points);
-  if (!Number.isFinite(points)) points = 1;
-  if (points < 0) points = 0;
-  if (points > 10000) points = 10000;
-  let color = typeof row.color === 'string' ? row.color.trim() : '#378ADD';
-  if (!/^#[0-9A-Fa-f]{6}$/.test(color)) color = '#378ADD';
-  const scoringMode = row.scoringMode === 'per_location' ? 'per_location' : 'flat';
-  const out = { id, title, points, color, scoringMode };
-  if (typeof row.deletedAt === 'string' && row.deletedAt.trim()) {
-    out.deletedAt = row.deletedAt.trim();
-  }
-  return out;
-}
-
-function normalizeChorePresets(arr) {
-  if (!Array.isArray(arr)) return [];
-  const out = [];
-  for (const row of arr) {
-    const p = normalizeChorePreset(row);
-    if (p) out.push(p);
-  }
-  return out;
-}
-
-function normalizeQuickChoreIds(ids, presets) {
-  const valid = new Set(presets.filter((p) => !p.deletedAt).map((x) => x.id));
-  if (!Array.isArray(ids)) return [];
-  const out = [];
-  for (const id of ids) {
-    if (typeof id !== 'string' || !valid.has(id)) continue;
-    out.push(id);
-  }
-  return out.slice(0, 24);
-}
-
-function normalizeLocations(arr) {
-  if (!Array.isArray(arr)) return [...DEFAULT_LOCATIONS];
-  const seen = new Set();
-  const out = [];
-  for (const raw of arr) {
-    const s = String(raw).trim();
-    if (!s || seen.has(s)) continue;
-    seen.add(s);
-    out.push(s);
-  }
-  return out.length ? out : [...DEFAULT_LOCATIONS];
-}
-
-function defaultChorePresets() {
-  const defs = [
-    ['Dishes', 1, '#378ADD'],
-    ['Garbage out', 1, '#D85A30'],
-    ['Dishwasher', 1, '#7F77DD'],
-    ['Wiped common surfaces', 1, '#1D9E75'],
-    ['Swept kitchen', 1, '#C973D9'],
-    ['Bathroom', 1, '#D8A530'],
-  ];
-  return defs.map(([title, points, color]) => normalizeChorePreset({ title, points, color })).filter(Boolean);
-}
-
-function normalizePeople(arr) {
-  if (!Array.isArray(arr)) return [...DEFAULT_PEOPLE];
-  const seen = new Set();
-  const out = [];
-  for (const p of arr) {
-    const s = String(p).trim();
-    if (s && !seen.has(s)) {
-      seen.add(s);
-      out.push(s);
-    }
-  }
-  return out.length ? out : [...DEFAULT_PEOPLE];
-}
-
-function normalizeScheduledChores(arr) {
-  if (!Array.isArray(arr)) return [];
-  const out = [];
-  for (const row of arr) {
-    if (!row || typeof row.title !== 'string') continue;
-    const title = row.title.trim();
-    if (!title) continue;
-    let intervalDays = Number(row.intervalDays);
-    if (!Number.isFinite(intervalDays) || intervalDays < 1) intervalDays = 7;
-    if (intervalDays > 3650) intervalDays = 3650;
-    const id = typeof row.id === 'string' && row.id ? row.id : newId();
-
-    let startsOn = null;
-    if (typeof row.startsOn === 'string') {
-      startsOn = parseCalendarDateParam(row.startsOn);
-    }
-    const legacy = row.createdAt;
-    if (!startsOn && typeof legacy === 'string') {
-      const t = legacy.trim();
-      if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
-        startsOn = parseCalendarDateParam(t);
-      } else if (t.includes('T')) {
-        startsOn = calendarDateFromISO(t);
-      }
-    }
-    if (!startsOn) startsOn = localCalendarDateISO();
-
-    let createdAt = typeof row.createdAt === 'string' && row.createdAt.includes('T') ? row.createdAt : null;
-    let updatedAt = typeof row.updatedAt === 'string' && row.updatedAt.includes('T') ? row.updatedAt : null;
-    if (!createdAt) {
-      createdAt = `${startsOn}T12:00:00.000Z`;
-    }
-    if (!updatedAt) {
-      updatedAt = createdAt;
-    }
-
-    let lastCompletedAt = row.lastCompletedAt;
-    if (lastCompletedAt != null && typeof lastCompletedAt === 'string') lastCompletedAt = lastCompletedAt.slice(0, 10);
-    else lastCompletedAt = null;
-
-    const reminderEnabled = row.reminderEnabled === false ? false : true;
-
-    let recurrence = row.recurrence === 'monthlyWeekday' ? 'monthlyWeekday' : 'interval';
-    let monthOrdinal = Number(row.monthOrdinal);
-    let weekday = Number(row.weekday);
-    if (recurrence === 'monthlyWeekday') {
-      if (!Number.isFinite(monthOrdinal) || monthOrdinal < 1 || monthOrdinal > 5) monthOrdinal = 2;
-      if (!Number.isFinite(weekday) || weekday < 0 || weekday > 6) weekday = 2;
-      intervalDays = 30;
-    } else {
-      recurrence = 'interval';
-      monthOrdinal = undefined;
-      weekday = undefined;
-    }
-
-    out.push({
-      id,
-      title,
-      intervalDays,
-      recurrence,
-      ...(recurrence === 'monthlyWeekday' ? { monthOrdinal, weekday } : {}),
-      startsOn,
-      lastCompletedAt,
-      reminderEnabled,
-      createdAt,
-      updatedAt,
-    });
-  }
-  return out;
-}
-
-/** Calendar helpers for scheduled chores (aligned with `js/utils/date.js`). */
-function addDaysIso(isoDate, n) {
-  const [y, m, d] = isoDate.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  dt.setDate(dt.getDate() + n);
-  const mm = String(dt.getMonth() + 1).padStart(2, '0');
-  const dd = String(dt.getDate()).padStart(2, '0');
-  return `${dt.getFullYear()}-${mm}-${dd}`;
-}
-
-function scheduledStartsOnCalendar(s) {
-  if (s.startsOn && /^\d{4}-\d{2}-\d{2}$/.test(String(s.startsOn))) return String(s.startsOn);
-  const ca = s.createdAt;
-  if (typeof ca === 'string') {
-    const t = ca.trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
-    if (t.includes('T')) return localCalendarDateISO();
-  }
-  return localCalendarDateISO();
-}
-
-function nextDueDateScheduled(s) {
-  return scheduledRecurrence.nextDueDateForScheduled(s, {
-    addDays: addDaysIso,
-    scheduledStartsOnCalendar,
-  });
-}
-
-/** YYYY-MM-DD → locale medium date for Discord (matches client “Due Mon D, YYYY” style). */
-function formatCalendarDateHuman(isoDate) {
-  if (!isoDate || typeof isoDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
-    return String(isoDate || '').trim() || '—';
-  }
-  const [y, m, d] = isoDate.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-const MAX_AUDIT_ENTRIES = 500;
-
-function normalizeAuditEntry(row) {
-  if (!row || typeof row !== 'object') return null;
-  const id = typeof row.id === 'string' && row.id ? row.id : newId();
-  let at = typeof row.at === 'string' ? row.at.trim() : '';
-  if (!/^\d{4}-\d{2}-\d{2}T/.test(at)) at = nowISO();
-  const actor = typeof row.actor === 'string' ? row.actor.trim().slice(0, 120) : '';
-  const action = typeof row.action === 'string' ? row.action.trim().slice(0, 96) : '';
-  const target = typeof row.target === 'string' ? row.target.trim().slice(0, 240) : '';
-  const detail = row.detail != null ? String(row.detail).trim().slice(0, 800) : '';
-  if (!action) return null;
-  const out = {
-    id,
-    at,
-    actor: actor || '—',
-    action,
-    target: target || '—',
-  };
-  if (detail) out.detail = detail;
-  return out;
-}
-
-function normalizeAuditLog(arr) {
-  if (!Array.isArray(arr)) return [];
-  const out = [];
-  for (const row of arr) {
-    const a = normalizeAuditEntry(row);
-    if (a) out.push(a);
-  }
-  return out.slice(0, MAX_AUDIT_ENTRIES);
-}
-
-function appendAudit(store, req, { action, target, detail }) {
-  if (!store.auditLog) store.auditLog = [];
-  const actor =
-    req.authPayload && typeof req.authPayload.user === 'string' && req.authPayload.user.trim()
-      ? req.authPayload.user.trim().slice(0, 120)
-      : (req.authPayload && req.authPayload.household) || 'house';
-  const row = normalizeAuditEntry({
-    id: newId(),
-    at: nowISO(),
-    actor,
-    action,
-    target: target || '—',
-    ...(detail ? { detail } : {}),
-  });
-  if (!row) return;
-  store.auditLog.unshift(row);
-  if (store.auditLog.length > MAX_AUDIT_ENTRIES) {
-    store.auditLog = store.auditLog.slice(0, MAX_AUDIT_ENTRIES);
-  }
-}
-
-function normalizeStore(raw) {
-  const rawEntries = Array.isArray(raw.entries) ? raw.entries : [];
-  const people = normalizePeople(raw.people);
-  const locations = normalizeLocations(raw.locations);
-  const scheduledChores = normalizeScheduledChores(raw.scheduledChores);
-  let chorePresets = normalizeChorePresets(raw.chorePresets);
-  let quickChoreIds = normalizeQuickChoreIds(raw.quickChoreIds, chorePresets);
-  const quickKeyPresent = raw && Object.prototype.hasOwnProperty.call(raw, 'quickChoreIds');
-  if (!chorePresets.filter((p) => !p.deletedAt).length) {
-    chorePresets = defaultChorePresets();
-    quickChoreIds = chorePresets.slice(0, 6).map((x) => x.id);
-  } else if (!quickChoreIds.length && !quickKeyPresent) {
-    /* Legacy stores without quickChoreIds: default the bar. Explicit [] means user cleared it. */
-    const activePresets = chorePresets.filter((p) => !p.deletedAt);
-    quickChoreIds = activePresets.slice(0, Math.min(6, activePresets.length)).map((x) => x.id);
-  }
-  const presetMap = new Map(chorePresets.map((p) => [p.id, p]));
-  let entries = rawEntries.map(normalizeEntry).filter(Boolean);
-  entries = entries.map((e) => {
-    if (!e.c && e.choreId && presetMap.has(e.choreId)) {
-      return { ...e, c: presetMap.get(e.choreId).title };
-    }
-    const validLocationIds = (e.locationIds || []).filter((x) => locations.includes(x));
-    return { ...e, locationIds: validLocationIds };
-  });
-  entries = entries.filter((e) => e.c && e.d && e.p);
-  const discordWebhook = normalizeDiscordWebhook(raw.discordWebhook);
-  let discordReminderSentAt = normalizeDiscordReminderSentAt(raw.discordReminderSentAt);
-  discordReminderSentAt = pruneDiscordReminderSentAt(
-    discordReminderSentAt,
-    scheduledChores.map((s) => s.id),
-  );
-  let discordDueTodaySentAt = normalizeDiscordDueTodaySentAt(raw.discordDueTodaySentAt);
-  discordDueTodaySentAt = pruneDiscordDueTodaySentAt(
-    discordDueTodaySentAt,
-    scheduledChores.map((s) => s.id),
-  );
-  const auditLog = normalizeAuditLog(raw.auditLog);
-  const pushSubscriptions = normalizePushSubscriptions(raw.pushSubscriptions);
-  return {
-    entries,
-    people,
-    locations,
-    scheduledChores,
-    chorePresets,
-    quickChoreIds,
-    discordWebhook,
-    discordReminderSentAt,
-    discordDueTodaySentAt,
-    pushSubscriptions,
-    auditLog,
-  };
-}
-
-async function readStore(householdId) {
-  ensureRegistryLoaded();
-  const hid = String(householdId || '').trim();
-  if (!hid || !householdRegistry.households[hid]) {
-    throw new Error('Invalid household');
-  }
-  const sqliteStore = getSqliteStoreForHousehold(hid);
-  const dataFile = householdDataFile(hid);
-  if (sqliteStore) {
-    const raw = sqliteStore.readJsonString();
-    if (raw == null || raw === '') {
-      return normalizeStore({
-        entries: [],
-        people: [...DEFAULT_PEOPLE],
-        locations: [...DEFAULT_LOCATIONS],
-        scheduledChores: [],
-        chorePresets: [],
-        quickChoreIds: [],
-      });
-    }
-    let data;
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      throw new Error('SQLite store contains invalid JSON');
-    }
-    return normalizeStore(data);
-  }
-  try {
-    const buf = await fs.promises.readFile(dataFile, 'utf8');
-    const data = JSON.parse(buf);
-    return normalizeStore(data);
-  } catch (err) {
-    if (err.code === 'ENOENT') {
-      return normalizeStore({
-        entries: [],
-        people: [...DEFAULT_PEOPLE],
-        locations: [...DEFAULT_LOCATIONS],
-        scheduledChores: [],
-        chorePresets: [],
-        quickChoreIds: [],
-      });
-    }
-    throw err;
-  }
-}
-
-async function writeStore(householdId, data) {
-  ensureRegistryLoaded();
-  const hid = String(householdId || '').trim();
-  if (!hid || !householdRegistry.households[hid]) {
-    throw new Error('Invalid household');
-  }
-  const normalized = normalizeStore(data);
-  const sqliteStore = getSqliteStoreForHousehold(hid);
-  if (sqliteStore) {
-    sqliteStore.writeJsonString(JSON.stringify(normalized));
-    return;
-  }
-  const dataFile = householdDataFile(hid);
-  const dir = path.dirname(dataFile);
-  await fs.promises.mkdir(dir, { recursive: true });
-  const tmp = `${dataFile}.${process.pid}.tmp`;
-  await fs.promises.writeFile(tmp, JSON.stringify(normalized, null, 2), 'utf8');
-  await fs.promises.rename(tmp, dataFile);
 }
 
 const IMPORT_BACKUP_ENABLED =
@@ -648,92 +243,16 @@ const SCHEDULED_BACKUP_MS = (() => {
   const n = Number(process.env.CHORELOG_SCHEDULED_BACKUP_MS);
   return Number.isFinite(n) && n >= 60000 ? Math.floor(n) : 0;
 })();
-
-async function pruneHouseholdBackups(backupDir, keep) {
-  let names;
-  try {
-    names = await fs.promises.readdir(backupDir);
-  } catch {
-    return;
-  }
-  const stats = [];
-  for (const name of names) {
-    if (!name.endsWith('.json')) continue;
-    const fp = path.join(backupDir, name);
-    try {
-      const st = await fs.promises.stat(fp);
-      stats.push({ fp, mtime: st.mtimeMs });
-    } catch {
-      /* ignore */
-    }
-  }
-  stats.sort((a, b) => b.mtime - a.mtime);
-  for (let i = keep; i < stats.length; i++) {
-    await fs.promises.unlink(stats[i].fp).catch(() => {});
-  }
-}
-
-/** Export-shaped JSON under `data/households/<id>/backups/` (works for JSON or SQLite-backed store). */
-async function writeHouseholdBackupSnapshot(householdId, reason) {
-  ensureRegistryLoaded();
-  const hid = String(householdId || '').trim();
-  if (!hid || !householdRegistry.households[hid]) {
-    throw new Error('Invalid household');
-  }
-  const store = await readStore(hid);
-  const backupDir = path.join(householdReg.householdsRoot(DATA_DIR), hid, 'backups');
-  await fs.promises.mkdir(backupDir, { recursive: true });
-  const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  const safeReason = String(reason || 'backup')
-    .replace(/[^a-zA-Z0-9_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48) || 'backup';
-  const filename = `${safeReason}-${ts}.json`;
-  const payload = {
-    version: EXPORT_SCHEMA_VERSION,
-    exportedAt: new Date().toISOString(),
-    backupReason: reason,
-    people: store.people,
-    locations: store.locations || [],
-    entries: store.entries,
-    scheduledChores: store.scheduledChores || [],
-    chorePresets: store.chorePresets || [],
-    quickChoreIds: store.quickChoreIds || [],
-    discordWebhook: store.discordWebhook || normalizeDiscordWebhook(null),
-    discordReminderSentAt: store.discordReminderSentAt || {},
-    discordDueTodaySentAt: store.discordDueTodaySentAt || {},
-    pushSubscriptions: store.pushSubscriptions || [],
-    auditLog: store.auditLog || [],
-  };
-  const fp = path.join(backupDir, filename);
-  const tmp = `${fp}.${process.pid}.tmp`;
-  await fs.promises.writeFile(tmp, JSON.stringify(payload, null, 2), 'utf8');
-  await fs.promises.rename(tmp, fp);
-  await pruneHouseholdBackups(backupDir, BACKUP_RETENTION);
-}
-
-async function runScheduledBackupsForAllHouseholds() {
-  ensureRegistryLoaded();
-  const ids = Object.keys(householdRegistry.households || {});
-  for (const hid of ids) {
-    try {
-      await writeHouseholdBackupSnapshot(hid, 'scheduled');
-    } catch (e) {
-      console.error(`Chorelog: scheduled backup failed for household "${hid}":`, e.message || e);
-    }
-  }
-}
-
-async function ensureSeed(householdId) {
-  const store = await readStore(householdId);
-  if (store.entries.length > 0) return;
-  const expanded = expandRaw(RAW_SEED);
-  store.entries = expanded
-    .map((e) => normalizeEntry({ id: newId(), d: e.d, c: e.c, p: e.p }))
-    .filter(Boolean);
-  if (!store.people || store.people.length === 0) store.people = [...DEFAULT_PEOPLE];
-  await writeStore(householdId, store);
-}
+const { writeHouseholdBackupSnapshot, runScheduledBackupsForAllHouseholds } = createBackupManager({
+  DATA_DIR,
+  EXPORT_SCHEMA_VERSION,
+  BACKUP_RETENTION,
+  normalizeDiscordWebhook,
+  readStore,
+  ensureRegistryLoaded,
+  getRegistry,
+  householdsRoot: householdReg.householdsRoot,
+});
 
 const app = express();
 app.set('trust proxy', process.env.CHORELOG_TRUST_PROXY === '1');
@@ -742,101 +261,10 @@ app.use(express.json({ limit: '5mb' }));
 function clientIp(req) {
   return req.ip || req.socket.remoteAddress || 'unknown';
 }
-
-const AUTH_COOKIE = 'chorelog_auth';
-const COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-
-function getSessionSecret() {
-  return process.env.CHORELOG_SECRET || 'chorelog-dev-secret-change-me';
-}
-
-function parseCookieHeader(cookieHeader, name) {
-  if (!cookieHeader) return null;
-  const parts = cookieHeader.split(';');
-  for (const part of parts) {
-    const idx = part.indexOf('=');
-    if (idx === -1) continue;
-    const k = part.slice(0, idx).trim();
-    if (k !== name) continue;
-    return decodeURIComponent(part.slice(idx + 1).trim());
-  }
-  return null;
-}
-
-function createAuthToken(username, householdId, opts = {}) {
-  const user = String(username || '')
-    .trim()
-    .slice(0, 120) || 'member';
-  const household = String(householdId || '')
-    .trim()
-    .slice(0, 64);
-  const payload = { v: 2, exp: Date.now() + COOKIE_MAX_AGE_MS, user, household };
-  if (opts.readOnly) payload.ro = true;
-  const data = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
-  const sig = crypto.createHmac('sha256', getSessionSecret()).update(data).digest('base64url');
-  return `${data}.${sig}`;
-}
-
-function verifyAuthCookie(cookieHeader) {
-  const token = parseCookieHeader(cookieHeader, AUTH_COOKIE);
-  if (!token) return null;
-  const dot = token.lastIndexOf('.');
-  if (dot === -1) return null;
-  const data = token.slice(0, dot);
-  const sig = token.slice(dot + 1);
-  const expected = crypto.createHmac('sha256', getSessionSecret()).update(data).digest('base64url');
-  const a = Buffer.from(sig, 'utf8');
-  const b = Buffer.from(expected, 'utf8');
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
-  let payload;
-  try {
-    payload = JSON.parse(Buffer.from(data, 'base64url').toString('utf8'));
-  } catch {
-    return null;
-  }
-  if (!payload || typeof payload.exp !== 'number' || payload.exp < Date.now()) return null;
-  if (payload.v !== 2 || typeof payload.household !== 'string' || !payload.household.trim()) {
-    return null;
-  }
-  return payload;
-}
-
-function requireApiAuth(req, res, next) {
-  if (!req.path.startsWith('/api')) return next();
-  if (req.method === 'GET' && req.path === '/api/auth') return next();
-  if (req.method === 'GET' && req.path === '/api/version') return next();
-  if (req.method === 'GET' && req.path === '/api/register-info') return next();
-  if (req.method === 'GET' && req.path === '/api/openapi.json') return next();
-  if (req.method === 'GET' && req.path === '/api/push/vapid-public') return next();
-  if (req.method === 'POST' && req.path === '/api/login') return next();
-  if (req.method === 'POST' && req.path === '/api/login/members') return next();
-  if (req.method === 'POST' && req.path === '/api/logout') return next();
-  if (req.method === 'POST' && req.path === '/api/households') return next();
-  const payload = verifyAuthCookie(req.headers.cookie);
-  if (!payload) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  ensureRegistryLoaded();
-  const hid = String(payload.household).trim();
-  if (!householdRegistry.households[hid]) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  req.authPayload = payload;
-  req.householdId = hid;
-  next();
-}
-
-/** Block mutating API calls for read-only (guest) sessions. Mount after `requireApiAuth` on POST/PUT/DELETE handlers. */
-function requireReadWrite(req, res, next) {
-  if (!req.authPayload) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  if (req.authPayload.ro) {
-    return res.status(403).json({ error: 'Read-only session', code: 'read_only' });
-  }
-  next();
-}
-
+const requireApiAuth = buildRequireApiAuth({
+  ensureRegistryLoaded,
+  getRegistry,
+});
 app.use(requireApiAuth);
 
 function buildVersionPayload(req) {
@@ -854,7 +282,7 @@ function buildVersionPayload(req) {
   }
   ensureRegistryLoaded();
   const hid = String(p.household).trim();
-  if (!householdRegistry.households[hid]) {
+  if (!getRegistry().households[hid]) {
     return base;
   }
   const sqliteStore = getSqliteStoreForHousehold(hid);
@@ -1225,11 +653,11 @@ app.post('/api/account/password', requireReadWrite, (req, res) => {
     if (newPw.length < 8) {
       return res.status(400).json({ error: 'New password must be at least 8 characters' });
     }
-    const rec = householdReg.householdRecord(householdRegistry, hid);
+    const rec = householdReg.householdRecord(getRegistry(), hid);
     if (!rec || !householdReg.verifyPassword(cur, rec.salt, rec.hash)) {
       return res.status(401).json({ error: 'Current password is incorrect' });
     }
-    householdReg.updateHouseholdPassword(DATA_DIR, householdRegistry, hid, newPw);
+    householdReg.updateHouseholdPassword(DATA_DIR, getRegistry(), hid, newPw);
     res.json({ ok: true });
   } catch (e) {
     console.error(e);
@@ -1284,7 +712,7 @@ app.post('/api/login', async (req, res) => {
       loginThrottle.recordFailure(ip);
       return res.status(401).json({ error: 'Unknown household or wrong password' });
     }
-    const rec = householdReg.householdRecord(householdRegistry, hid);
+    const rec = householdReg.householdRecord(getRegistry(), hid);
     if (!rec) {
       loginThrottle.recordFailure(ip);
       return res.status(401).json({ error: 'Unknown household or wrong password' });
@@ -1311,7 +739,7 @@ app.post('/api/login', async (req, res) => {
     return res.json({ ok: true, household: hid, readOnly: true });
   }
 
-  const rec = householdReg.householdRecord(householdRegistry, hid);
+  const rec = householdReg.householdRecord(getRegistry(), hid);
   if (!rec) {
     loginThrottle.recordFailure(ip);
     return res.status(401).json({ error: 'Unknown household or wrong password' });
@@ -1354,7 +782,7 @@ app.post('/api/login/members', async (req, res) => {
       loginThrottle.recordFailure(ip);
       return res.status(400).json({ error: 'Invalid household id' });
     }
-    const rec = householdReg.householdRecord(householdRegistry, hid);
+    const rec = householdReg.householdRecord(getRegistry(), hid);
     if (!rec) {
       loginThrottle.recordFailure(ip);
       return res.status(401).json({ error: 'Unknown household or wrong password' });
@@ -1418,10 +846,10 @@ app.post('/api/households', (req, res) => {
     if (!id || typeof pw !== 'string' || pw.length < 8) {
       return res.status(400).json({ error: 'Invalid household id or password (min 8 characters)' });
     }
-    if (householdRegistry.households[id]) {
+    if (getRegistry().households[id]) {
       return res.status(409).json({ error: 'Household already exists' });
     }
-    householdReg.addHousehold(DATA_DIR, householdRegistry, id, pw);
+    householdReg.addHousehold(DATA_DIR, getRegistry(), id, pw);
     res.status(201).json({ ok: true, household: id });
   } catch (e) {
     console.error(e);
@@ -1724,267 +1152,32 @@ app.put('/api/settings', requireReadWrite, async (req, res) => {
   }
 });
 
-/** Sends the same overdue notification to every configured channel; succeeds if at least one delivery works. */
-async function sendOverdueToAllWebhookChannels(w, chore, nextDue, today) {
-  const discordPayload = reminderPayloads.buildOverdueDiscordPayload(
-    chore,
-    nextDue,
-    today,
-    formatCalendarDateHuman,
-  );
-  const slackText = reminderPayloads.buildOverdueSlackPlainText(
-    chore,
-    nextDue,
-    today,
-    formatCalendarDateHuman,
-  );
-  const tasks = [];
-  if (w.url && isDiscordWebhookUrl(w.url)) {
-    tasks.push(() => postDiscordWebhook(w.url, discordPayload));
-  }
-  if (w.slackWebhookUrl && isSlackIncomingWebhookUrl(w.slackWebhookUrl)) {
-    tasks.push(() => postSlackIncomingWebhook(w.slackWebhookUrl, slackText));
-  }
-  if (w.genericWebhookUrl && isGenericHttpsWebhookUrl(w.genericWebhookUrl)) {
-    tasks.push(() => postDiscordWebhook(w.genericWebhookUrl, discordPayload));
-  }
-  if (!tasks.length) return false;
-  const results = await Promise.all(tasks.map((fn) => fn()));
-  return results.some(Boolean);
-}
-
-async function sendDigestToAllWebhookChannels(w, chores, today) {
-  const digestHelpers = { nextDueDateScheduled, formatCalendarDateHuman };
-  const discordPayload = reminderPayloads.buildDiscordOverdueDigestPayload(
-    chores,
-    today,
-    digestHelpers,
-  );
-  const slackText = reminderPayloads.buildSlackOverdueDigestPlainText(chores, today, digestHelpers);
-  const tasks = [];
-  if (w.url && isDiscordWebhookUrl(w.url)) {
-    tasks.push(() => postDiscordWebhook(w.url, discordPayload));
-  }
-  if (w.slackWebhookUrl && isSlackIncomingWebhookUrl(w.slackWebhookUrl)) {
-    tasks.push(() => postSlackIncomingWebhook(w.slackWebhookUrl, slackText));
-  }
-  if (w.genericWebhookUrl && isGenericHttpsWebhookUrl(w.genericWebhookUrl)) {
-    tasks.push(() => postDiscordWebhook(w.genericWebhookUrl, discordPayload));
-  }
-  if (!tasks.length) return false;
-  const results = await Promise.all(tasks.map((fn) => fn()));
-  return results.some(Boolean);
-}
-
-async function sendDueTodayToAllWebhookChannels(w, chore, today) {
-  const discordPayload = reminderPayloads.buildDueTodayDiscordPayload(
-    chore,
-    today,
-    formatCalendarDateHuman,
-  );
-  const slackText = reminderPayloads.buildDueTodaySlackPlainText(
-    chore,
-    today,
-    formatCalendarDateHuman,
-  );
-  const tasks = [];
-  if (w.url && isDiscordWebhookUrl(w.url)) {
-    tasks.push(() => postDiscordWebhook(w.url, discordPayload));
-  }
-  if (w.slackWebhookUrl && isSlackIncomingWebhookUrl(w.slackWebhookUrl)) {
-    tasks.push(() => postSlackIncomingWebhook(w.slackWebhookUrl, slackText));
-  }
-  if (w.genericWebhookUrl && isGenericHttpsWebhookUrl(w.genericWebhookUrl)) {
-    tasks.push(() => postDiscordWebhook(w.genericWebhookUrl, discordPayload));
-  }
-  if (!tasks.length) return false;
-  const results = await Promise.all(tasks.map((fn) => fn()));
-  return results.some(Boolean);
-}
-
-async function sendDueTodayDigestToAllWebhookChannels(w, chores, today) {
-  const discordPayload = reminderPayloads.buildDiscordDueTodayDigestPayload(
-    chores,
-    today,
-    formatCalendarDateHuman,
-  );
-  const slackText = reminderPayloads.buildSlackDueTodayDigestPlainText(
-    chores,
-    today,
-    formatCalendarDateHuman,
-  );
-  const tasks = [];
-  if (w.url && isDiscordWebhookUrl(w.url)) {
-    tasks.push(() => postDiscordWebhook(w.url, discordPayload));
-  }
-  if (w.slackWebhookUrl && isSlackIncomingWebhookUrl(w.slackWebhookUrl)) {
-    tasks.push(() => postSlackIncomingWebhook(w.slackWebhookUrl, slackText));
-  }
-  if (w.genericWebhookUrl && isGenericHttpsWebhookUrl(w.genericWebhookUrl)) {
-    tasks.push(() => postDiscordWebhook(w.genericWebhookUrl, discordPayload));
-  }
-  if (!tasks.length) return false;
-  const results = await Promise.all(tasks.map((fn) => fn()));
-  return results.some(Boolean);
-}
-
-/**
- * @returns {Promise<{ ok: boolean, pruned: boolean }>}
- */
-async function sendPushPayloadToStoreSubscriptions(store, householdId, payloadString) {
-  const subs = store.pushSubscriptions;
-  if (!subs || !subs.length || !pushSend.vapidKeysPresent()) return { ok: false, pruned: false };
-  if (!pushSend.ensureVapidConfigured()) return { ok: false, pruned: false };
-  const dead = [];
-  let any = false;
-  for (const sub of subs) {
-    const subscription = { endpoint: sub.endpoint, keys: sub.keys };
-    try {
-      await pushSend.sendToSubscription(subscription, payloadString);
-      any = true;
-    } catch (e) {
-      const code = e.statusCode;
-      if (code === 404 || code === 410) dead.push(sub.endpoint);
-      else console.error('Web push:', e.message || e);
-      /* Sync errors from web-push (e.g. bad key encoding) have no statusCode */
-      if (code == null && e && e.message) console.error('Web push (detail):', sub.endpoint.slice(0, 48), e.message);
-    }
-  }
-  if (dead.length) {
-    store.pushSubscriptions = subs.filter((s) => !dead.includes(s.endpoint));
-    await writeStore(householdId, store);
-    return { ok: any, pruned: true };
-  }
-  return { ok: any, pruned: false };
-}
-
-let discordReminderJobRunning = false;
-async function runDiscordReminders() {
-  if (discordReminderJobRunning) return;
-  discordReminderJobRunning = true;
-  try {
-    ensureRegistryLoaded();
-    const ids = householdReg.listHouseholdIds(householdRegistry);
-    for (const householdId of ids) {
-      const store = await readStore(householdId);
-      const w = store.discordWebhook || normalizeDiscordWebhook(null);
-      if (!w.enabled) continue;
-      const webhookPath = hasReminderDestination(w);
-      const hasPush =
-        browserPushAllowedForHousehold(householdId) &&
-        pushSend.vapidKeysPresent() &&
-        Array.isArray(store.pushSubscriptions) &&
-        store.pushSubscriptions.length > 0;
-
-      const overdueWh = webhookPath && w.overdueNotifyWebhooks;
-      const overduePush = hasPush && w.overdueNotifyPush;
-      const dueTodayWh = webhookPath && w.dueTodayNotifyWebhooks;
-      const dueTodayPush = hasPush && w.dueTodayNotifyPush;
-      const anyOverdueChannel = overdueWh || overduePush;
-      const anyDueTodayChannel = w.dueTodayEnabled && (dueTodayWh || dueTodayPush);
-
-      if (!anyOverdueChannel && !anyDueTodayChannel) continue;
-      if (isInReminderQuietHours(w)) continue;
-
-      const today = localCalendarDateISO();
-      const intervalMs = w.reminderIntervalMinutes * 60 * 1000;
-      const now = Date.now();
-      const list = store.scheduledChores || [];
-      let sentMap = { ...store.discordReminderSentAt };
-      let dueTodayMap = { ...(store.discordDueTodaySentAt || {}) };
-      let changed = false;
-
-      for (const s of list) {
-        if (s.reminderEnabled === false) continue;
-        const next = nextDueDateScheduled(s);
-
-        if (next > today) {
-          if (sentMap[s.id]) {
-            delete sentMap[s.id];
-            changed = true;
-          }
-          if (dueTodayMap[s.id]) {
-            delete dueTodayMap[s.id];
-            changed = true;
-          }
-          continue;
-        }
-
-        if (next < today) {
-          if (dueTodayMap[s.id]) {
-            delete dueTodayMap[s.id];
-            changed = true;
-          }
-          if (!anyOverdueChannel) continue;
-
-          const last = sentMap[s.id] ? Date.parse(sentMap[s.id]) : 0;
-          if (last && now - last < intervalMs) continue;
-
-          let okWh = false;
-          let pushRes = { ok: false, pruned: false };
-          if (overdueWh) okWh = await sendOverdueToAllWebhookChannels(w, s, next, today);
-          if (overduePush) {
-            pushRes = await sendPushPayloadToStoreSubscriptions(
-              store,
-              householdId,
-              reminderPayloads.buildOverduePushPayloadJson(s, next, today, formatCalendarDateHuman),
-            );
-          }
-          if (pushRes.pruned) changed = true;
-          if (okWh || pushRes.ok) {
-            sentMap[s.id] = new Date().toISOString();
-            changed = true;
-          }
-          continue;
-        }
-
-        /* next === today */
-        if (sentMap[s.id]) {
-          delete sentMap[s.id];
-          changed = true;
-        }
-
-        if (!w.dueTodayEnabled) {
-          if (dueTodayMap[s.id]) {
-            delete dueTodayMap[s.id];
-            changed = true;
-          }
-          continue;
-        }
-
-        if (!anyDueTodayChannel) continue;
-
-        if (dueTodayMap[s.id] === today) continue;
-
-        let okWh = false;
-        let pushRes = { ok: false, pruned: false };
-        if (dueTodayWh) okWh = await sendDueTodayToAllWebhookChannels(w, s, today);
-        if (dueTodayPush) {
-          pushRes = await sendPushPayloadToStoreSubscriptions(
-            store,
-            householdId,
-            reminderPayloads.buildDueTodayPushPayloadJson(s, today),
-          );
-        }
-        if (pushRes.pruned) changed = true;
-        if (okWh || pushRes.ok) {
-          dueTodayMap[s.id] = today;
-          changed = true;
-        }
-      }
-
-      if (changed) {
-        store.discordReminderSentAt = sentMap;
-        store.discordDueTodaySentAt = dueTodayMap;
-        await writeStore(householdId, store);
-      }
-    }
-  } catch (e) {
-    console.error('Discord reminders:', e);
-  } finally {
-    discordReminderJobRunning = false;
-  }
-}
+const {
+  runDiscordReminders,
+  sendDigestToAllWebhookChannels,
+  sendDueTodayDigestToAllWebhookChannels,
+  sendPushPayloadToStoreSubscriptions,
+} = createReminderEngine({
+  browserPushAllowedForHousehold,
+  formatCalendarDateHuman,
+  hasReminderDestination,
+  isDiscordWebhookUrl,
+  isGenericHttpsWebhookUrl,
+  isInReminderQuietHours,
+  isSlackIncomingWebhookUrl,
+  localCalendarDateISO,
+  nextDueDateScheduled,
+  normalizeDiscordWebhook,
+  postDiscordWebhook,
+  postSlackIncomingWebhook,
+  pushSend,
+  readStore,
+  reminderPayloads,
+  writeStore,
+  ensureRegistryLoaded,
+  listHouseholdIds: householdReg.listHouseholdIds,
+  getRegistry,
+});
 
 app.post('/api/discord-webhook/test', requireReadWrite, async (req, res) => {
   try {
@@ -2142,70 +1335,6 @@ app.post('/api/discord-webhook/remind-now', requireReadWrite, async (req, res) =
     res.status(500).json({ error: 'Failed to send' });
   }
 });
-
-function csvEscapeCell(value) {
-  const s = value == null ? '' : String(value);
-  if (/[\r\n",]/.test(s)) {
-    return `"${s.replace(/"/g, '""')}"`;
-  }
-  return s;
-}
-
-function entryPointsForCsvExport(entry, presetMap) {
-  if (!entry || !entry.choreId) return '';
-  const pr = presetMap.get(entry.choreId);
-  if (!pr) return '';
-  if (pr.scoringMode === 'per_location') {
-    const n = Array.isArray(entry.locationIds) ? entry.locationIds.length : 0;
-    return pr.points * n;
-  }
-  return pr.points;
-}
-
-function buildEntriesCsv(store) {
-  const presets = store.chorePresets || [];
-  const presetMap = new Map(presets.map((p) => [p.id, p]));
-  const entries = [...(store.entries || [])].sort((a, b) => {
-    const da = String(a.d || '');
-    const db = String(b.d || '');
-    if (da !== db) return da.localeCompare(db);
-    return String(a.id || '').localeCompare(String(b.id || ''));
-  });
-  const headers = [
-    'id',
-    'date',
-    'chore',
-    'person',
-    'points',
-    'preset_title',
-    'chore_id',
-    'locations',
-    'created_at',
-    'updated_at',
-  ];
-  const lines = [headers.map(csvEscapeCell).join(',')];
-  for (const e of entries) {
-    if (e.deletedAt) continue;
-    const pr = e.choreId ? presetMap.get(e.choreId) : null;
-    const presetTitle = pr ? pr.title : '';
-    const pts = entryPointsForCsvExport(e, presetMap);
-    const locs = Array.isArray(e.locationIds) ? e.locationIds.join('; ') : '';
-    const row = [
-      csvEscapeCell(e.id),
-      csvEscapeCell(e.d),
-      csvEscapeCell(e.c),
-      csvEscapeCell(e.p),
-      csvEscapeCell(pts === '' ? '' : pts),
-      csvEscapeCell(presetTitle),
-      csvEscapeCell(e.choreId || ''),
-      csvEscapeCell(locs),
-      csvEscapeCell(e.createdAt || ''),
-      csvEscapeCell(e.updatedAt || ''),
-    ];
-    lines.push(row.join(','));
-  }
-  return lines.join('\r\n');
-}
 
 app.get('/api/export/entries.csv', async (req, res) => {
   try {
