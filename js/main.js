@@ -64,6 +64,13 @@ function formatSessionExpiry(iso) {
   }
 }
 
+function blockReadOnlyAction() {
+  if (!app.readOnly) return false;
+  app.loadError = t('errors.readOnlyAction');
+  render();
+  return true;
+}
+
 async function loadAccountInfo() {
   try {
     const r = await apiFetch('/api/account');
@@ -334,6 +341,7 @@ function renderLocationsEditor() {
 }
 
 async function savePeopleList(next) {
+  if (blockReadOnlyAction()) return;
   const r = await apiFetch('/api/settings', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -357,6 +365,7 @@ async function savePeopleList(next) {
 }
 
 async function saveLocationsList(next) {
+  if (blockReadOnlyAction()) return;
   const r = await apiFetch('/api/settings', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -523,6 +532,7 @@ function showAddToast(addedEntries) {
 }
 
 async function undoLastAdd() {
+  if (blockReadOnlyAction()) return;
   const ids = app.pendingUndoEntryIds.slice();
   if (!ids.length) return;
   clearAddToastTimer();
@@ -544,6 +554,7 @@ async function undoLastAdd() {
 }
 
 async function addEntry() {
+  if (blockReadOnlyAction()) return;
   const d = document.getElementById('inDate').value;
   const raw = document.getElementById('inChore').value.trim();
   const p = document.getElementById('inPerson').value;
@@ -696,6 +707,7 @@ function delEntry(id) {
 }
 
 async function confirmDeleteEntry() {
+  if (blockReadOnlyAction()) return;
   const id = app.pendingDeleteEntryId;
   if (!id) return;
   document.getElementById('deleteEntryDialog').close();
@@ -772,6 +784,7 @@ function openScheduledCompleteDialog(id) {
 }
 
 async function confirmScheduledComplete() {
+  if (blockReadOnlyAction()) return;
   const id = app.pendingScheduledCompleteId;
   const person = document.getElementById('scheduledDonePerson').value.trim();
   const completedDateRaw = document.getElementById('scheduledDoneCompletedDate')?.value?.trim() || '';
@@ -809,6 +822,7 @@ function markScheduledDone(id) {
 }
 
 async function saveScheduledStartDate(id, domKey) {
+  if (blockReadOnlyAction()) return;
   const input = document.getElementById(`scheduledStart_${domKey}`);
   const startsOn = input ? input.value : '';
   if (!startsOn) {
@@ -833,6 +847,7 @@ async function saveScheduledStartDate(id, domKey) {
 }
 
 async function setScheduledReminderEnabled(id, reminderEnabled) {
+  if (blockReadOnlyAction()) return;
   try {
     const r = await apiFetch(`/api/scheduled-chores/${encodeURIComponent(id)}`, {
       method: 'PUT',
@@ -851,6 +866,7 @@ async function setScheduledReminderEnabled(id, reminderEnabled) {
 }
 
 async function deleteScheduledChore(id) {
+  if (blockReadOnlyAction()) return;
   if (!confirm(t('scheduled.confirmRemove'))) return;
   try {
     const r = await apiFetch(`/api/scheduled-chores/${encodeURIComponent(id)}`, { method: 'DELETE' });
@@ -998,6 +1014,7 @@ function setDiscordStatus(msg, isError) {
 }
 
 async function saveDiscordWebhookSettings() {
+  if (blockReadOnlyAction()) return;
   const enabled = document.getElementById('discordWebhookEnabled')?.checked;
   const url = document.getElementById('discordWebhookUrl')?.value.trim() ?? '';
   const reminderIntervalMinutes = Number(document.getElementById('discordReminderInterval')?.value);
@@ -1044,6 +1061,7 @@ async function saveDiscordWebhookSettings() {
 }
 
 async function testDiscordWebhook() {
+  if (blockReadOnlyAction()) return;
   const payload = {};
   const u = document.getElementById('discordWebhookUrl')?.value.trim();
   const s = document.getElementById('slackWebhookUrl')?.value.trim();
@@ -1066,6 +1084,7 @@ async function testDiscordWebhook() {
 }
 
 async function discordRemindOverdueNow() {
+  if (blockReadOnlyAction()) return;
   try {
     const r = await apiFetch('/api/discord-webhook/remind-now', { method: 'POST' });
     const data = await r.json().catch(() => ({}));
@@ -1152,6 +1171,38 @@ document.getElementById('themeOptions').addEventListener('change', (e) => {
 });
 
 const SETTINGS_TAB_KEY = 'chorelog-settings-tab';
+const DASHBOARD_ORDER_KEY = 'chorelog-dashboard-order';
+const DASHBOARD_HIDDEN_BLOCKS_KEY = 'chorelog-dashboard-hidden-blocks';
+const DASHBOARD_HIDDEN_STAT_CARDS_KEY = 'chorelog-dashboard-hidden-stat-cards';
+const DASHBOARD_DESKTOP_LAYOUT_KEY = 'chorelog-dashboard-desktop-layout';
+const DEFAULT_DASHBOARD_BLOCK_ORDER = [
+  'dashboardBlockStats',
+  'dashboardBlockContributions',
+  'dashboardBlockHeatmap',
+  'dashboardBlockLog',
+  'dashboardBlockScheduled',
+  'dashboardBlockMom',
+];
+const ALL_DASHBOARD_STAT_CARD_KEYS = [
+  'tasks_totalTasks',
+  'tasks_mostActive',
+  'tasks_activeDays',
+  'tasks_members',
+  'tasks_balance',
+  'points_totalPoints',
+  'points_topEarner',
+  'points_avgPtsPerTask',
+  'points_members',
+  'points_balance',
+];
+const DEFAULT_DASHBOARD_DESKTOP_LAYOUT = Object.freeze({
+  dashboardBlockStats: 'full',
+  dashboardBlockContributions: 'third',
+  dashboardBlockHeatmap: 'third',
+  dashboardBlockLog: 'full',
+  dashboardBlockScheduled: 'third',
+  dashboardBlockMom: 'third',
+});
 const VALID_SETTINGS_TABS = new Set([
   'interface',
   'household',
@@ -1163,6 +1214,255 @@ const VALID_SETTINGS_TABS = new Set([
   'data',
   'about',
 ]);
+
+function normalizeDashboardBlockOrder(raw) {
+  const ids = Array.isArray(raw) ? raw.filter((v) => typeof v === 'string') : [];
+  const seen = new Set();
+  const out = [];
+  for (const id of ids) {
+    if (!DEFAULT_DASHBOARD_BLOCK_ORDER.includes(id) || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  for (const id of DEFAULT_DASHBOARD_BLOCK_ORDER) {
+    if (!seen.has(id)) out.push(id);
+  }
+  return out;
+}
+
+function readDashboardBlockOrder() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(DASHBOARD_ORDER_KEY) || '[]');
+    return normalizeDashboardBlockOrder(raw);
+  } catch {
+    return [...DEFAULT_DASHBOARD_BLOCK_ORDER];
+  }
+}
+
+function writeDashboardBlockOrder(order) {
+  try {
+    localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(order));
+  } catch {
+    /* ignore */
+  }
+}
+
+function normalizeDashboardHiddenBlocks(raw) {
+  const ids = Array.isArray(raw) ? raw.filter((v) => typeof v === 'string') : [];
+  const valid = new Set(DEFAULT_DASHBOARD_BLOCK_ORDER);
+  return [...new Set(ids.filter((id) => valid.has(id)))];
+}
+
+function readDashboardHiddenBlocks() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(DASHBOARD_HIDDEN_BLOCKS_KEY) || '[]');
+    return normalizeDashboardHiddenBlocks(raw);
+  } catch {
+    return [];
+  }
+}
+
+function writeDashboardHiddenBlocks(ids) {
+  try {
+    localStorage.setItem(DASHBOARD_HIDDEN_BLOCKS_KEY, JSON.stringify(normalizeDashboardHiddenBlocks(ids)));
+  } catch {
+    /* ignore */
+  }
+}
+
+function normalizeDashboardHiddenStatCards(raw) {
+  const ids = Array.isArray(raw) ? raw.filter((v) => typeof v === 'string') : [];
+  const valid = new Set(ALL_DASHBOARD_STAT_CARD_KEYS);
+  return [...new Set(ids.filter((id) => valid.has(id)))];
+}
+
+function readDashboardHiddenStatCards() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(DASHBOARD_HIDDEN_STAT_CARDS_KEY) || '[]');
+    return normalizeDashboardHiddenStatCards(raw);
+  } catch {
+    return [];
+  }
+}
+
+function writeDashboardHiddenStatCards(ids) {
+  try {
+    localStorage.setItem(
+      DASHBOARD_HIDDEN_STAT_CARDS_KEY,
+      JSON.stringify(normalizeDashboardHiddenStatCards(ids)),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+function normalizeDashboardDesktopLayout(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const out = {};
+  for (const id of DEFAULT_DASHBOARD_BLOCK_ORDER) {
+    const val = src[id];
+    out[id] = val === 'quarter' || val === 'third' || val === 'half' ? val : 'full';
+  }
+  return out;
+}
+
+function readDashboardDesktopLayout() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(DASHBOARD_DESKTOP_LAYOUT_KEY) || '{}');
+    return normalizeDashboardDesktopLayout({ ...DEFAULT_DASHBOARD_DESKTOP_LAYOUT, ...raw });
+  } catch {
+    return { ...DEFAULT_DASHBOARD_DESKTOP_LAYOUT };
+  }
+}
+
+function writeDashboardDesktopLayout(layout) {
+  try {
+    localStorage.setItem(
+      DASHBOARD_DESKTOP_LAYOUT_KEY,
+      JSON.stringify(normalizeDashboardDesktopLayout(layout)),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+function applyDashboardBlockOrder(order) {
+  const container = document.getElementById('dashboardBlocks');
+  if (!container) return;
+  for (const id of order) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    container.appendChild(el);
+  }
+}
+
+function applyDashboardBlockVisibility() {
+  const hidden = new Set(app.dashboardHiddenBlocks || []);
+  for (const id of DEFAULT_DASHBOARD_BLOCK_ORDER) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = hidden.has(id);
+  }
+}
+
+function applyDashboardDesktopLayout() {
+  const layout = readDashboardDesktopLayout();
+  for (const id of DEFAULT_DASHBOARD_BLOCK_ORDER) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const size = layout[id] || 'full';
+    el.classList.toggle('dashboard-block--desktop-quarter', size === 'quarter');
+    el.classList.toggle('dashboard-block--desktop-third', size === 'third');
+    el.classList.toggle('dashboard-block--desktop-half', size === 'half');
+    el.classList.toggle('dashboard-block--desktop-full', size === 'full');
+  }
+}
+
+function dashboardStatCardLabel(cardKey) {
+  const [mode, metric] = String(cardKey || '').split('_');
+  if (mode === 'tasks') {
+    if (metric === 'totalTasks') return t('stats.totalTasks');
+    if (metric === 'mostActive') return t('stats.mostActive');
+    if (metric === 'activeDays') return t('stats.activeDays');
+    if (metric === 'members') return t('stats.members');
+    if (metric === 'balance') return t('stats.balance');
+  }
+  if (mode === 'points') {
+    if (metric === 'totalPoints') return t('stats.totalPoints');
+    if (metric === 'topEarner') return t('stats.topEarner');
+    if (metric === 'avgPtsPerTask') return t('stats.avgPtsPerTask');
+    if (metric === 'members') return t('stats.members');
+    if (metric === 'balance') return t('stats.balance');
+  }
+  return cardKey;
+}
+
+function renderDashboardOrderList(order) {
+  const list = document.getElementById('dashboardOrderList');
+  if (!list) return;
+  list.innerHTML = order
+    .map((id, idx) => {
+      const block = document.getElementById(id);
+      const labelKey = block?.getAttribute('data-order-label') || '';
+      const label = labelKey ? t(labelKey) : id;
+      return `<li class="dashboard-order-item">
+  <span class="dashboard-order-name">${escapeHtml(label)}</span>
+  <span class="dashboard-order-actions">
+    <button type="button" class="btn-secondary" data-order-move="up" data-order-id="${escapeAttr(id)}" ${idx === 0 ? 'disabled' : ''} aria-label="${escapeAttr(t('dashboard.moveUp'))}">↑</button>
+    <button type="button" class="btn-secondary" data-order-move="down" data-order-id="${escapeAttr(id)}" ${idx === order.length - 1 ? 'disabled' : ''} aria-label="${escapeAttr(t('dashboard.moveDown'))}">↓</button>
+  </span>
+</li>`;
+    })
+    .join('');
+}
+
+function renderDashboardVisibilityList() {
+  const list = document.getElementById('dashboardVisibilityList');
+  if (!list) return;
+  const hidden = new Set(app.dashboardHiddenBlocks || []);
+  list.innerHTML = DEFAULT_DASHBOARD_BLOCK_ORDER.map((id) => {
+    const block = document.getElementById(id);
+    const labelKey = block?.getAttribute('data-order-label') || '';
+    const label = labelKey ? t(labelKey) : id;
+    return `<li class="dashboard-order-item">
+  <label class="dashboard-order-name">
+    <input type="checkbox" data-toggle-block="${escapeAttr(id)}" ${hidden.has(id) ? '' : 'checked'} />
+    ${escapeHtml(label)}
+  </label>
+</li>`;
+  }).join('');
+}
+
+function renderDashboardStatsVisibilityList() {
+  const list = document.getElementById('dashboardStatsVisibilityList');
+  if (!list) return;
+  const hidden = new Set(app.dashboardHiddenStatCards || []);
+  list.innerHTML = ALL_DASHBOARD_STAT_CARD_KEYS.map((key) => {
+    const label = dashboardStatCardLabel(key);
+    return `<li class="dashboard-order-item">
+  <label class="dashboard-order-name">
+    <input type="checkbox" data-toggle-stat-card="${escapeAttr(key)}" ${hidden.has(key) ? '' : 'checked'} />
+    ${escapeHtml(label)}
+  </label>
+</li>`;
+  }).join('');
+}
+
+function renderDashboardDesktopLayoutList() {
+  const list = document.getElementById('dashboardDesktopLayoutList');
+  if (!list) return;
+  const layout = readDashboardDesktopLayout();
+  list.innerHTML = DEFAULT_DASHBOARD_BLOCK_ORDER.map((id) => {
+    const block = document.getElementById(id);
+    const labelKey = block?.getAttribute('data-order-label') || '';
+    const label = labelKey ? t(labelKey) : id;
+    const current =
+      layout[id] === 'quarter' || layout[id] === 'third' || layout[id] === 'half'
+        ? layout[id]
+        : 'full';
+    return `<li class="dashboard-order-item">
+  <span class="dashboard-order-name">${escapeHtml(label)}</span>
+  <span class="dashboard-order-actions">
+    <select data-desktop-layout-block="${escapeAttr(id)}" aria-label="${escapeAttr(label)}">
+      <option value="full" ${current === 'full' ? 'selected' : ''}>${escapeHtml(t('dashboard.desktopWidthFull'))}</option>
+      <option value="half" ${current === 'half' ? 'selected' : ''}>${escapeHtml(t('dashboard.desktopWidthHalf'))}</option>
+      <option value="third" ${current === 'third' ? 'selected' : ''}>${escapeHtml(t('dashboard.desktopWidthThird'))}</option>
+      <option value="quarter" ${current === 'quarter' ? 'selected' : ''}>${escapeHtml(t('dashboard.desktopWidthQuarter'))}</option>
+    </select>
+  </span>
+</li>`;
+  }).join('');
+}
+
+function openDashboardOrderDialog() {
+  const order = readDashboardBlockOrder();
+  app.dashboardHiddenBlocks = readDashboardHiddenBlocks();
+  app.dashboardHiddenStatCards = readDashboardHiddenStatCards();
+  renderDashboardOrderList(order);
+  renderDashboardVisibilityList();
+  renderDashboardDesktopLayoutList();
+  renderDashboardStatsVisibilityList();
+  document.getElementById('dashboardOrderDialog')?.showModal();
+}
 
 function closeSettingsMobileNav() {
   const nav = document.getElementById('settingsNav');
@@ -1279,9 +1579,14 @@ document.getElementById('btnSettings').addEventListener('click', () => {
   document.getElementById('settingsDialog').showModal();
 });
 
+document.getElementById('btnReorderDashboard')?.addEventListener('click', () => {
+  openDashboardOrderDialog();
+});
+
 document.getElementById('btnRefreshAuditLog').addEventListener('click', () => loadAuditLogIntoSettings());
 
 document.getElementById('btnSaveDisplayName')?.addEventListener('click', async () => {
+  if (blockReadOnlyAction()) return;
   const input = document.getElementById('accountDisplayNameInput');
   const status = document.getElementById('accountDisplayNameStatus');
   if (!input || !status) return;
@@ -1320,6 +1625,7 @@ document.getElementById('btnSaveDisplayName')?.addEventListener('click', async (
 });
 
 document.getElementById('btnAccountChangePassword')?.addEventListener('click', async () => {
+  if (blockReadOnlyAction()) return;
   const cur = document.getElementById('accountCurrentPassword');
   const n1 = document.getElementById('accountNewPassword');
   const n2 = document.getElementById('accountConfirmPassword');
@@ -1369,6 +1675,7 @@ document.getElementById('btnAccountChangePassword')?.addEventListener('click', a
 });
 
 document.getElementById('btnCreateHousehold')?.addEventListener('click', async () => {
+  if (blockReadOnlyAction()) return;
   const idRaw = document.getElementById('accountNewHouseholdId')?.value.trim().toLowerCase() || '';
   const pw = document.getElementById('accountNewHouseholdPassword')?.value || '';
   const pw2 = document.getElementById('accountNewHouseholdPassword2')?.value || '';
@@ -1440,6 +1747,71 @@ document.getElementById('settingsDialog').addEventListener('click', (e) => {
   if (e.target === document.getElementById('settingsDialog')) e.target.close();
 });
 
+document.getElementById('dashboardOrderClose')?.addEventListener('click', () => {
+  document.getElementById('dashboardOrderDialog')?.close();
+});
+document.getElementById('dashboardOrderDialog')?.addEventListener('click', (e) => {
+  if (e.target === document.getElementById('dashboardOrderDialog')) e.target.close();
+});
+document.getElementById('dashboardOrderList')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-order-move][data-order-id]');
+  if (!btn) return;
+  const id = btn.getAttribute('data-order-id');
+  const move = btn.getAttribute('data-order-move');
+  const order = readDashboardBlockOrder();
+  const idx = order.indexOf(id);
+  if (idx === -1) return;
+  if (move === 'up' && idx > 0) {
+    const tmp = order[idx - 1];
+    order[idx - 1] = order[idx];
+    order[idx] = tmp;
+  } else if (move === 'down' && idx < order.length - 1) {
+    const tmp = order[idx + 1];
+    order[idx + 1] = order[idx];
+    order[idx] = tmp;
+  } else {
+    return;
+  }
+  writeDashboardBlockOrder(order);
+  applyDashboardBlockOrder(order);
+  renderDashboardOrderList(order);
+});
+document.getElementById('dashboardVisibilityList')?.addEventListener('change', (e) => {
+  const cb = e.target.closest('input[type="checkbox"][data-toggle-block]');
+  if (!cb) return;
+  const id = cb.getAttribute('data-toggle-block');
+  const hidden = new Set(readDashboardHiddenBlocks());
+  if (cb.checked) hidden.delete(id);
+  else hidden.add(id);
+  app.dashboardHiddenBlocks = [...hidden];
+  writeDashboardHiddenBlocks(app.dashboardHiddenBlocks);
+  applyDashboardBlockVisibility();
+});
+document.getElementById('dashboardDesktopLayoutList')?.addEventListener('change', (e) => {
+  const sel = e.target.closest('select[data-desktop-layout-block]');
+  if (!sel) return;
+  const id = sel.getAttribute('data-desktop-layout-block');
+  const next =
+    sel.value === 'quarter' || sel.value === 'third' || sel.value === 'half'
+      ? sel.value
+      : 'full';
+  const layout = readDashboardDesktopLayout();
+  layout[id] = next;
+  writeDashboardDesktopLayout(layout);
+  applyDashboardDesktopLayout();
+});
+document.getElementById('dashboardStatsVisibilityList')?.addEventListener('change', (e) => {
+  const cb = e.target.closest('input[type="checkbox"][data-toggle-stat-card]');
+  if (!cb) return;
+  const key = cb.getAttribute('data-toggle-stat-card');
+  const hidden = new Set(readDashboardHiddenStatCards());
+  if (cb.checked) hidden.delete(key);
+  else hidden.add(key);
+  app.dashboardHiddenStatCards = [...hidden];
+  writeDashboardHiddenStatCards(app.dashboardHiddenStatCards);
+  render();
+});
+
 document.getElementById('btnAddPerson').addEventListener('click', () => addPerson());
 document.getElementById('newPersonName').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
@@ -1495,6 +1867,7 @@ document.getElementById('btnExportCsv').addEventListener('click', async () => {
 });
 
 document.getElementById('importFile').addEventListener('change', async (e) => {
+  if (blockReadOnlyAction()) return;
   const input = e.target;
   const f = input.files && input.files[0];
   input.value = '';
@@ -1577,6 +1950,7 @@ document.getElementById('scheduledDoneDialog').addEventListener('close', () => {
 
 document.getElementById('editEntryForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (blockReadOnlyAction()) return;
   const id = app.pendingEditEntryId;
   if (!id) return;
   const d = document.getElementById('editEntryDate').value;
@@ -1650,6 +2024,7 @@ document.getElementById('deleteEntryDialog').addEventListener('close', () => {
 
 document.getElementById('addScheduledForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (blockReadOnlyAction()) return;
   const title = document.getElementById('scheduledNewTitle').value.trim();
   if (!title) return;
   const mode = document.getElementById('scheduledRecurrenceMode')?.value || 'interval';
@@ -1821,6 +2196,11 @@ initQuickChores();
 initScheduledLogSuggestions();
 initChoreInputSuggest();
 syncLogLocationFieldVisibility();
+app.dashboardHiddenBlocks = readDashboardHiddenBlocks();
+app.dashboardHiddenStatCards = readDashboardHiddenStatCards();
+applyDashboardBlockOrder(readDashboardBlockOrder());
+applyDashboardBlockVisibility();
+applyDashboardDesktopLayout();
 
 document.getElementById('addToastUndo').addEventListener('click', () => {
   undoLastAdd();
@@ -2337,6 +2717,7 @@ document.getElementById('btnLogout').addEventListener('click', async () => {
 });
 
 async function restoreLogEntry(id) {
+  if (blockReadOnlyAction()) return;
   if (!id) return;
   try {
     const r = await apiFetch(`/api/entries/${encodeURIComponent(id)}/restore`, { method: 'POST' });

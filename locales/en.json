@@ -50,9 +50,31 @@
     "title": "Chore tracker",
     "scheduled": "Scheduled",
     "settings": "Settings",
+    "reorderDashboard": "Reorder dashboard",
     "monthAria": "Month to view",
     "guestLogout": "Log out",
     "readonlyBanner": "View-only session — logging and settings are disabled."
+  },
+  "dashboard": {
+    "reorderTitle": "Reorder dashboard",
+    "reorderHint": "Move sections up/down. Order is saved on this device.",
+    "blocksTitle": "Visible blocks",
+    "desktopLayoutTitle": "Desktop row width",
+    "desktopWidthFull": "Full row",
+    "desktopWidthHalf": "Half row",
+    "desktopWidthThird": "One third",
+    "desktopWidthQuarter": "One quarter",
+    "statsTitle": "Visible stat cards",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "blocks": {
+      "stats": "Stats cards",
+      "contributions": "Contributions",
+      "heatmap": "Heatmap",
+      "log": "Activity log",
+      "scheduled": "Scheduled chores",
+      "mom": "Month-over-month"
+    }
   },
   "errors": {
     "loadFailed": "Could not load chores from the server. Run `npm start` and open this page from the app URL (not file://).",
@@ -76,7 +98,8 @@
     "undo": "Could not undo.",
     "importFailed": "Import failed.",
     "exportFailed": "Export failed.",
-    "scheduledReminderUpdate": "Could not update reminder setting for this scheduled chore."
+    "scheduledReminderUpdate": "Could not update reminder setting for this scheduled chore.",
+    "readOnlyAction": "This session is view-only. Sign in with write access to make changes."
   },
   "analytics": {
     "person": "Person",

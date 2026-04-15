@@ -498,11 +498,21 @@
     align-items: start;
   }
 
+  .app-shell--analytics-tasks .analytics-stats-row,
+  .app-shell--analytics-points .analytics-stats-row {
+    grid-template-columns: 1fr;
+  }
+
   .contributions-bars-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
     align-items: start;
+  }
+
+  .app-shell--analytics-tasks .contributions-bars-row,
+  .app-shell--analytics-points .contributions-bars-row {
+    grid-template-columns: 1fr;
   }
 
   .contributions-bars-col + .contributions-bars-col {

@@ -195,6 +195,50 @@ body {
   max-width: 220px;
 }
 
+#dashboardBlocks {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+#dashboardBlocks > .dashboard-block {
+  grid-column: 1 / -1;
+}
+
+.dashboard-order-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.dashboard-order-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-md);
+  padding: 8px 10px;
+  background: var(--color-background-secondary);
+}
+
+.dashboard-order-name {
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.dashboard-order-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.dashboard-order-actions .btn-secondary {
+  min-width: 36px;
+  padding: 6px 10px;
+}
+
 .btn-settings {
   font-size: 13px;
   padding: 6px 12px;
@@ -244,6 +288,10 @@ body {
   min-height: 0;
   max-height: min(88dvh, 88vh, 680px);
   overflow: hidden;
+}
+
+.settings-inner.dashboard-order-inner {
+  overflow: auto;
 }
 
 @media (min-width: 560px) {
@@ -968,5 +1016,34 @@ body {
 @media (min-width: 561px) and (max-width: 760px) {
   .top-bar-actions #btnLogChoreTop {
     display: none;
+  }
+}
+
+@media (min-width: 1100px) {
+  #dashboardBlocks {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 12px;
+    align-items: start;
+  }
+
+  #dashboardBlocks > .dashboard-block {
+    margin-bottom: 0;
+  }
+
+  #dashboardBlocks > .dashboard-block.dashboard-block--desktop-full {
+    grid-column: span 12;
+  }
+
+  #dashboardBlocks > .dashboard-block.dashboard-block--desktop-half {
+    grid-column: span 6;
+  }
+
+  #dashboardBlocks > .dashboard-block.dashboard-block--desktop-third {
+    grid-column: span 4;
+  }
+
+  #dashboardBlocks > .dashboard-block.dashboard-block--desktop-quarter {
+    grid-column: span 3;
   }
 }

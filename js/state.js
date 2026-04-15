@@ -47,6 +47,10 @@ export const app = {
   analyticsLocationFilter: '',
   /** Analytics presentation mode: 'tasks' or 'points'. */
   analyticsMode: 'tasks',
+  /** Hidden dashboard block ids (persisted locally). */
+  dashboardHiddenBlocks: [],
+  /** Hidden stats card keys (persisted locally). */
+  dashboardHiddenStatCards: [],
   /** Server: Discord / Slack / generic webhooks, quiet hours, reminder interval. */
   discordWebhook: {
     enabled: false,

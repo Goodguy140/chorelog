@@ -260,23 +260,62 @@ function fullRender() {
   const balancePtsSub = balancePts.empty ? t('stats.logPresetToScore') : t('stats.balanceSubFull');
   const avgPtsPerTask =
     total > 0 ? Math.round((totalPts / total) * 10) / 10 : null;
+  const hiddenStatCards = new Set(Array.isArray(app.dashboardHiddenStatCards) ? app.dashboardHiddenStatCards : []);
 
   const monthLbl = escapeHtml(getMonthLabel(app.currentMonth, loc));
-  document.getElementById('statsGrid').innerHTML = `
-<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.totalTasks'))}</p><p class="stat-val">${total}</p><p class="stat-sub">${monthLbl}</p></div>
-<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.mostActive'))}</p><p class="stat-val" style="font-size:15px;">${escapeHtml(topPerson)}</p><p class="stat-sub">${cur[topPerson]} ${escapeHtml(t('stats.tasksSuffix'))}</p></div>
-<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.activeDays'))}</p><p class="stat-val">${activeDays}</p><p class="stat-sub">${escapeHtml(t('stats.daysWithChores'))}</p></div>
-<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.members'))}</p><p class="stat-val">${app.people.filter((p) => cur[p] > 0).length}</p><p class="stat-sub">${escapeHtml(t('stats.contributed'))}</p></div>
-<div class="stat-card stat-card--balance" title="${escapeAttr(t('stats.balanceHintTasks'))}"><p class="stat-label">${escapeHtml(t('stats.balance'))}</p><p class="stat-val">${balanceVal}</p><p class="stat-sub">${balanceSub}</p></div>
-  `;
+  const taskCards = [
+    {
+      key: 'tasks_totalTasks',
+      html: `<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.totalTasks'))}</p><p class="stat-val">${total}</p><p class="stat-sub">${monthLbl}</p></div>`,
+    },
+    {
+      key: 'tasks_mostActive',
+      html: `<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.mostActive'))}</p><p class="stat-val" style="font-size:15px;">${escapeHtml(topPerson)}</p><p class="stat-sub">${cur[topPerson]} ${escapeHtml(t('stats.tasksSuffix'))}</p></div>`,
+    },
+    {
+      key: 'tasks_activeDays',
+      html: `<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.activeDays'))}</p><p class="stat-val">${activeDays}</p><p class="stat-sub">${escapeHtml(t('stats.daysWithChores'))}</p></div>`,
+    },
+    {
+      key: 'tasks_members',
+      html: `<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.members'))}</p><p class="stat-val">${app.people.filter((p) => cur[p] > 0).length}</p><p class="stat-sub">${escapeHtml(t('stats.contributed'))}</p></div>`,
+    },
+    {
+      key: 'tasks_balance',
+      html: `<div class="stat-card stat-card--balance" title="${escapeAttr(t('stats.balanceHintTasks'))}"><p class="stat-label">${escapeHtml(t('stats.balance'))}</p><p class="stat-val">${balanceVal}</p><p class="stat-sub">${balanceSub}</p></div>`,
+    },
+  ];
+  document.getElementById('statsGrid').innerHTML = taskCards
+    .filter((card) => !hiddenStatCards.has(card.key))
+    .map((card) => card.html)
+    .join('');
 
-  document.getElementById('statsGridPoints').innerHTML = `
-<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.totalPoints'))}</p><p class="stat-val">${totalPts}</p><p class="stat-sub">${monthLbl} · ${escapeHtml(t('stats.presetWeights'))}</p></div>
-<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.topEarner'))}</p><p class="stat-val" style="font-size:15px;">${escapeHtml(topPersonPts)}</p><p class="stat-sub">${curPts[topPersonPts]} ${escapeHtml(t('stats.ptsSuffix'))}</p></div>
-<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.avgPtsPerTask'))}</p><p class="stat-val">${avgPtsPerTask == null ? '—' : avgPtsPerTask}</p><p class="stat-sub">${total === 0 ? escapeHtml(t('stats.noTasksMonth')) : escapeHtml(t('stats.meanTasks'))}</p></div>
-<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.members'))}</p><p class="stat-val">${app.people.filter((p) => curPts[p] > 0).length}</p><p class="stat-sub">${escapeHtml(t('stats.earnedPresetPoints'))}</p></div>
-<div class="stat-card stat-card--balance" title="${escapeAttr(t('stats.balanceHintPoints'))}"><p class="stat-label">${escapeHtml(t('stats.balance'))}</p><p class="stat-val">${balancePtsVal}</p><p class="stat-sub">${balancePtsSub}</p></div>
-  `;
+  const pointsCards = [
+    {
+      key: 'points_totalPoints',
+      html: `<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.totalPoints'))}</p><p class="stat-val">${totalPts}</p><p class="stat-sub">${monthLbl} · ${escapeHtml(t('stats.presetWeights'))}</p></div>`,
+    },
+    {
+      key: 'points_topEarner',
+      html: `<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.topEarner'))}</p><p class="stat-val" style="font-size:15px;">${escapeHtml(topPersonPts)}</p><p class="stat-sub">${curPts[topPersonPts]} ${escapeHtml(t('stats.ptsSuffix'))}</p></div>`,
+    },
+    {
+      key: 'points_avgPtsPerTask',
+      html: `<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.avgPtsPerTask'))}</p><p class="stat-val">${avgPtsPerTask == null ? '—' : avgPtsPerTask}</p><p class="stat-sub">${total === 0 ? escapeHtml(t('stats.noTasksMonth')) : escapeHtml(t('stats.meanTasks'))}</p></div>`,
+    },
+    {
+      key: 'points_members',
+      html: `<div class="stat-card"><p class="stat-label">${escapeHtml(t('stats.members'))}</p><p class="stat-val">${app.people.filter((p) => curPts[p] > 0).length}</p><p class="stat-sub">${escapeHtml(t('stats.earnedPresetPoints'))}</p></div>`,
+    },
+    {
+      key: 'points_balance',
+      html: `<div class="stat-card stat-card--balance" title="${escapeAttr(t('stats.balanceHintPoints'))}"><p class="stat-label">${escapeHtml(t('stats.balance'))}</p><p class="stat-val">${balancePtsVal}</p><p class="stat-sub">${balancePtsSub}</p></div>`,
+    },
+  ];
+  document.getElementById('statsGridPoints').innerHTML = pointsCards
+    .filter((card) => !hiddenStatCards.has(card.key))
+    .map((card) => card.html)
+    .join('');
 
   const max = Math.max(...Object.values(cur), 1);
   const sorted = [...app.people].sort((a, b) => cur[b] - cur[a]);

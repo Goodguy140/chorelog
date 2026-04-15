@@ -175,6 +175,7 @@
       <span class="title" data-i18n="app.title">Chore tracker</span>
       <div class="top-bar-actions">
         <button type="button" class="btn-settings" id="btnLogChoreTop" aria-haspopup="dialog" data-i18n="logForm.title">Log a chore</button>
+        <button type="button" class="btn-settings" id="btnReorderDashboard" aria-haspopup="dialog" data-i18n="app.reorderDashboard">Reorder dashboard</button>
         <fieldset class="analytics-mode-toggle" data-i18n-aria="analytics.modeAria" aria-label="Analytics mode">
           <label>
             <input type="radio" name="analyticsMode" value="tasks" checked />
@@ -209,7 +210,8 @@
       <p id="analyticsFilterHint" class="analytics-filter-hint" hidden></p>
     </details>
 
-    <div class="analytics-stats-row">
+    <div id="dashboardBlocks">
+    <div class="analytics-stats-row dashboard-block" id="dashboardBlockStats" data-order-label="dashboard.blocks.stats">
       <div class="analytics-stats-col analytics-only-tasks">
         <p class="analytics-block-label" data-i18n="analytics.byTaskCount">By task count</p>
         <div class="stat-grid" id="statsGrid"></div>
@@ -220,8 +222,7 @@
       </div>
     </div>
 
-    <div class="section-pair">
-      <div class="section section-pair__item">
+    <div class="section dashboard-block" id="dashboardBlockContributions" data-order-label="dashboard.blocks.contributions">
         <p class="section-title" data-i18n="contributions.title">Contributions this month</p>
         <div class="contributions-bars-row">
           <div class="contributions-bars-col analytics-only-tasks">
@@ -233,15 +234,15 @@
             <div id="barsAreaPoints"></div>
           </div>
         </div>
-      </div>
-      <div class="section section-pair__item">
+    </div>
+
+    <div class="section dashboard-block" id="dashboardBlockHeatmap" data-order-label="dashboard.blocks.heatmap">
         <p class="section-title" data-i18n="heatmap.title">Daily activity</p>
         <p class="section-sub" data-i18n="heatmap.subtitle">Tasks logged per day in the selected month (darker = more tasks).</p>
         <div class="heatmap-wrap" id="taskHeatmap" data-i18n-aria="heatmap.aria" aria-label="Tasks per day heatmap"></div>
-      </div>
     </div>
 
-    <div class="log-mom-row">
+    <div class="log-mom-row dashboard-block" id="dashboardBlockLog" data-order-label="dashboard.blocks.log">
       <div class="section log-mom-col log-mom-col--log">
         <p class="section-title"><span data-i18n="logList.titlePrefix">Log for</span> <span id="logMonthLabel"></span></p>
         <div class="log-filter-row">
@@ -258,13 +259,14 @@
       </div>
     </div>
 
-    <div class="scheduled-mom-row">
-      <div class="section" id="scheduledSection" style="display:none;">
+    <div class="section dashboard-block" id="dashboardBlockScheduled" data-order-label="dashboard.blocks.scheduled">
+      <div id="scheduledSection" style="display:none;">
         <p class="section-title" data-i18n="scheduled.sectionTitle">Scheduled chores</p>
         <p class="section-sub" data-i18n="scheduled.sectionSub">Recurring tasks and when they are due next. Mark done here to reset the timer.</p>
         <div class="scheduled-dashboard" id="scheduledDashboard"></div>
       </div>
-      <div class="section log-mom-col log-mom-col--mom">
+    </div>
+    <div class="section log-mom-col log-mom-col--mom dashboard-block" id="dashboardBlockMom" data-order-label="dashboard.blocks.mom">
         <p class="section-title" data-i18n="mom.title">Month-over-month</p>
         <div class="mom-pair">
           <div class="mom-pair-col analytics-only-tasks">
@@ -276,7 +278,7 @@
             <div class="mom-grid" id="momGridPoints"></div>
           </div>
         </div>
-      </div>
+    </div>
     </div>
 
     <footer class="app-footer" id="footerAppVersionWrap" hidden><span id="footerAppVersion" class="app-version"></span></footer>
@@ -739,6 +741,23 @@
         <button type="button" class="btn-secondary" id="scheduledDoneCancel" data-i18n="editEntry.cancel">Cancel</button>
         <button type="button" class="btn-secondary scheduled-done-confirm" id="scheduledDoneConfirm" data-i18n="scheduled.doneConfirm">Add to log &amp; reset timer</button>
       </div>
+    </div>
+  </dialog>
+
+  <dialog class="settings-dialog" id="dashboardOrderDialog" aria-labelledby="dashboardOrderTitle">
+    <div class="settings-inner dashboard-order-inner">
+      <div class="settings-header">
+        <h2 id="dashboardOrderTitle" data-i18n="dashboard.reorderTitle">Reorder dashboard</h2>
+        <button type="button" class="settings-close" id="dashboardOrderClose" data-i18n-aria="settings.closeAria" aria-label="Close">&times;</button>
+      </div>
+      <p class="settings-hint" data-i18n="dashboard.reorderHint">Move sections up/down. Order is saved on this device.</p>
+      <ul id="dashboardOrderList" class="dashboard-order-list"></ul>
+      <p class="settings-hint" style="margin-top:10px;" data-i18n="dashboard.blocksTitle">Visible blocks</p>
+      <ul id="dashboardVisibilityList" class="dashboard-order-list"></ul>
+      <p class="settings-hint" style="margin-top:10px;" data-i18n="dashboard.desktopLayoutTitle">Desktop row width</p>
+      <ul id="dashboardDesktopLayoutList" class="dashboard-order-list"></ul>
+      <p class="settings-hint" style="margin-top:10px;" data-i18n="dashboard.statsTitle">Visible stat cards</p>
+      <ul id="dashboardStatsVisibilityList" class="dashboard-order-list"></ul>
     </div>
   </dialog>
 

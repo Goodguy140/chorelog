@@ -50,9 +50,31 @@
     "title": "Haushaltsplaner",
     "scheduled": "Geplant",
     "settings": "Einstellungen",
+    "reorderDashboard": "Dashboard anordnen",
     "monthAria": "Anzuzeigender Monat",
     "guestLogout": "Abmelden",
     "readonlyBanner": "Nur-Lese-Sitzung — Eintragen und Einstellungen sind deaktiviert."
+  },
+  "dashboard": {
+    "reorderTitle": "Dashboard anordnen",
+    "reorderHint": "Bereiche nach oben/unten verschieben. Die Reihenfolge wird auf diesem Gerät gespeichert.",
+    "blocksTitle": "Sichtbare Bereiche",
+    "desktopLayoutTitle": "Desktop-Reihenbreite",
+    "desktopWidthFull": "Ganze Zeile",
+    "desktopWidthHalf": "Halbe Zeile",
+    "desktopWidthThird": "Ein Drittel",
+    "desktopWidthQuarter": "Ein Viertel",
+    "statsTitle": "Sichtbare Statistikkarten",
+    "moveUp": "Nach oben",
+    "moveDown": "Nach unten",
+    "blocks": {
+      "stats": "Statistikkarten",
+      "contributions": "Beiträge",
+      "heatmap": "Heatmap",
+      "log": "Aktivitätslog",
+      "scheduled": "Geplante Aufgaben",
+      "mom": "Monat-zu-Monat"
+    }
   },
   "errors": {
     "loadFailed": "Aufgaben konnten nicht geladen werden. `npm start` ausführen und die Seite über die App-URL öffnen (nicht file://).",
@@ -76,7 +98,8 @@
     "undo": "Rückgängig nicht möglich.",
     "importFailed": "Import fehlgeschlagen.",
     "exportFailed": "Export fehlgeschlagen.",
-    "scheduledReminderUpdate": "Erinnerungseinstellung für diese geplante Aufgabe konnte nicht gespeichert werden."
+    "scheduledReminderUpdate": "Erinnerungseinstellung für diese geplante Aufgabe konnte nicht gespeichert werden.",
+    "readOnlyAction": "Diese Sitzung ist schreibgeschützt. Melde dich mit Schreibzugriff an, um Änderungen vorzunehmen."
   },
   "analytics": {
     "person": "Person",
