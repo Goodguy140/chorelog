@@ -25,6 +25,28 @@ const { buildOpenApiDocument } = require('./lib/openapi-spec.cjs');
 const scheduledRecurrence = require('./lib/scheduled-recurrence.cjs');
 const pushSend = require('./lib/push-send.cjs');
 const vapidPersist = require('./lib/vapid-persist.cjs');
+const { buildGitHubBuildMeta } = require('./lib/build-meta.cjs');
+const {
+  hasReminderDestination,
+  isDiscordWebhookUrl,
+  isGenericHttpsWebhookUrl,
+  isInReminderQuietHours,
+  isSlackIncomingWebhookUrl,
+  normalizeDiscordDueTodaySentAt,
+  normalizeDiscordReminderSentAt,
+  normalizeDiscordWebhook,
+  postDiscordWebhook,
+  postSlackIncomingWebhook,
+  pruneDiscordDueTodaySentAt,
+  pruneDiscordReminderSentAt,
+  sendTestToAllWebhookChannels,
+} = require('./lib/webhook-channels.cjs');
+const {
+  MAX_PUSH_SUBSCRIPTIONS,
+  normalizePushSubscription,
+  normalizePushSubscriptions,
+} = require('./lib/push-subscriptions.cjs');
+const reminderPayloads = require('./lib/reminder-payloads.cjs');
 
 const USE_SQLITE_PER_HOUSEHOLD = Boolean(
   process.env.CHORELOG_SQLITE_PATH && String(process.env.CHORELOG_SQLITE_PATH).trim(),
@@ -444,258 +466,6 @@ function formatCalendarDateHuman(isoDate) {
   return dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function isDiscordWebhookUrl(url) {
-  return (
-    typeof url === 'string' &&
-    /^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\/[^?\s#]+$/i.test(url.trim())
-  );
-}
-
-function isSlackIncomingWebhookUrl(url) {
-  return typeof url === 'string' && /^https:\/\/hooks\.slack\.com\/services\//i.test(url.trim());
-}
-
-/** Any HTTPS URL except Discord/Slack (e.g. Zapier, custom receiver). Same JSON body as Discord. */
-function isGenericHttpsWebhookUrl(url) {
-  if (typeof url !== 'string' || !url.trim()) return false;
-  try {
-    const u = new URL(url.trim());
-    if (u.protocol !== 'https:') return false;
-    if (isDiscordWebhookUrl(url) || isSlackIncomingWebhookUrl(url)) return false;
-    return Boolean(u.hostname);
-  } catch {
-    return false;
-  }
-}
-
-function hasReminderDestination(w) {
-  if (!w || typeof w !== 'object') return false;
-  if (w.url && isDiscordWebhookUrl(w.url)) return true;
-  if (w.slackWebhookUrl && isSlackIncomingWebhookUrl(w.slackWebhookUrl)) return true;
-  if (w.genericWebhookUrl && isGenericHttpsWebhookUrl(w.genericWebhookUrl)) return true;
-  return false;
-}
-
-/** Normalize "H:MM" or "HH:MM" to HH:MM */
-function normalizeTimeHHMM(s) {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || '').trim());
-  if (!m) return '22:00';
-  let h = Number(m[1]);
-  let min = Number(m[2]);
-  if (!Number.isFinite(h) || !Number.isFinite(min) || h > 23 || min > 59) return '22:00';
-  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
-}
-
-function timeStringToMinutes(s) {
-  const t = normalizeTimeHHMM(s);
-  const [h, min] = t.split(':').map(Number);
-  return h * 60 + min;
-}
-
-/** Server local clock; quiet range may span midnight (e.g. 22:00–08:00). */
-function isInReminderQuietHours(w) {
-  if (!w || !w.quietHoursEnabled) return false;
-  const start = timeStringToMinutes(w.quietHoursStart || '22:00');
-  const end = timeStringToMinutes(w.quietHoursEnd || '08:00');
-  const d = new Date();
-  const mins = d.getHours() * 60 + d.getMinutes();
-  if (start === end) return false;
-  if (start < end) return mins >= start && mins < end;
-  return mins >= start || mins < end;
-}
-
-function normalizeDiscordWebhook(raw) {
-  const defaults = {
-    enabled: false,
-    url: '',
-    reminderIntervalMinutes: 1440,
-    quietHoursEnabled: false,
-    quietHoursStart: '22:00',
-    quietHoursEnd: '08:00',
-    slackWebhookUrl: '',
-    genericWebhookUrl: '',
-    overdueNotifyWebhooks: true,
-    overdueNotifyPush: true,
-    dueTodayEnabled: false,
-    dueTodayNotifyWebhooks: true,
-    dueTodayNotifyPush: true,
-  };
-  if (!raw || typeof raw !== 'object') return { ...defaults };
-  const enabled = Boolean(raw.enabled);
-  let url = typeof raw.url === 'string' ? raw.url.trim() : '';
-  if (url && !isDiscordWebhookUrl(url)) url = '';
-  let reminderIntervalMinutes = Number(raw.reminderIntervalMinutes);
-  if (!Number.isFinite(reminderIntervalMinutes)) reminderIntervalMinutes = defaults.reminderIntervalMinutes;
-  reminderIntervalMinutes = Math.min(10080, Math.max(15, Math.round(reminderIntervalMinutes)));
-
-  const quietHoursEnabled = Boolean(raw.quietHoursEnabled);
-  let quietHoursStart = normalizeTimeHHMM(
-    typeof raw.quietHoursStart === 'string' ? raw.quietHoursStart : defaults.quietHoursStart,
-  );
-  let quietHoursEnd = normalizeTimeHHMM(
-    typeof raw.quietHoursEnd === 'string' ? raw.quietHoursEnd : defaults.quietHoursEnd,
-  );
-
-  let slackWebhookUrl = typeof raw.slackWebhookUrl === 'string' ? raw.slackWebhookUrl.trim() : '';
-  if (slackWebhookUrl && !isSlackIncomingWebhookUrl(slackWebhookUrl)) slackWebhookUrl = '';
-  let genericWebhookUrl = typeof raw.genericWebhookUrl === 'string' ? raw.genericWebhookUrl.trim() : '';
-  if (genericWebhookUrl && !isGenericHttpsWebhookUrl(genericWebhookUrl)) genericWebhookUrl = '';
-
-  const overdueNotifyWebhooks = raw.overdueNotifyWebhooks !== false;
-  const overdueNotifyPush = raw.overdueNotifyPush !== false;
-  const dueTodayEnabled = Boolean(raw.dueTodayEnabled);
-  const dueTodayNotifyWebhooks = raw.dueTodayNotifyWebhooks !== false;
-  const dueTodayNotifyPush = raw.dueTodayNotifyPush !== false;
-
-  return {
-    enabled,
-    url,
-    reminderIntervalMinutes,
-    quietHoursEnabled,
-    quietHoursStart,
-    quietHoursEnd,
-    slackWebhookUrl,
-    genericWebhookUrl,
-    overdueNotifyWebhooks,
-    overdueNotifyPush,
-    dueTodayEnabled,
-    dueTodayNotifyWebhooks,
-    dueTodayNotifyPush,
-  };
-}
-
-function normalizeDiscordReminderSentAt(raw) {
-  const out = {};
-  if (!raw || typeof raw !== 'object') return out;
-  for (const [k, v] of Object.entries(raw)) {
-    if (typeof k === 'string' && k.length > 0 && typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) {
-      out[k] = v;
-    }
-  }
-  return out;
-}
-
-function pruneDiscordReminderSentAt(sentMap, scheduledIds) {
-  const set = new Set(scheduledIds);
-  const out = {};
-  for (const [k, v] of Object.entries(sentMap)) {
-    if (set.has(k)) out[k] = v;
-  }
-  return out;
-}
-
-/** Values are calendar days YYYY-MM-DD (last day we sent a “due today” notice per chore). */
-function normalizeDiscordDueTodaySentAt(raw) {
-  const out = {};
-  if (!raw || typeof raw !== 'object') return out;
-  for (const [k, v] of Object.entries(raw)) {
-    if (typeof k === 'string' && k.length > 0 && typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
-      out[k] = v;
-    }
-  }
-  return out;
-}
-
-function pruneDiscordDueTodaySentAt(sentMap, scheduledIds) {
-  const set = new Set(scheduledIds);
-  const out = {};
-  for (const [k, v] of Object.entries(sentMap)) {
-    if (set.has(k)) out[k] = v;
-  }
-  return out;
-}
-
-const MAX_PUSH_SUBSCRIPTIONS = 24;
-
-/**
- * Decode p256dh / auth from PushSubscription JSON. Prefer URL-safe base64; fall back to RFC 4648
- * so keys match web-push `Buffer.from(..., 'base64url')` after re-encoding.
- */
-function decodeP256dhKeyBytes(raw) {
-  if (typeof raw !== 'string') return null;
-  const trimmed = raw.trim().replace(/\s/g, '');
-  if (!trimmed) return null;
-  const tryStd = () => {
-    const std = trimmed.replace(/-/g, '+').replace(/_/g, '/');
-    const pad = '='.repeat((4 - (std.length % 4)) % 4);
-    return Buffer.from(std + pad, 'base64');
-  };
-  const attempts = [() => Buffer.from(trimmed, 'base64url'), tryStd];
-  for (const fn of attempts) {
-    try {
-      const buf = fn();
-      if (buf && buf.length === 65) return buf;
-    } catch {
-      /* try next */
-    }
-  }
-  return null;
-}
-
-function decodeAuthKeyBytes(raw) {
-  if (typeof raw !== 'string') return null;
-  const trimmed = raw.trim().replace(/\s/g, '');
-  if (!trimmed) return null;
-  const tryStd = () => {
-    const std = trimmed.replace(/-/g, '+').replace(/_/g, '/');
-    const pad = '='.repeat((4 - (std.length % 4)) % 4);
-    return Buffer.from(std + pad, 'base64');
-  };
-  const attempts = [() => Buffer.from(trimmed, 'base64url'), tryStd];
-  for (const fn of attempts) {
-    try {
-      const buf = fn();
-      if (buf && buf.length >= 16) return buf;
-    } catch {
-      /* try next */
-    }
-  }
-  return null;
-}
-
-function normalizePushSubscription(row) {
-  if (!row || typeof row !== 'object') return null;
-  const endpoint = typeof row.endpoint === 'string' ? row.endpoint.trim() : '';
-  if (!endpoint) return null;
-  try {
-    const u = new URL(endpoint);
-    if (u.protocol !== 'https:') return null;
-  } catch {
-    return null;
-  }
-  const keys = row.keys && typeof row.keys === 'object' ? row.keys : {};
-  const rawP =
-    (typeof keys.p256dh === 'string' && keys.p256dh) ||
-    (typeof keys.P256DH === 'string' && keys.P256DH) ||
-    '';
-  const rawA =
-    (typeof keys.auth === 'string' && keys.auth) ||
-    (typeof keys.Auth === 'string' && keys.Auth) ||
-    '';
-  const bufP = decodeP256dhKeyBytes(rawP);
-  const bufA = decodeAuthKeyBytes(rawA);
-  if (!bufP || !bufA) return null;
-  const p256dh = bufP.toString('base64url');
-  const auth = bufA.toString('base64url');
-  const id = typeof row.id === 'string' && row.id ? row.id : newId();
-  let createdAt = typeof row.createdAt === 'string' ? row.createdAt : nowISO();
-  if (!/^\d{4}-\d{2}-\d{2}T/.test(createdAt)) createdAt = nowISO();
-  return { id, endpoint, keys: { p256dh, auth }, createdAt };
-}
-
-function normalizePushSubscriptions(raw) {
-  if (!Array.isArray(raw)) return [];
-  const out = [];
-  const seen = new Set();
-  for (const row of raw) {
-    const n = normalizePushSubscription(row);
-    if (!n || seen.has(n.endpoint)) continue;
-    seen.add(n.endpoint);
-    out.push(n);
-  }
-  return out.slice(0, MAX_PUSH_SUBSCRIPTIONS);
-}
-
 const MAX_AUDIT_ENTRIES = 500;
 
 function normalizeAuditEntry(row) {
@@ -1068,79 +838,6 @@ function requireReadWrite(req, res, next) {
 }
 
 app.use(requireApiAuth);
-
-/** Optional env from GitHub Actions or deploy pipeline; surfaced on Settings → About. */
-function envTrim(...keys) {
-  for (const k of keys) {
-    const v = process.env[k];
-    if (typeof v === 'string' && v.trim()) return v.trim();
-  }
-  return null;
-}
-
-function sanitizeGitHubRepository(s) {
-  const t = String(s || '').trim();
-  if (!/^[\w.-]+\/[\w.-]+$/.test(t)) return null;
-  return t;
-}
-
-function sanitizeGitSha(s) {
-  const t = String(s || '').trim().toLowerCase();
-  if (!/^[a-f0-9]{7,64}$/.test(t)) return null;
-  return t;
-}
-
-function sanitizeRunId(s) {
-  const t = String(s || '').trim();
-  if (!/^\d+$/.test(t)) return null;
-  return t;
-}
-
-/**
- * @returns {null | {
- *   repository: string,
- *   sha: string,
- *   ref: string | null,
- *   runId: string,
- *   runNumber: string | null,
- *   workflow: string | null,
- *   actionsRunUrl: string | null,
- * }}
- */
-function buildGitHubBuildMeta() {
-  const repository = sanitizeGitHubRepository(
-    envTrim('CHORELOG_GITHUB_REPOSITORY', 'GITHUB_REPOSITORY'),
-  );
-  const shaRaw = envTrim('CHORELOG_GITHUB_SHA', 'GITHUB_SHA');
-  const sha = shaRaw ? sanitizeGitSha(shaRaw) : null;
-  const ref = envTrim('CHORELOG_GITHUB_REF', 'GITHUB_REF');
-  const runIdRaw = envTrim('CHORELOG_GITHUB_RUN_ID', 'GITHUB_RUN_ID');
-  const runId = runIdRaw ? sanitizeRunId(runIdRaw) : null;
-  const runNumber = envTrim('CHORELOG_GITHUB_RUN_NUMBER', 'GITHUB_RUN_NUMBER');
-  const workflow = envTrim('CHORELOG_GITHUB_WORKFLOW', 'GITHUB_WORKFLOW');
-  const explicitUrl = envTrim('CHORELOG_GITHUB_ACTIONS_URL');
-  let actionsRunUrl = null;
-  if (explicitUrl) {
-    try {
-      const u = new URL(explicitUrl);
-      if (u.protocol === 'https:' && u.hostname === 'github.com') actionsRunUrl = u.href;
-    } catch {
-      /* ignore */
-    }
-  } else if (repository && runId) {
-    actionsRunUrl = `https://github.com/${repository}/actions/runs/${runId}`;
-  }
-  if (!repository && !sha && !runId && !ref && !workflow && !actionsRunUrl) return null;
-  return {
-    ...(repository ? { repository } : {}),
-    ...(sha ? { sha } : {}),
-    ...(ref ? { ref } : {}),
-    ...(runId ? { runId } : {}),
-    ...(runNumber ? { runNumber } : {}),
-    ...(workflow ? { workflow } : {}),
-    ...(actionsRunUrl ? { actionsRunUrl } : {}),
-  };
-}
 
 function buildVersionPayload(req) {
   const gitHubBuild = buildGitHubBuildMeta();
@@ -2027,98 +1724,20 @@ app.put('/api/settings', requireReadWrite, async (req, res) => {
   }
 });
 
-async function postDiscordWebhook(url, payload) {
-  try {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    return r.ok || r.status === 204;
-  } catch (e) {
-    console.error('Discord webhook:', e.message || e);
-    return false;
-  }
-}
-
-async function sendTestToAllWebhookChannels(w, urlOverrides = {}) {
-  const discordUrl = urlOverrides.url != null ? String(urlOverrides.url).trim() : w.url;
-  const slackUrl =
-    urlOverrides.slackWebhookUrl != null ? String(urlOverrides.slackWebhookUrl).trim() : w.slackWebhookUrl;
-  const genericUrl =
-    urlOverrides.genericWebhookUrl != null
-      ? String(urlOverrides.genericWebhookUrl).trim()
-      : w.genericWebhookUrl;
-  const payload = {
-    embeds: [
-      {
-        title: 'Chorelog',
-        description: 'Test notification — webhook is configured correctly.',
-        color: 0x1d9e75,
-      },
-    ],
-  };
-  const tasks = [];
-  if (discordUrl && isDiscordWebhookUrl(discordUrl)) {
-    tasks.push(() => postDiscordWebhook(discordUrl, payload));
-  }
-  if (slackUrl && isSlackIncomingWebhookUrl(slackUrl)) {
-    tasks.push(() =>
-      postSlackIncomingWebhook(slackUrl, 'Chorelog — test notification; webhook is configured correctly.'),
-    );
-  }
-  if (genericUrl && isGenericHttpsWebhookUrl(genericUrl)) {
-    tasks.push(() => postDiscordWebhook(genericUrl, payload));
-  }
-  if (!tasks.length) return false;
-  const results = await Promise.all(tasks.map((fn) => fn()));
-  return results.some(Boolean);
-}
-
-function buildOverdueDiscordPayload(chore, nextDue, today) {
-  const daysPast = Math.floor(
-    (new Date(`${today}T12:00:00`).getTime() - new Date(`${nextDue}T12:00:00`).getTime()) / 864e5,
-  );
-  const title = String(chore.title || 'Chore').replace(/\*/g, '');
-  const dueWhen = formatCalendarDateHuman(nextDue);
-  return {
-    embeds: [
-      {
-        title: 'Scheduled chore overdue',
-        description: `**${title}** was due **${dueWhen}** (${daysPast} day${daysPast === 1 ? '' : 's'} overdue).`,
-        color: 0xe24b4a,
-      },
-    ],
-  };
-}
-
-function buildOverdueSlackPlainText(chore, nextDue, today) {
-  const daysPast = Math.floor(
-    (new Date(`${today}T12:00:00`).getTime() - new Date(`${nextDue}T12:00:00`).getTime()) / 864e5,
-  );
-  const title = String(chore.title || 'Chore').replace(/\*/g, '');
-  const dueWhen = formatCalendarDateHuman(nextDue);
-  return `Scheduled chore overdue: *${title}* was due ${dueWhen} (${daysPast} day${daysPast === 1 ? '' : 's'} overdue).`;
-}
-
-async function postSlackIncomingWebhook(url, text) {
-  try {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
-    return r.ok || r.status === 204;
-  } catch (e) {
-    console.error('Slack webhook:', e.message || e);
-    return false;
-  }
-}
-
 /** Sends the same overdue notification to every configured channel; succeeds if at least one delivery works. */
 async function sendOverdueToAllWebhookChannels(w, chore, nextDue, today) {
-  const discordPayload = buildOverdueDiscordPayload(chore, nextDue, today);
-  const slackText = buildOverdueSlackPlainText(chore, nextDue, today);
+  const discordPayload = reminderPayloads.buildOverdueDiscordPayload(
+    chore,
+    nextDue,
+    today,
+    formatCalendarDateHuman,
+  );
+  const slackText = reminderPayloads.buildOverdueSlackPlainText(
+    chore,
+    nextDue,
+    today,
+    formatCalendarDateHuman,
+  );
   const tasks = [];
   if (w.url && isDiscordWebhookUrl(w.url)) {
     tasks.push(() => postDiscordWebhook(w.url, discordPayload));
@@ -2132,41 +1751,16 @@ async function sendOverdueToAllWebhookChannels(w, chore, nextDue, today) {
   if (!tasks.length) return false;
   const results = await Promise.all(tasks.map((fn) => fn()));
   return results.some(Boolean);
-}
-
-function buildDiscordOverdueDigestPayload(chores, today) {
-  const lines = chores.map((s) => {
-    const next = nextDueDateScheduled(s);
-    const daysPast = Math.floor(
-      (new Date(`${today}T12:00:00`).getTime() - new Date(`${next}T12:00:00`).getTime()) / 864e5,
-    );
-    const title = String(s.title || 'Chore').replace(/\*/g, '');
-    const dueWhen = formatCalendarDateHuman(next);
-    return `• **${title}** — due ${dueWhen} (${daysPast}d overdue)`;
-  });
-  const desc = lines.join('\n').slice(0, 3900);
-  return {
-    content: `**${chores.length} overdue scheduled chore(s)**`,
-    embeds: [{ description: desc, color: 0xe24b4a }],
-  };
-}
-
-function buildSlackOverdueDigestPlainText(chores, today) {
-  const lines = chores.map((s) => {
-    const next = nextDueDateScheduled(s);
-    const daysPast = Math.floor(
-      (new Date(`${today}T12:00:00`).getTime() - new Date(`${next}T12:00:00`).getTime()) / 864e5,
-    );
-    const title = String(s.title || 'Chore').replace(/\*/g, '');
-    const dueWhen = formatCalendarDateHuman(next);
-    return `• ${title} — due ${dueWhen} (${daysPast}d overdue)`;
-  });
-  return `*${chores.length} overdue scheduled chore(s)*\n${lines.join('\n')}`.slice(0, 3900);
 }
 
 async function sendDigestToAllWebhookChannels(w, chores, today) {
-  const discordPayload = buildDiscordOverdueDigestPayload(chores, today);
-  const slackText = buildSlackOverdueDigestPlainText(chores, today);
+  const digestHelpers = { nextDueDateScheduled, formatCalendarDateHuman };
+  const discordPayload = reminderPayloads.buildDiscordOverdueDigestPayload(
+    chores,
+    today,
+    digestHelpers,
+  );
+  const slackText = reminderPayloads.buildSlackOverdueDigestPlainText(chores, today, digestHelpers);
   const tasks = [];
   if (w.url && isDiscordWebhookUrl(w.url)) {
     tasks.push(() => postDiscordWebhook(w.url, discordPayload));
@@ -2180,65 +1774,19 @@ async function sendDigestToAllWebhookChannels(w, chores, today) {
   if (!tasks.length) return false;
   const results = await Promise.all(tasks.map((fn) => fn()));
   return results.some(Boolean);
-}
-
-function buildOverduePushPayloadJson(chore, nextDue, today) {
-  const daysPast = Math.floor(
-    (new Date(`${today}T12:00:00`).getTime() - new Date(`${nextDue}T12:00:00`).getTime()) / 864e5,
-  );
-  const name = String(chore.title || 'Chore').replace(/[<>]/g, '');
-  const dueWhen = formatCalendarDateHuman(nextDue);
-  const body = `${name} — was due ${dueWhen} (${daysPast}d overdue)`;
-  return JSON.stringify({
-    title: 'Chorelog — overdue',
-    body,
-    url: '/',
-    tag: `scheduled-${chore.id}`,
-  });
-}
-
-function buildDigestPushPayloadJson(chores, today) {
-  const lines = chores.map((s) => {
-    const next = nextDueDateScheduled(s);
-    const daysPast = Math.floor(
-      (new Date(`${today}T12:00:00`).getTime() - new Date(`${next}T12:00:00`).getTime()) / 864e5,
-    );
-    const title = String(s.title || 'Chore').replace(/[<>]/g, '');
-    return `${title} (${daysPast}d)`;
-  });
-  const body = lines.slice(0, 4).join(' · ') + (lines.length > 4 ? '…' : '');
-  return JSON.stringify({
-    title:
-      chores.length === 1 ? 'Chorelog — overdue chore' : `Chorelog — ${chores.length} overdue chores`,
-    body,
-    url: '/',
-    tag: 'chorelog-overdue-digest',
-  });
-}
-
-function buildDueTodayDiscordPayload(chore, today) {
-  const title = String(chore.title || 'Chore').replace(/\*/g, '');
-  const dueWhen = formatCalendarDateHuman(today);
-  return {
-    embeds: [
-      {
-        title: 'Scheduled chore due today',
-        description: `**${title}** is due **today** (${dueWhen}).`,
-        color: 0x378add,
-      },
-    ],
-  };
-}
-
-function buildDueTodaySlackPlainText(chore, today) {
-  const title = String(chore.title || 'Chore').replace(/\*/g, '');
-  const dueWhen = formatCalendarDateHuman(today);
-  return `Scheduled chore due today: *${title}* (${dueWhen}).`;
 }
 
 async function sendDueTodayToAllWebhookChannels(w, chore, today) {
-  const discordPayload = buildDueTodayDiscordPayload(chore, today);
-  const slackText = buildDueTodaySlackPlainText(chore, today);
+  const discordPayload = reminderPayloads.buildDueTodayDiscordPayload(
+    chore,
+    today,
+    formatCalendarDateHuman,
+  );
+  const slackText = reminderPayloads.buildDueTodaySlackPlainText(
+    chore,
+    today,
+    formatCalendarDateHuman,
+  );
   const tasks = [];
   if (w.url && isDiscordWebhookUrl(w.url)) {
     tasks.push(() => postDiscordWebhook(w.url, discordPayload));
@@ -2252,41 +1800,19 @@ async function sendDueTodayToAllWebhookChannels(w, chore, today) {
   if (!tasks.length) return false;
   const results = await Promise.all(tasks.map((fn) => fn()));
   return results.some(Boolean);
-}
-
-function buildDueTodayPushPayloadJson(chore, today) {
-  const name = String(chore.title || 'Chore').replace(/[<>]/g, '');
-  return JSON.stringify({
-    title: 'Chorelog — due today',
-    body: `${name} is due today.`,
-    url: '/',
-    tag: `scheduled-due-${chore.id}-${today}`,
-  });
-}
-
-function buildDiscordDueTodayDigestPayload(chores, today) {
-  const lines = chores.map((s) => {
-    const title = String(s.title || 'Chore').replace(/\*/g, '');
-    return `• **${title}** — due today (${formatCalendarDateHuman(today)})`;
-  });
-  const desc = lines.join('\n').slice(0, 3900);
-  return {
-    content: `**${chores.length} scheduled chore(s) due today**`,
-    embeds: [{ description: desc, color: 0x378add }],
-  };
-}
-
-function buildSlackDueTodayDigestPlainText(chores, today) {
-  const lines = chores.map((s) => {
-    const title = String(s.title || 'Chore').replace(/\*/g, '');
-    return `• ${title} — due today (${formatCalendarDateHuman(today)})`;
-  });
-  return `*${chores.length} scheduled chore(s) due today*\n${lines.join('\n')}`.slice(0, 3900);
 }
 
 async function sendDueTodayDigestToAllWebhookChannels(w, chores, today) {
-  const discordPayload = buildDiscordDueTodayDigestPayload(chores, today);
-  const slackText = buildSlackDueTodayDigestPlainText(chores, today);
+  const discordPayload = reminderPayloads.buildDiscordDueTodayDigestPayload(
+    chores,
+    today,
+    formatCalendarDateHuman,
+  );
+  const slackText = reminderPayloads.buildSlackDueTodayDigestPlainText(
+    chores,
+    today,
+    formatCalendarDateHuman,
+  );
   const tasks = [];
   if (w.url && isDiscordWebhookUrl(w.url)) {
     tasks.push(() => postDiscordWebhook(w.url, discordPayload));
@@ -2300,18 +1826,6 @@ async function sendDueTodayDigestToAllWebhookChannels(w, chores, today) {
   if (!tasks.length) return false;
   const results = await Promise.all(tasks.map((fn) => fn()));
   return results.some(Boolean);
-}
-
-function buildDueTodayDigestPushPayloadJson(chores, today) {
-  const lines = chores.map((s) => String(s.title || 'Chore').replace(/[<>]/g, ''));
-  const body = lines.slice(0, 6).join(' · ') + (lines.length > 6 ? '…' : '');
-  return JSON.stringify({
-    title:
-      chores.length === 1 ? 'Chorelog — due today' : `Chorelog — ${chores.length} chores due today`,
-    body,
-    url: '/',
-    tag: `chorelog-due-today-${today}`,
-  });
 }
 
 /**
@@ -2413,7 +1927,7 @@ async function runDiscordReminders() {
             pushRes = await sendPushPayloadToStoreSubscriptions(
               store,
               householdId,
-              buildOverduePushPayloadJson(s, next, today),
+              reminderPayloads.buildOverduePushPayloadJson(s, next, today, formatCalendarDateHuman),
             );
           }
           if (pushRes.pruned) changed = true;
@@ -2449,7 +1963,7 @@ async function runDiscordReminders() {
           pushRes = await sendPushPayloadToStoreSubscriptions(
             store,
             householdId,
-            buildDueTodayPushPayloadJson(s, today),
+            reminderPayloads.buildDueTodayPushPayloadJson(s, today),
           );
         }
         if (pushRes.pruned) changed = true;
@@ -2575,7 +2089,7 @@ app.post('/api/discord-webhook/remind-now', requireReadWrite, async (req, res) =
         pushOverdue = await sendPushPayloadToStoreSubscriptions(
           store,
           req.householdId,
-          buildDigestPushPayloadJson(overdue, today),
+          reminderPayloads.buildDigestPushPayloadJson(overdue, today, { nextDueDateScheduled }),
         );
       }
     }
@@ -2585,7 +2099,7 @@ app.post('/api/discord-webhook/remind-now', requireReadWrite, async (req, res) =
         pushDueToday = await sendPushPayloadToStoreSubscriptions(
           store,
           req.householdId,
-          buildDueTodayDigestPushPayloadJson(dueToday, today),
+          reminderPayloads.buildDueTodayDigestPushPayloadJson(dueToday, today),
         );
       }
     }

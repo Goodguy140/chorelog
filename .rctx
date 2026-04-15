@@ -8,7 +8,8 @@ Tracked in git (not ignored) so clones keep the map. Line-number anchors drift o
 QUICK NAVIGATION
 
 HTTP API + multi-household persistence
-  server.js, lib/households-registry.cjs, lib/login-throttle.cjs, lib/sqlite-store.cjs
+  server.js, lib/households-registry.cjs, lib/login-throttle.cjs, lib/sqlite-store.cjs,
+  lib/build-meta.cjs, lib/webhook-channels.cjs, lib/push-subscriptions.cjs, lib/reminder-payloads.cjs
 
 OpenAPI 3 (integrators)
   lib/openapi-spec.cjs (source of truth), GET /api/openapi.json, committed snapshot docs/openapi.json (npm run docs:openapi), drift check scripts/check-api-routes.cjs (runs after npm test). See "When changing HTTP routes" in Feature map.
@@ -41,7 +42,7 @@ Automated tests (Node built-in runner, CI)
   test/*.test.cjs, npm test, .github/workflows/ci.yml
 
 
-server.js — API + multi-household persistence + import/export/store normalization; module.exports includes normalizeStore, buildEntriesCsv for tests; if (require.main === module) wraps listen + Discord reminder interval so npm test does not bind a port or start the timer. Imports buildOpenApiDocument from lib/openapi-spec.cjs; GET /api/openapi.json is public (see requireApiAuth bypass list).
+server.js — API routes + multi-household orchestration + import/export/store normalization; helper domains are split into lib/build-meta.cjs (About/version GitHub Actions metadata), lib/webhook-channels.cjs (Discord/Slack/generic webhook validation + quiet hours + test send), lib/push-subscriptions.cjs (PushSubscription key decode/normalize + caps), and lib/reminder-payloads.cjs (Discord/Slack/push overdue + due-today payload builders). module.exports includes normalizeStore, buildEntriesCsv for tests; if (require.main === module) wraps listen + Discord reminder interval so npm test does not bind a port or start the timer. Imports buildOpenApiDocument from lib/openapi-spec.cjs; GET /api/openapi.json is public (see requireApiAuth bypass list).
 
 Line references below are approximate; search for symbol names in server.js.
 
