@@ -183,17 +183,20 @@
     <p id="readonlyBanner" class="readonly-banner" role="status" hidden data-i18n="app.readonlyBanner">View-only session — logging and settings are disabled.</p>
     <p id="loadError" class="empty" style="display:none;margin-bottom:12px;color:#E24B4A;"></p>
 
-    <div class="analytics-filters" id="analyticsFiltersWrap">
-      <label class="analytics-filter-item">
-        <span class="analytics-filter-label" data-i18n="analytics.person">Person</span>
-        <select id="analyticsPersonFilter" class="month-select analytics-filter-select" data-i18n-aria="analytics.filterPersonAria" aria-label="Filter analytics by person"></select>
-      </label>
-      <label class="analytics-filter-item">
-        <span class="analytics-filter-label" data-i18n="analytics.location">Location</span>
-        <select id="analyticsLocationFilter" class="month-select analytics-filter-select" data-i18n-aria="analytics.filterLocationAria" aria-label="Filter analytics by location"></select>
-      </label>
-    </div>
-    <p id="analyticsFilterHint" class="analytics-filter-hint" hidden></p>
+    <details class="analytics-filters-dropdown" id="analyticsFiltersDropdown">
+      <summary class="analytics-filters-summary">Filter options</summary>
+      <div class="analytics-filters" id="analyticsFiltersWrap">
+        <label class="analytics-filter-item">
+          <span class="analytics-filter-label" data-i18n="analytics.person">Person</span>
+          <select id="analyticsPersonFilter" class="month-select analytics-filter-select" data-i18n-aria="analytics.filterPersonAria" aria-label="Filter analytics by person"></select>
+        </label>
+        <label class="analytics-filter-item">
+          <span class="analytics-filter-label" data-i18n="analytics.location">Location</span>
+          <select id="analyticsLocationFilter" class="month-select analytics-filter-select" data-i18n-aria="analytics.filterLocationAria" aria-label="Filter analytics by location"></select>
+        </label>
+      </div>
+      <p id="analyticsFilterHint" class="analytics-filter-hint" hidden></p>
+    </details>
 
     <div class="analytics-stats-row">
       <div class="analytics-stats-col">
@@ -225,12 +228,6 @@
         <p class="section-sub" data-i18n="heatmap.subtitle">Tasks logged per day in the selected month (darker = more tasks).</p>
         <div class="heatmap-wrap" id="taskHeatmap" data-i18n-aria="heatmap.aria" aria-label="Tasks per day heatmap"></div>
       </div>
-    </div>
-
-    <div class="section" id="scheduledSection" style="display:none;">
-      <p class="section-title" data-i18n="scheduled.sectionTitle">Scheduled chores</p>
-      <p class="section-sub" data-i18n="scheduled.sectionSub">Recurring tasks and when they are due next. Mark done here to reset the timer.</p>
-      <div class="scheduled-dashboard" id="scheduledDashboard"></div>
     </div>
 
     <div class="section section--log-chore">
@@ -280,6 +277,14 @@
           </label>
         </div>
         <div class="log-list" id="logList"></div>
+      </div>
+    </div>
+
+    <div class="scheduled-mom-row">
+      <div class="section" id="scheduledSection" style="display:none;">
+        <p class="section-title" data-i18n="scheduled.sectionTitle">Scheduled chores</p>
+        <p class="section-sub" data-i18n="scheduled.sectionSub">Recurring tasks and when they are due next. Mark done here to reset the timer.</p>
+        <div class="scheduled-dashboard" id="scheduledDashboard"></div>
       </div>
       <div class="section log-mom-col log-mom-col--mom">
         <p class="section-title" data-i18n="mom.title">Month-over-month</p>

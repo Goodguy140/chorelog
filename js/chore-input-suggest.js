@@ -73,6 +73,8 @@ export function initChoreInputSuggest() {
     } else {
       input.value = `${v.slice(0, semi + 1)} ${title}`;
     }
+    // Programmatic value updates do not emit "input"; trigger downstream UI sync.
+    input.dispatchEvent(new Event('input', { bubbles: true }));
     hide();
     input.focus();
     const len = input.value.length;

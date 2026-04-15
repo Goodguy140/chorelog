@@ -5,6 +5,7 @@ import { switchMonth } from './render.js';
 import {
   entryIsActive,
   isPresetActive,
+  matchActivePresetForSegment,
   presetById,
   readChorePresetsFromDom,
   renderChorePresetsEditor,
@@ -269,6 +270,32 @@ function syncLocationSelect() {
     if (selected.has(name)) o.selected = true;
     sel.appendChild(o);
   });
+}
+
+function choreInputNeedsLocations(raw) {
+  const parts = String(raw || '')
+    .split(';')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!parts.length) return false;
+  return parts.some((part) => {
+    const preset = matchActivePresetForSegment(part);
+    return Boolean(preset && preset.scoringMode === 'per_location');
+  });
+}
+
+function syncLogLocationFieldVisibility() {
+  const wrap = document.querySelector('.field-locations');
+  const input = document.getElementById('inChore');
+  const sel = document.getElementById('inLocations');
+  if (!wrap || !input || !sel) return;
+  const show = choreInputNeedsLocations(input.value);
+  wrap.hidden = !show;
+  if (!show) {
+    [...sel.options].forEach((o) => {
+      o.selected = false;
+    });
+  }
 }
 
 function renderPeopleEditor() {
@@ -562,6 +589,7 @@ async function addEntry() {
     [...document.querySelectorAll('#inLocations option')].forEach((o) => {
       o.selected = false;
     });
+    syncLogLocationFieldVisibility();
     render();
     showAddToast(addedEntries);
   } catch (e) {
@@ -575,6 +603,7 @@ function fillChoreFromPreset(presetId) {
   if (!preset || !isPresetActive(preset)) return false;
   const el = document.getElementById('inChore');
   if (el) el.value = preset.title;
+  syncLogLocationFieldVisibility();
   if (preset.scoringMode === 'per_location') {
     const sel = document.getElementById('inLocations');
     if (sel && [...sel.selectedOptions].length === 0) {
@@ -1748,9 +1777,14 @@ document.getElementById('btnAddQuickChore').addEventListener('click', async () =
   await saveChorePresetsAndQuick();
 });
 
+document.getElementById('inChore')?.addEventListener('input', () => {
+  syncLogLocationFieldVisibility();
+});
+
 initQuickChores();
 initScheduledLogSuggestions();
 initChoreInputSuggest();
+syncLogLocationFieldVisibility();
 
 document.getElementById('addToastUndo').addEventListener('click', () => {
   undoLastAdd();
