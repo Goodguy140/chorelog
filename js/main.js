@@ -871,6 +871,10 @@ function openScheduledDialog() {
   document.getElementById('scheduledDialog').showModal();
 }
 
+function openLogChoreDialog() {
+  document.getElementById('logChoreDialog')?.showModal();
+}
+
 function startApp() {
   document.getElementById('inDate').value = localDateISO();
   return load().then(async () => {
@@ -1119,9 +1123,25 @@ function syncSettingsLocaleSelect() {
   if (sel) sel.value = getLocale();
 }
 
+function setAnalyticsMode(mode, persist = true) {
+  const next = mode === 'points' ? 'points' : 'tasks';
+  app.analyticsMode = next;
+  document.querySelectorAll('input[name="analyticsMode"]').forEach((el) => {
+    el.checked = el.value === next;
+  });
+  if (persist) {
+    try {
+      localStorage.setItem('chorelog-analytics-mode', next);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 loadAppVersion();
 
 applyTheme(localStorage.getItem('chorelog-theme') || 'system');
+setAnalyticsMode(localStorage.getItem('chorelog-analytics-mode') || 'tasks', false);
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
   if (document.documentElement.getAttribute('data-theme') === 'system') syncThemeMeta();
 });
@@ -1517,6 +1537,8 @@ document.getElementById('importFile').addEventListener('change', async (e) => {
 });
 
 document.getElementById('btnScheduled').addEventListener('click', openScheduledDialog);
+document.getElementById('btnLogChoreTop')?.addEventListener('click', openLogChoreDialog);
+document.getElementById('btnLogChoreFab')?.addEventListener('click', openLogChoreDialog);
 document.getElementById('btnOpenScheduledFromSettings').addEventListener('click', () => {
   document.getElementById('settingsDialog').close();
   openScheduledDialog();
@@ -1529,6 +1551,12 @@ document.getElementById('scheduledDialog').addEventListener('click', (e) => {
 });
 document.getElementById('scheduledDialog').addEventListener('toggle', (e) => {
   document.body.style.overflow = e.target.open ? 'hidden' : '';
+});
+document.getElementById('logChoreDialogClose')?.addEventListener('click', () => {
+  document.getElementById('logChoreDialog')?.close();
+});
+document.getElementById('logChoreDialog')?.addEventListener('click', (e) => {
+  if (e.target === document.getElementById('logChoreDialog')) e.target.close();
 });
 
 document.getElementById('scheduledDoneDialogClose').addEventListener('click', () => {
@@ -1690,6 +1718,14 @@ document.getElementById('logSearch').addEventListener('input', (e) => {
 document.getElementById('logShowRemoved')?.addEventListener('change', (e) => {
   app.showArchivedLogEntries = e.target.checked;
   render();
+});
+
+document.querySelectorAll('input[name="analyticsMode"]').forEach((el) => {
+  el.addEventListener('change', (e) => {
+    if (!e.target?.checked) return;
+    setAnalyticsMode(e.target.value);
+    render();
+  });
 });
 
 document.getElementById('chorePresetsList').addEventListener('change', async () => {

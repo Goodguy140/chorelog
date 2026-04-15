@@ -174,6 +174,17 @@
     <div class="top-bar">
       <span class="title" data-i18n="app.title">Chore tracker</span>
       <div class="top-bar-actions">
+        <button type="button" class="btn-settings" id="btnLogChoreTop" aria-haspopup="dialog" data-i18n="logForm.title">Log a chore</button>
+        <fieldset class="analytics-mode-toggle" data-i18n-aria="analytics.modeAria" aria-label="Analytics mode">
+          <label>
+            <input type="radio" name="analyticsMode" value="tasks" checked />
+            <span data-i18n="analytics.modeTasks">Tasks</span>
+          </label>
+          <label>
+            <input type="radio" name="analyticsMode" value="points" />
+            <span data-i18n="analytics.modePoints">Points</span>
+          </label>
+        </fieldset>
         <button type="button" class="btn-settings" id="btnScheduled" aria-haspopup="dialog" data-i18n="app.scheduled">Scheduled</button>
         <button type="button" class="btn-settings" id="btnSettings" aria-haspopup="dialog" data-i18n="app.settings">Settings</button>
         <button type="button" class="btn-secondary btn-guest-logout" id="btnGuestLogout" hidden data-i18n="app.guestLogout">Log out</button>
@@ -184,7 +195,7 @@
     <p id="loadError" class="empty" style="display:none;margin-bottom:12px;color:#E24B4A;"></p>
 
     <details class="analytics-filters-dropdown" id="analyticsFiltersDropdown">
-      <summary class="analytics-filters-summary">Filter options</summary>
+      <summary class="analytics-filters-summary" data-i18n="analytics.filterOptions">Filter options</summary>
       <div class="analytics-filters" id="analyticsFiltersWrap">
         <label class="analytics-filter-item">
           <span class="analytics-filter-label" data-i18n="analytics.person">Person</span>
@@ -199,11 +210,11 @@
     </details>
 
     <div class="analytics-stats-row">
-      <div class="analytics-stats-col">
+      <div class="analytics-stats-col analytics-only-tasks">
         <p class="analytics-block-label" data-i18n="analytics.byTaskCount">By task count</p>
         <div class="stat-grid" id="statsGrid"></div>
       </div>
-      <div class="analytics-stats-col">
+      <div class="analytics-stats-col analytics-only-points">
         <p class="analytics-block-label" data-i18n="analytics.byPresetPoints">By preset points</p>
         <div class="stat-grid" id="statsGridPoints"></div>
       </div>
@@ -213,11 +224,11 @@
       <div class="section section-pair__item">
         <p class="section-title" data-i18n="contributions.title">Contributions this month</p>
         <div class="contributions-bars-row">
-          <div class="contributions-bars-col">
+          <div class="contributions-bars-col analytics-only-tasks">
             <p class="analytics-bars-label" data-i18n="contributions.taskCount">Task count</p>
             <div id="barsArea"></div>
           </div>
-          <div class="contributions-bars-col">
+          <div class="contributions-bars-col analytics-only-points">
             <p class="analytics-bars-label" data-i18n="contributions.presetPoints">Preset points</p>
             <div id="barsAreaPoints"></div>
           </div>
@@ -227,39 +238,6 @@
         <p class="section-title" data-i18n="heatmap.title">Daily activity</p>
         <p class="section-sub" data-i18n="heatmap.subtitle">Tasks logged per day in the selected month (darker = more tasks).</p>
         <div class="heatmap-wrap" id="taskHeatmap" data-i18n-aria="heatmap.aria" aria-label="Tasks per day heatmap"></div>
-      </div>
-    </div>
-
-    <div class="section section--log-chore">
-      <p class="section-title" data-i18n="logForm.title">Log a chore</p>
-      <div class="add-form">
-        <div class="field field-date"><label for="inDate" data-i18n="logForm.date">Date</label>
-          <div class="date-input-shell"><input type="date" id="inDate" autocomplete="off"></div>
-        </div>
-        <div class="field field-chore"><label for="inChore" data-i18n="logForm.chore">Chore</label>
-          <div class="chore-input-wrap">
-            <input type="text" id="inChore" data-i18n-placeholder="logForm.chorePh" placeholder="Search or pick a chore" maxlength="500" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-controls="choreSuggestList">
-            <ul id="choreSuggestList" class="chore-suggest-list" hidden role="listbox" data-i18n-aria="logForm.choreSuggestAria" aria-label="Matching chore presets"></ul>
-          </div>
-          <p class="field-hint" data-i18n="logForm.hintSemicolon">Use a semicolon (;) between preset names to log several at once.</p>
-        </div>
-        <div class="field"><label data-i18n="logForm.person">Person</label>
-          <select id="inPerson"></select>
-        </div>
-        <div class="field field-locations"><label for="inLocations" data-i18n="logForm.locations">Locations</label>
-          <select id="inLocations" multiple size="4" data-i18n-aria="logForm.locationsAria" aria-label="Locations for location-based chores"></select>
-          <p class="field-hint" data-i18n="logForm.locationsHint">Applied only to chores using per-location points.</p>
-        </div>
-        <button class="btn-add" onclick="addEntry()" data-i18n="logForm.add">+ Add</button>
-      </div>
-      <div id="scheduledLogSuggestionsWrap" class="scheduled-log-suggestions" hidden>
-        <p class="scheduled-log-suggestions-intro" data-i18n="scheduled.suggestionsIntro">Scheduled chores due soon or overdue — tap to fill if the title matches a preset.</p>
-        <div class="scheduled-log-suggestions-buttons" id="scheduledLogSuggestions"></div>
-      </div>
-      <div class="quick-chores">
-        <p class="quick-chores-label" data-i18n="logForm.quickLog">Quick log</p>
-        <div class="quick-chores-buttons" id="quickChoreButtons"></div>
-        <p class="quick-chores-hint" data-i18n="logForm.quickHint">Uses the date and person above — one tap to log.</p>
       </div>
     </div>
 
@@ -289,11 +267,11 @@
       <div class="section log-mom-col log-mom-col--mom">
         <p class="section-title" data-i18n="mom.title">Month-over-month</p>
         <div class="mom-pair">
-          <div class="mom-pair-col">
+          <div class="mom-pair-col analytics-only-tasks">
             <p class="mom-section-label" data-i18n="mom.taskCounts">Task counts</p>
             <div class="mom-grid" id="momGrid"></div>
           </div>
-          <div class="mom-pair-col">
+          <div class="mom-pair-col analytics-only-points">
             <p class="mom-section-label" data-i18n="mom.presetPoints">Preset points</p>
             <div class="mom-grid" id="momGridPoints"></div>
           </div>
@@ -652,6 +630,48 @@
       </div>
     </div>
   </dialog>
+
+  <dialog class="settings-dialog log-chore-dialog" id="logChoreDialog" aria-labelledby="logChoreDialogTitle">
+    <div class="settings-inner log-chore-dialog-inner">
+      <div class="settings-header">
+        <h2 id="logChoreDialogTitle" data-i18n="logForm.title">Log a chore</h2>
+        <button type="button" class="settings-close" id="logChoreDialogClose" data-i18n-aria="settings.closeAria" aria-label="Close">&times;</button>
+      </div>
+      <div class="section section--log-chore">
+        <div class="add-form">
+          <div class="field field-date"><label for="inDate" data-i18n="logForm.date">Date</label>
+            <div class="date-input-shell"><input type="date" id="inDate" autocomplete="off"></div>
+          </div>
+          <div class="field field-chore"><label for="inChore" data-i18n="logForm.chore">Chore</label>
+            <div class="chore-input-wrap">
+              <input type="text" id="inChore" data-i18n-placeholder="logForm.chorePh" placeholder="Search or pick a chore" maxlength="500" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-controls="choreSuggestList">
+              <ul id="choreSuggestList" class="chore-suggest-list" hidden role="listbox" data-i18n-aria="logForm.choreSuggestAria" aria-label="Matching chore presets"></ul>
+            </div>
+            <p class="field-hint" data-i18n="logForm.hintSemicolon">Use a semicolon (;) between preset names to log several at once.</p>
+          </div>
+          <div class="field"><label data-i18n="logForm.person">Person</label>
+            <select id="inPerson"></select>
+          </div>
+          <div class="field field-locations"><label for="inLocations" data-i18n="logForm.locations">Locations</label>
+            <select id="inLocations" multiple size="4" data-i18n-aria="logForm.locationsAria" aria-label="Locations for location-based chores"></select>
+            <p class="field-hint" data-i18n="logForm.locationsHint">Applied only to chores using per-location points.</p>
+          </div>
+          <button class="btn-add" onclick="addEntry()" data-i18n="logForm.add">+ Add</button>
+        </div>
+        <div id="scheduledLogSuggestionsWrap" class="scheduled-log-suggestions" hidden>
+          <p class="scheduled-log-suggestions-intro" data-i18n="scheduled.suggestionsIntro">Scheduled chores due soon or overdue — tap to fill if the title matches a preset.</p>
+          <div class="scheduled-log-suggestions-buttons" id="scheduledLogSuggestions"></div>
+        </div>
+        <div class="quick-chores">
+          <p class="quick-chores-label" data-i18n="logForm.quickLog">Quick log</p>
+          <div class="quick-chores-buttons" id="quickChoreButtons"></div>
+          <p class="quick-chores-hint" data-i18n="logForm.quickHint">Uses the date and person above — one tap to log.</p>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <button type="button" id="btnLogChoreFab" class="log-chore-fab" data-i18n="logForm.title" aria-haspopup="dialog">Log a chore</button>
 
   <dialog class="settings-dialog" id="editEntryDialog" aria-labelledby="editEntryTitle">
     <div class="settings-inner">

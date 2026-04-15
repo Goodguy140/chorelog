@@ -170,15 +170,24 @@ function fullRender() {
   }
 
   const shell = document.getElementById('appShell');
-  if (shell) shell.classList.toggle('app-shell--readonly', app.readOnly);
+  if (shell) {
+    const mode = app.analyticsMode === 'points' ? 'points' : 'tasks';
+    shell.classList.toggle('app-shell--readonly', app.readOnly);
+    shell.classList.toggle('app-shell--analytics-tasks', mode === 'tasks');
+    shell.classList.toggle('app-shell--analytics-points', mode === 'points');
+  }
   const rb = document.getElementById('readonlyBanner');
   if (rb) rb.hidden = !app.readOnly;
   const btnGuest = document.getElementById('btnGuestLogout');
   const btnSet = document.getElementById('btnSettings');
   const btnSched = document.getElementById('btnScheduled');
+  const btnLogTop = document.getElementById('btnLogChoreTop');
+  const btnLogFab = document.getElementById('btnLogChoreFab');
   if (btnGuest) btnGuest.hidden = !app.readOnly;
   if (btnSet) btnSet.hidden = app.readOnly;
   if (btnSched) btnSched.hidden = app.readOnly;
+  if (btnLogTop) btnLogTop.hidden = app.readOnly;
+  if (btnLogFab) btnLogFab.hidden = app.readOnly;
 
   const months = getMonths();
   if (!months.includes(app.currentMonth) && months.length) app.currentMonth = months[0];

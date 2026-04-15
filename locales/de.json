@@ -81,6 +81,10 @@
   "analytics": {
     "person": "Person",
     "location": "Ort",
+    "filterOptions": "Filteroptionen",
+    "modeAria": "Analysemodus",
+    "modeTasks": "Aufgaben",
+    "modePoints": "Punkte",
     "filterPersonAria": "Statistik nach Person filtern",
     "filterLocationAria": "Statistik nach Ort filtern",
     "allPeople": "Alle Personen",

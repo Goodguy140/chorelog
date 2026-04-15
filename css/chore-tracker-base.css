@@ -141,11 +141,48 @@ body {
 }
 
 .top-bar-actions {
-  display: grid;
-  grid-template-columns: auto auto minmax(0, min(200px, 28vw));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+
+.analytics-mode-toggle {
+  margin: 0;
+  padding: 2px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.analytics-mode-toggle label {
+  position: relative;
+}
+
+.analytics-mode-toggle input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.analytics-mode-toggle span {
+  display: inline-block;
+  padding: 5px 9px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.analytics-mode-toggle input[type="radio"]:checked + span {
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
 }
 
 .top-bar-actions .btn-settings {
@@ -153,9 +190,9 @@ body {
 }
 
 .top-bar-actions .month-select {
-  width: 100%;
+  width: min(220px, 100%);
   min-width: 0;
-  max-width: none;
+  max-width: 220px;
 }
 
 .btn-settings {
@@ -870,8 +907,47 @@ body {
   line-height: 1.35;
 }
 
-.app-shell--readonly .section--log-chore {
-  display: none;
+.log-chore-dialog {
+  width: min(780px, calc(100vw - 1.25rem));
+  max-height: min(94dvh, 94vh, 840px);
+}
+
+.log-chore-dialog-inner {
+  max-height: min(92dvh, 92vh, 800px);
+  overflow: auto;
+}
+
+.log-chore-dialog .section--log-chore {
+  margin-bottom: 0;
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+.log-chore-fab {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right, 0px));
+  bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+  z-index: 9000;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--color-text-primary);
+  color: var(--color-background-primary);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+}
+
+.log-chore-fab:hover {
+  opacity: 0.92;
+}
+
+@media (min-width: 761px) {
+  .log-chore-fab {
+    display: none;
+  }
 }
 
 @media (max-width: 560px) {
@@ -880,7 +956,17 @@ body {
   }
 
   .top-bar-actions {
-    grid-template-columns: auto auto minmax(0, 1fr);
+    justify-content: flex-start;
     width: 100%;
+  }
+
+  .top-bar-actions #btnLogChoreTop {
+    display: none;
+  }
+}
+
+@media (min-width: 561px) and (max-width: 760px) {
+  .top-bar-actions #btnLogChoreTop {
+    display: none;
   }
 }

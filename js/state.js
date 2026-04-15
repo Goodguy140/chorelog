@@ -45,6 +45,8 @@ export const app = {
   analyticsPersonFilter: '',
   /** Empty = all locations. Matches entries whose `locationIds` includes this name. */
   analyticsLocationFilter: '',
+  /** Analytics presentation mode: 'tasks' or 'points'. */
+  analyticsMode: 'tasks',
   /** Server: Discord / Slack / generic webhooks, quiet hours, reminder interval. */
   discordWebhook: {
     enabled: false,

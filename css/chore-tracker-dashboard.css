@@ -79,6 +79,14 @@
   margin-bottom: 0;
 }
 
+.app-shell--analytics-tasks .analytics-only-points {
+  display: none !important;
+}
+
+.app-shell--analytics-points .analytics-only-tasks {
+  display: none !important;
+}
+
 .contributions-bars-row {
   display: flex;
   flex-direction: column;
