@@ -3,7 +3,7 @@
  * Missing keys in non-English locales fall back to English.
  */
 const STORAGE_KEY = 'chorelog-locale';
-export const SUPPORTED_LOCALES = ['en', 'de'];
+export const SUPPORTED_LOCALES = ['en', 'de', 'es'];
 const FALLBACK = 'en';
 
 let flatEn = {};
@@ -30,6 +30,7 @@ export function getLocale() {
 /** BCP 47 tag for Date/toLocaleString. */
 export function getLocaleBcp47() {
   if (currentLocale === 'de') return 'de-DE';
+  if (currentLocale === 'es') return 'es-ES';
   return 'en-US';
 }
 
@@ -109,7 +110,7 @@ export async function initI18n() {
     else bundle = { ...flatEn };
   }
 
-  document.documentElement.lang = lang === 'de' ? 'de' : 'en';
+  document.documentElement.lang = lang === 'de' ? 'de' : lang === 'es' ? 'es' : 'en';
   applyDom(document);
   notify();
 }
@@ -125,7 +126,7 @@ export async function setLocale(lang) {
     if (r.ok) bundle = { ...flatEn, ...flatten(await r.json()) };
     else bundle = { ...flatEn };
   }
-  document.documentElement.lang = lang === 'de' ? 'de' : 'en';
+  document.documentElement.lang = lang === 'de' ? 'de' : lang === 'es' ? 'es' : 'en';
   applyDom(document);
   notify();
 }

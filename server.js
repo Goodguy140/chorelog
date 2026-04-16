@@ -105,6 +105,45 @@ function sendUpdatedAtConflict(res, currentUpdatedAt) {
   });
 }
 
+const API_TOKEN_PREFIX = 'ctk_';
+const API_TOKEN_LAST_USED_WRITE_INTERVAL_MS = 5 * 60 * 1000;
+
+function sessionSecret() {
+  return process.env.CHORELOG_SECRET || 'chorelog-dev-secret-change-me';
+}
+
+function hashApiTokenSecret(secret) {
+  return crypto
+    .createHmac('sha256', sessionSecret())
+    .update(String(secret || ''))
+    .digest('base64url');
+}
+
+function normalizeStoredApiTokens(raw) {
+  return Array.isArray(raw) ? raw.filter((x) => x && typeof x === 'object') : [];
+}
+
+function createApiTokenValue(householdId) {
+  const id = crypto.randomUUID();
+  const secret = crypto.randomBytes(24).toString('base64url');
+  return {
+    id,
+    token: `${API_TOKEN_PREFIX}${householdId}.${id}.${secret}`,
+    tokenHash: hashApiTokenSecret(secret),
+  };
+}
+
+function parseBearerApiToken(rawToken) {
+  const t = String(rawToken || '').trim();
+  if (!t.startsWith(API_TOKEN_PREFIX)) return null;
+  const body = t.slice(API_TOKEN_PREFIX.length);
+  const parts = body.split('.');
+  if (parts.length !== 3) return null;
+  const [household, id, secret] = parts;
+  if (!household || !id || !secret) return null;
+  return { household, id, secret };
+}
+
 /** @type {'environment' | 'file' | 'none'} */
 let VAPID_BOOT_SOURCE = 'none';
 (function initVapidKeysAtStartup() {
@@ -283,6 +322,55 @@ function clientIp(req) {
 const requireApiAuth = buildRequireApiAuth({
   ensureRegistryLoaded,
   getRegistry,
+  verifyApiTokenFn: async (token) => {
+    try {
+      const parsed = parseBearerApiToken(token);
+      if (!parsed) return null;
+      const hid = String(parsed.household || '').trim();
+      if (!hid) return null;
+      ensureRegistryLoaded();
+      const registry = getRegistry();
+      if (!registry.households[hid]) return null;
+      const store = await readStore(hid);
+      const list = normalizeStoredApiTokens(store.apiTokens);
+      const row = list.find((x) => x.id === parsed.id);
+      if (!row || row.revokedAt) return null;
+      const expected = typeof row.tokenHash === 'string' ? row.tokenHash : '';
+      const actual = hashApiTokenSecret(parsed.secret);
+      const a = Buffer.from(expected, 'utf8');
+      const b = Buffer.from(actual, 'utf8');
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+      const now = Date.now();
+      let shouldPersistLastUsed = false;
+      if (!row.lastUsedAt || typeof row.lastUsedAt !== 'string') {
+        shouldPersistLastUsed = true;
+      } else {
+        const lastMs = Date.parse(row.lastUsedAt);
+        if (!Number.isFinite(lastMs) || now - lastMs >= API_TOKEN_LAST_USED_WRITE_INTERVAL_MS) {
+          shouldPersistLastUsed = true;
+        }
+      }
+      if (shouldPersistLastUsed) {
+        row.lastUsedAt = new Date(now).toISOString();
+        store.apiTokens = list;
+        await writeStore(hid, store);
+      }
+      return {
+        v: 2,
+        exp: Date.now() + COOKIE_MAX_AGE_MS,
+        user:
+          row.ownerType === 'personal' && typeof row.ownerUser === 'string' && row.ownerUser.trim()
+            ? row.ownerUser.trim()
+            : 'token',
+        household: hid,
+        ro: row.scope === 'ro',
+        at: 'api_token',
+        apiTokenId: row.id,
+      };
+    } catch {
+      return null;
+    }
+  },
 });
 app.use(requireApiAuth);
 
@@ -330,7 +418,7 @@ function buildVersionPayload(req) {
 }
 
 app.get('/api/auth', (req, res) => {
-  const payload = verifyAuthCookie(req.headers.cookie);
+  const payload = req.authPayload || verifyAuthCookie(req.headers.cookie);
   if (!payload) {
     return res.status(401).json({ authenticated: false });
   }
@@ -731,6 +819,101 @@ app.post('/api/account/password', requireReadWrite, (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to update password' });
+  }
+});
+
+app.get('/api/account/api-tokens', requireReadWrite, async (req, res) => {
+  try {
+    const store = await readStore(req.householdId);
+    const list = normalizeStoredApiTokens(store.apiTokens)
+      .filter((x) => !x.revokedAt)
+      .map((x) => ({
+        id: x.id,
+        label: x.label || 'API token',
+        scope: x.scope === 'ro' ? 'ro' : 'rw',
+        ownerType: x.ownerType === 'personal' ? 'personal' : 'household',
+        ownerUser: typeof x.ownerUser === 'string' ? x.ownerUser : '',
+        createdAt: x.createdAt || nowISO(),
+        lastUsedAt: x.lastUsedAt || null,
+      }))
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    res.json({ tokens: list });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to load API tokens' });
+  }
+});
+
+app.post('/api/account/api-tokens', requireReadWrite, async (req, res) => {
+  try {
+    const label = String(req.body?.label || '').trim().slice(0, 120);
+    if (!label) return res.status(400).json({ error: 'label is required' });
+    const scope = req.body?.scope === 'ro' ? 'ro' : 'rw';
+    const ownerType = req.body?.ownerType === 'personal' ? 'personal' : 'household';
+    const ownerUser =
+      ownerType === 'personal'
+        ? String(req.authPayload?.user || '').trim().slice(0, 120)
+        : '';
+    const store = await readStore(req.householdId);
+    const list = normalizeStoredApiTokens(store.apiTokens);
+    if (list.filter((x) => !x.revokedAt).length >= 100) {
+      return res.status(400).json({ error: 'Too many API tokens (max 100 active)' });
+    }
+    const issued = createApiTokenValue(req.householdId);
+    const row = {
+      id: issued.id,
+      label,
+      scope,
+      ownerType,
+      ...(ownerUser ? { ownerUser } : {}),
+      tokenHash: issued.tokenHash,
+      createdAt: nowISO(),
+    };
+    store.apiTokens = [...list, row];
+    appendAudit(store, req, {
+      action: 'api_token.create',
+      target: label,
+      detail: `${scope === 'ro' ? 'read-only' : 'read-write'} · ${ownerType}`,
+    });
+    await writeStore(req.householdId, store);
+    res.status(201).json({
+      ok: true,
+      token: issued.token,
+      meta: {
+        id: row.id,
+        label: row.label,
+        scope: row.scope,
+        ownerType: row.ownerType,
+        ownerUser: ownerUser || '',
+        createdAt: row.createdAt,
+      },
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to create API token' });
+  }
+});
+
+app.delete('/api/account/api-tokens/:id', requireReadWrite, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'id is required' });
+    const store = await readStore(req.householdId);
+    const list = normalizeStoredApiTokens(store.apiTokens);
+    const idx = list.findIndex((x) => x.id === id);
+    if (idx < 0) return res.status(404).json({ error: 'Not found' });
+    if (list[idx].revokedAt) return res.json({ ok: true, revoked: false });
+    list[idx] = { ...list[idx], revokedAt: nowISO() };
+    store.apiTokens = list;
+    appendAudit(store, req, {
+      action: 'api_token.revoke',
+      target: list[idx].label || id,
+    });
+    await writeStore(req.householdId, store);
+    res.json({ ok: true, revoked: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to revoke API token' });
   }
 });
 

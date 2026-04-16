@@ -327,6 +327,7 @@
                   <select id="settingsLocale" class="month-select settings-full-width" data-i18n-aria="settings.languageAria" aria-label="Language">
                     <option value="en" data-i18n="settings.langEn">English</option>
                     <option value="de" data-i18n="settings.langDe">Deutsch</option>
+                    <option value="es" data-i18n="settings.langEs">Español</option>
                   </select>
                 </div>
               </div>
@@ -513,6 +514,31 @@
                     <button type="button" class="btn-secondary" id="btnAccountChangePassword" data-i18n="settings.accountApplyPassword">Update password</button>
                   </div>
                   <p class="settings-hint audit-log-status" id="accountPasswordStatus" hidden role="status"></p>
+                </div>
+                <div class="settings-subblock">
+                  <p class="settings-block-title" data-i18n="settings.accountApiTokensTitle">API tokens</p>
+                  <p class="settings-hint" data-i18n="settings.accountApiTokensHint">Create tokens for integrations so they can use Bearer auth instead of sharing a browser session cookie.</p>
+                  <label class="analytics-filter-label" for="accountApiTokenLabel" data-i18n="settings.accountApiTokenLabel">Label</label>
+                  <input type="text" id="accountApiTokenLabel" class="settings-full-width discord-webhook-url" maxlength="120" data-i18n-placeholder="settings.accountApiTokenLabelPh" placeholder="e.g. Home Assistant" autocomplete="off" spellcheck="false">
+                  <label class="analytics-filter-label" for="accountApiTokenScope" data-i18n="settings.accountApiTokenScope">Scope</label>
+                  <select id="accountApiTokenScope" class="settings-full-width discord-webhook-url">
+                    <option value="rw" data-i18n="settings.accountApiTokenScopeRw">Read + write</option>
+                    <option value="ro" data-i18n="settings.accountApiTokenScopeRo">Read only</option>
+                  </select>
+                  <label class="analytics-filter-label" for="accountApiTokenOwnerType" data-i18n="settings.accountApiTokenOwnerType">Token type</label>
+                  <select id="accountApiTokenOwnerType" class="settings-full-width discord-webhook-url">
+                    <option value="household" data-i18n="settings.accountApiTokenOwnerHousehold">Household token</option>
+                    <option value="personal" data-i18n="settings.accountApiTokenOwnerPersonal">Personal token (this account)</option>
+                  </select>
+                  <div class="settings-actions">
+                    <button type="button" class="btn-secondary" id="btnAccountCreateApiToken" data-i18n="settings.accountApiTokenCreate">Create token</button>
+                  </div>
+                  <p class="settings-hint audit-log-status" id="accountApiTokenStatus" hidden role="status"></p>
+                  <div class="settings-hint" id="accountApiTokenCreatedWrap" hidden>
+                    <strong data-i18n="settings.accountApiTokenCreated">Copy this token now:</strong>
+                    <textarea id="accountApiTokenCreatedValue" class="settings-vapid-field" rows="3" readonly></textarea>
+                  </div>
+                  <ul id="accountApiTokenList" class="audit-log-list"></ul>
                 </div>
                 <div class="settings-subblock" id="accountCreateBlock" hidden>
                   <p class="settings-block-title" data-i18n="settings.accountCreateHousehold">Create household</p>

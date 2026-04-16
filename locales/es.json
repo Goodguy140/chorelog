@@ -1,0 +1,29 @@
+{
+  "meta": {
+    "pageTitle": "Registro de tareas",
+    "description": "Seguimiento de tareas del hogar y contribuciones mensuales."
+  },
+  "login": {
+    "title": "Registro de tareas",
+    "tagline": "Tareas compartidas, reconocimiento claro."
+  },
+  "app": {
+    "title": "Registro de tareas",
+    "scheduled": "Programadas",
+    "settings": "Ajustes",
+    "readonlyBanner": "Sesion de solo lectura: registrar y cambiar ajustes esta deshabilitado."
+  },
+  "errors": {
+    "offlineWriteQueued": "Sin conexion: cambio en cola y se sincronizara al volver en linea."
+  },
+  "settings": {
+    "language": "Idioma",
+    "languageAria": "Idioma de la interfaz",
+    "languageHint": "Idioma de la interfaz. Los datos (nombres de tareas y personas) no se traducen.",
+    "langEn": "English",
+    "langDe": "Deutsch",
+    "langEs": "Espanol",
+    "accountApiTokensTitle": "Tokens de API",
+    "accountApiTokensHint": "Crea tokens para integraciones y usa Bearer auth sin compartir cookies de sesion del navegador."
+  }
+}

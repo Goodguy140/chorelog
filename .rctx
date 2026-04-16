@@ -310,13 +310,8 @@ COMPLETED FUTURE IDEAS
 
 FUTURE IDEAS (IMPLEMENTATION-ORIENTED)
 
-- **Offline writes / sync** — the service worker does not queue POST/PUT/DELETE to /api; supporting edits while offline would need a queued write model, conflict rules, and likely API changes (beyond the current read-through static cache).
-
 - **Tags or categories** orthogonal to presets (schema + filters + UI).
 
 - **Attachments** — optional image per log entry (object storage, quotas, retention, privacy copy).
 
-- **More locales** — add files under locales/, register codes in SUPPORTED_LOCALES (js/i18n.js), translate keys parallel to en.json.
-
-- **API tokens for integrators** — optional personal or household API tokens scoped to read-only/read-write, so integrations can avoid sharing session cookies.
 

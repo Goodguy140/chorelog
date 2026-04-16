@@ -147,10 +147,71 @@ async function loadAccountPanel() {
         }
       }
     }
+    await loadApiTokenList();
   } catch {
     errEl.textContent = t('settings.accountLoadError');
     errEl.hidden = false;
     dl.innerHTML = '';
+  }
+}
+
+function setApiTokenStatus(msg, isError = false) {
+  const status = document.getElementById('accountApiTokenStatus');
+  if (!status) return;
+  status.textContent = msg || '';
+  status.hidden = !msg;
+  status.style.color = isError ? '#E24B4A' : '';
+}
+
+function renderApiTokenList(tokens) {
+  const list = document.getElementById('accountApiTokenList');
+  if (!list) return;
+  if (!Array.isArray(tokens) || !tokens.length) {
+    list.innerHTML = `<li class="audit-log-empty">${escapeHtml(t('settings.accountApiTokenNone'))}</li>`;
+    return;
+  }
+  list.innerHTML = tokens
+    .map((x) => {
+      const id = escapeAttr(x.id || '');
+      const label = escapeHtml(x.label || 'API token');
+      const scope = x.scope === 'ro' ? t('settings.accountApiTokenScopeRo') : t('settings.accountApiTokenScopeRw');
+      const owner =
+        x.ownerType === 'personal'
+          ? t('settings.accountApiTokenOwnerPersonalShort', { user: x.ownerUser || t('settings.accountUserLabel') })
+          : t('settings.accountApiTokenOwnerHouseholdShort');
+      const createdAt = x.createdAt ? formatSessionExpiry(x.createdAt) : '—';
+      let usedAt = t('settings.accountApiTokenNeverUsed');
+      if (x.lastUsedAt) {
+        const lastMs = Date.parse(x.lastUsedAt);
+        if (Number.isFinite(lastMs) && Date.now() - lastMs < 60 * 1000) {
+          usedAt = t('settings.accountApiTokenUsedJustNow');
+        } else {
+          usedAt = formatSessionExpiry(x.lastUsedAt);
+        }
+      }
+      return `<li>
+  <div class="audit-log-main">
+    <span class="audit-log-action">${label}</span>
+    <span class="audit-log-detail">${escapeHtml(`${scope} · ${owner}`)}</span>
+    <span class="audit-log-detail">${escapeHtml(`${t('settings.accountApiTokenCreatedAt')}: ${createdAt}`)}</span>
+    <span class="audit-log-detail">${escapeHtml(`${t('settings.accountApiTokenLastUsedAt')}: ${usedAt}`)}</span>
+  </div>
+  <button type="button" class="btn-secondary" data-revoke-api-token="${id}">${escapeHtml(t('settings.accountApiTokenRevoke'))}</button>
+</li>`;
+    })
+    .join('');
+}
+
+async function loadApiTokenList() {
+  const wrap = document.getElementById('accountApiTokenCreatedWrap');
+  if (wrap) wrap.hidden = true;
+  try {
+    const r = await apiFetch('/api/account/api-tokens');
+    if (!r.ok) throw new Error('load failed');
+    const data = await r.json();
+    renderApiTokenList(Array.isArray(data.tokens) ? data.tokens : []);
+  } catch {
+    renderApiTokenList([]);
   }
 }
 
@@ -1850,6 +1911,63 @@ document.getElementById('btnCreateHousehold')?.addEventListener('click', async (
   }
 });
 
+document.getElementById('btnAccountCreateApiToken')?.addEventListener('click', async () => {
+  if (blockReadOnlyAction()) return;
+  const labelEl = document.getElementById('accountApiTokenLabel');
+  const scopeEl = document.getElementById('accountApiTokenScope');
+  const ownerEl = document.getElementById('accountApiTokenOwnerType');
+  const outWrap = document.getElementById('accountApiTokenCreatedWrap');
+  const outVal = document.getElementById('accountApiTokenCreatedValue');
+  const label = labelEl?.value?.trim() || '';
+  const scope = scopeEl?.value === 'ro' ? 'ro' : 'rw';
+  const ownerType = ownerEl?.value === 'personal' ? 'personal' : 'household';
+  if (!label) {
+    setApiTokenStatus(t('settings.accountApiTokenLabelRequired'), true);
+    return;
+  }
+  setApiTokenStatus('');
+  if (outWrap) outWrap.hidden = true;
+  try {
+    const r = await apiFetch('/api/account/api-tokens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label, scope, ownerType }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      setApiTokenStatus(data.error || t('settings.accountApiTokenCreateErr'), true);
+      return;
+    }
+    if (outVal) outVal.value = data.token || '';
+    if (outWrap) outWrap.hidden = false;
+    if (labelEl) labelEl.value = '';
+    setApiTokenStatus(t('settings.accountApiTokenCreateOk'), false);
+    await loadApiTokenList();
+  } catch {
+    setApiTokenStatus(t('settings.accountApiTokenCreateErr'), true);
+  }
+});
+
+document.getElementById('accountApiTokenList')?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-revoke-api-token]');
+  if (!btn) return;
+  const id = btn.getAttribute('data-revoke-api-token');
+  if (!id) return;
+  if (!confirm(t('settings.accountApiTokenRevokeConfirm'))) return;
+  try {
+    const r = await apiFetch(`/api/account/api-tokens/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      setApiTokenStatus(data.error || t('settings.accountApiTokenRevokeErr'), true);
+      return;
+    }
+    setApiTokenStatus(t('settings.accountApiTokenRevokeOk'), false);
+    await loadApiTokenList();
+  } catch {
+    setApiTokenStatus(t('settings.accountApiTokenRevokeErr'), true);
+  }
+});
+
 document.getElementById('settingsLocale')?.addEventListener('change', async (e) => {
   const v = e.target && e.target.value;
   if (v) await setLocale(v);
@@ -2959,5 +3077,26 @@ void initLoginGuestUi().then(() => bootstrap());
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
+window.addEventListener('online', () => {
+  if (navigator.serviceWorker?.controller) {
+    navigator.serviceWorker.controller.postMessage({ type: 'CHORELOG_TRIGGER_SYNC' });
+  }
+});
+
+window.addEventListener('chorelog:offline-write-queued', () => {
+  app.loadError = t('errors.offlineWriteQueued');
+  render();
+});
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (!event?.data || typeof event.data !== 'object') return;
+    if (event.data.type === 'CHORELOG_OFFLINE_REPLAY_APPLIED') {
+      app.loadError = '';
+      void load().then(() => render()).catch(() => {});
+    }
   });
 }
