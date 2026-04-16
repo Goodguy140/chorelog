@@ -691,6 +691,12 @@
             <select id="inLocations" multiple size="4" data-i18n-aria="logForm.locationsAria" aria-label="Locations for location-based chores"></select>
             <p class="field-hint" data-i18n="logForm.locationsHint">Applied only to chores using per-location points.</p>
           </div>
+          <div class="field field-note"><label for="inNote" data-i18n="logForm.note">Comment (optional)</label>
+            <div class="note-input-shell">
+              <textarea id="inNote" rows="2" maxlength="280" data-i18n-placeholder="logForm.notePh" placeholder="Add a short note"></textarea>
+            </div>
+            <p class="field-hint" data-i18n="logForm.noteHint">Saved with the log entry and included in CSV export.</p>
+          </div>
           <button class="btn-add" onclick="addEntry()" data-i18n="logForm.add">+ Add</button>
         </div>
         <div id="scheduledLogSuggestionsWrap" class="scheduled-log-suggestions" hidden>
@@ -732,6 +738,13 @@
           <label for="editEntryLocations" data-i18n="editEntry.locations">Locations</label>
           <select id="editEntryLocations" multiple size="4" data-i18n-aria="logForm.locationsAria" aria-label="Locations for location-based chores"></select>
           <p class="field-hint" data-i18n="editEntry.locationsHint">Applied only to chores using per-location points.</p>
+        </div>
+        <div class="edit-entry-field">
+          <label for="editEntryNote" data-i18n="editEntry.note">Comment (optional)</label>
+          <div class="note-input-shell">
+            <textarea id="editEntryNote" rows="2" maxlength="280" data-i18n-placeholder="editEntry.notePh" placeholder="Add a short note"></textarea>
+          </div>
+          <p class="field-hint" data-i18n="editEntry.noteHint">Saved with the log entry and included in CSV export.</p>
         </div>
         <div class="edit-entry-actions">
           <button type="button" class="btn-secondary" id="editEntryCancel" data-i18n="editEntry.cancel">Cancel</button>

@@ -128,14 +128,14 @@ function pointsByPerson(monthKey) {
   return c;
 }
 
-/** Whitespace-separated tokens; entry must match all (case-insensitive). Matches date, chore text, person, locations, points. */
+/** Whitespace-separated tokens; entry must match all (case-insensitive). Matches date, chore text, person, note, locations, points. */
 function entryMatchesLogSearch(e, rawQ) {
   const q = rawQ.trim().toLowerCase();
   if (!q) return true;
   const tokens = q.split(/\s+/).filter(Boolean);
   const loc = Array.isArray(e.locationIds) ? e.locationIds.join(' ') : '';
   const pts = entryChorePoints(e);
-  const hay = [e.d, e.c || '', e.p || '', loc, pts != null ? String(pts) : ''].join(' ').toLowerCase();
+  const hay = [e.d, e.c || '', e.p || '', e.note || '', loc, pts != null ? String(pts) : ''].join(' ').toLowerCase();
   return tokens.every((t) => hay.includes(t));
 }
 
@@ -388,12 +388,14 @@ function fullRender() {
     const locHtml = Array.isArray(e.locationIds) && e.locationIds.length
       ? `<span class="log-chore-points">${escapeHtml(e.locationIds.join(', '))}</span>`
       : '';
+    const noteHtml = e.note ? `<span class="log-chore-points">- ${escapeHtml(e.note)}</span>` : '';
     return `<div class="log-item" data-entry-id="${escapeHtml(e.id)}">
     <div class="log-item-main" style="${barStyle}">
       <span class="log-date">${m}/${d}</span>
       <span class="log-chore">${escapeHtml(e.c)}</span>
       ${ptsHtml}
       ${locHtml}
+      ${noteHtml}
     </div>
     <span class="log-person" style="background:${col.bar};color:${col.text};">${escapeHtml(e.p)}</span>
     ${
@@ -419,12 +421,14 @@ function fullRender() {
     const locHtml = Array.isArray(e.locationIds) && e.locationIds.length
       ? `<span class="log-chore-points">${escapeHtml(e.locationIds.join(', '))}</span>`
       : '';
+    const noteHtml = e.note ? `<span class="log-chore-points">- ${escapeHtml(e.note)}</span>` : '';
     return `<div class="log-item log-item--removed" data-entry-id="${escapeHtml(e.id)}">
     <div class="log-item-main" style="${barStyle}">
       <span class="log-date">${m}/${d}</span>
       <span class="log-chore">${escapeHtml(e.c)}</span>
       ${ptsHtml}
       ${locHtml}
+      ${noteHtml}
     </div>
     <span class="log-person" style="background:${col.bar};color:${col.text};">${escapeHtml(e.p)}</span>
     <span class="log-item-actions">

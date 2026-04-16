@@ -318,10 +318,5 @@ FUTURE IDEAS (IMPLEMENTATION-ORIENTED)
 
 - **More locales** — add files under locales/, register codes in SUPPORTED_LOCALES (js/i18n.js), translate keys parallel to en.json.
 
-- **Per-person reminder preferences** — allow each member to opt in/out for push reminders (and optionally quiet-hour overrides) instead of household-wide defaults only.
-
 - **API tokens for integrators** — optional personal or household API tokens scoped to read-only/read-write, so integrations can avoid sharing session cookies.
 
-- **Completed chore comments** — optional short note when logging or completing a scheduled chore (e.g., "deep-cleaned sink trap"), visible in activity history and CSV.
-
-- **Conflict-safe editing** — optimistic concurrency with updatedAt checks on entry/scheduled updates to avoid accidental overwrites from simultaneous edits on multiple devices.

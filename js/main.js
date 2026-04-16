@@ -72,6 +72,28 @@ function blockReadOnlyAction() {
   return true;
 }
 
+function getEntryUpdatedAt(id) {
+  const row = app.entries.find((x) => x.id === id);
+  return typeof row?.updatedAt === 'string' ? row.updatedAt : '';
+}
+
+function getScheduledUpdatedAt(id) {
+  const row = app.scheduledChores.find((x) => x.id === id);
+  return typeof row?.updatedAt === 'string' ? row.updatedAt : '';
+}
+
+async function readApiErrorPayload(response) {
+  try {
+    return await response.json();
+  } catch {
+    return {};
+  }
+}
+
+function isUpdatedAtConflict(response, data) {
+  return response?.status === 409 && data?.code === 'conflict_updated_at';
+}
+
 async function loadAccountInfo() {
   try {
     const r = await apiFetch('/api/account');
@@ -296,6 +318,20 @@ function syncLogLocationFieldVisibility() {
   const wrap = document.querySelector('.field-locations');
   const input = document.getElementById('inChore');
   const sel = document.getElementById('inLocations');
+  if (!wrap || !input || !sel) return;
+  const show = choreInputNeedsLocations(input.value);
+  wrap.hidden = !show;
+  if (!show) {
+    [...sel.options].forEach((o) => {
+      o.selected = false;
+    });
+  }
+}
+
+function syncEditLocationFieldVisibility() {
+  const input = document.getElementById('editEntryChore');
+  const sel = document.getElementById('editEntryLocations');
+  const wrap = sel?.closest('.edit-entry-field');
   if (!wrap || !input || !sel) return;
   const show = choreInputNeedsLocations(input.value);
   wrap.hidden = !show;
@@ -559,6 +595,7 @@ async function addEntry() {
   const d = document.getElementById('inDate').value;
   const raw = document.getElementById('inChore').value.trim();
   const p = document.getElementById('inPerson').value;
+  const note = (document.getElementById('inNote')?.value || '').trim().slice(0, 280);
   const selectedLocations = [...document.querySelectorAll('#inLocations option:checked')].map((o) => o.value);
   if (!d || !raw) return;
   const resolved = resolveChorePayloadRows(raw);
@@ -581,9 +618,9 @@ async function addEntry() {
         render();
         return;
       }
-      rows.push({ d, p, choreId: row.choreId, locationIds: selectedLocations });
+      rows.push({ d, p, choreId: row.choreId, locationIds: selectedLocations, ...(note ? { note } : {}) });
     } else {
-      rows.push({ d, p, choreId: row.choreId, locationIds: [] });
+      rows.push({ d, p, choreId: row.choreId, locationIds: [], ...(note ? { note } : {}) });
     }
   }
   try {
@@ -598,6 +635,8 @@ async function addEntry() {
     await load();
     app.currentMonth = getMonthKey(d);
     document.getElementById('inChore').value = '';
+    const noteEl = document.getElementById('inNote');
+    if (noteEl) noteEl.value = '';
     [...document.querySelectorAll('#inLocations option')].forEach((o) => {
       o.selected = false;
     });
@@ -695,6 +734,9 @@ function openEditEntry(id) {
   fillEditEntryPersonSelect();
   document.getElementById('editEntryPerson').value = e.p;
   fillEditEntryLocationSelect(e.locationIds);
+  syncEditLocationFieldVisibility();
+  const noteEl = document.getElementById('editEntryNote');
+  if (noteEl) noteEl.value = e.note || '';
   document.getElementById('editEntryDialog').showModal();
 }
 
@@ -712,9 +754,22 @@ async function confirmDeleteEntry() {
   const id = app.pendingDeleteEntryId;
   if (!id) return;
   document.getElementById('deleteEntryDialog').close();
+  const expectedUpdatedAt = getEntryUpdatedAt(id);
   try {
-    const r = await apiFetch(`/api/entries/${encodeURIComponent(id)}`, { method: 'DELETE' });
-    if (!r.ok && r.status !== 404) throw new Error('delete failed');
+    const r = await apiFetch(`/api/entries/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expectedUpdatedAt }),
+    });
+    if (!r.ok && r.status !== 404) {
+      const data = await readApiErrorPayload(r);
+      if (isUpdatedAtConflict(r, data)) {
+        app.loadError = t('errors.conflictEntry');
+        render();
+        return;
+      }
+      throw new Error('delete failed');
+    }
     await load();
     render();
   } catch (e) {
@@ -801,13 +856,22 @@ async function confirmScheduledComplete() {
     render();
     return;
   }
+  const expectedUpdatedAt = getScheduledUpdatedAt(id);
   try {
     const r = await apiFetch(`/api/scheduled-chores/${encodeURIComponent(id)}/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ person, completedDate: completedDateRaw }),
+      body: JSON.stringify({ person, completedDate: completedDateRaw, expectedUpdatedAt }),
     });
-    if (!r.ok) throw new Error();
+    if (!r.ok) {
+      const data = await readApiErrorPayload(r);
+      if (isUpdatedAtConflict(r, data)) {
+        app.loadError = t('errors.conflictScheduled');
+        render();
+        return;
+      }
+      throw new Error();
+    }
     document.getElementById('scheduledDoneDialog').close();
     await load();
     render();
@@ -831,13 +895,22 @@ async function saveScheduledStartDate(id, domKey) {
     render();
     return;
   }
+  const expectedUpdatedAt = getScheduledUpdatedAt(id);
   try {
     const r = await apiFetch(`/api/scheduled-chores/${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ startsOn }),
+      body: JSON.stringify({ startsOn, expectedUpdatedAt }),
     });
-    if (!r.ok) throw new Error();
+    if (!r.ok) {
+      const data = await readApiErrorPayload(r);
+      if (isUpdatedAtConflict(r, data)) {
+        app.loadError = t('errors.conflictScheduled');
+        render();
+        return;
+      }
+      throw new Error();
+    }
     await load();
     render();
     renderScheduledManageList();
@@ -849,13 +922,22 @@ async function saveScheduledStartDate(id, domKey) {
 
 async function setScheduledReminderEnabled(id, reminderEnabled) {
   if (blockReadOnlyAction()) return;
+  const expectedUpdatedAt = getScheduledUpdatedAt(id);
   try {
     const r = await apiFetch(`/api/scheduled-chores/${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reminderEnabled }),
+      body: JSON.stringify({ reminderEnabled, expectedUpdatedAt }),
     });
-    if (!r.ok) throw new Error();
+    if (!r.ok) {
+      const data = await readApiErrorPayload(r);
+      if (isUpdatedAtConflict(r, data)) {
+        app.loadError = t('errors.conflictScheduled');
+        render();
+        return;
+      }
+      throw new Error();
+    }
     const data = await r.json();
     app.scheduledChores = Array.isArray(data.scheduledChores) ? data.scheduledChores : app.scheduledChores;
     renderScheduledManageList();
@@ -869,9 +951,22 @@ async function setScheduledReminderEnabled(id, reminderEnabled) {
 async function deleteScheduledChore(id) {
   if (blockReadOnlyAction()) return;
   if (!confirm(t('scheduled.confirmRemove'))) return;
+  const expectedUpdatedAt = getScheduledUpdatedAt(id);
   try {
-    const r = await apiFetch(`/api/scheduled-chores/${encodeURIComponent(id)}`, { method: 'DELETE' });
-    if (!r.ok && r.status !== 204) throw new Error();
+    const r = await apiFetch(`/api/scheduled-chores/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expectedUpdatedAt }),
+    });
+    if (!r.ok && r.status !== 204) {
+      const data = await readApiErrorPayload(r);
+      if (isUpdatedAtConflict(r, data)) {
+        app.loadError = t('errors.conflictScheduled');
+        render();
+        return;
+      }
+      throw new Error();
+    }
     await load();
     render();
     renderScheduledManageList();
@@ -1982,9 +2077,11 @@ document.getElementById('editEntryForm').addEventListener('submit', async (e) =>
   if (blockReadOnlyAction()) return;
   const id = app.pendingEditEntryId;
   if (!id) return;
+  const expectedUpdatedAt = getEntryUpdatedAt(id);
   const d = document.getElementById('editEntryDate').value;
   const title = document.getElementById('editEntryChore').value.trim();
   const p = document.getElementById('editEntryPerson').value;
+  const note = (document.getElementById('editEntryNote')?.value || '').trim().slice(0, 280);
   if (!d || !title || !p) return;
   const preset = app.chorePresets.find((x) => x.title.toLowerCase() === title.toLowerCase());
   const selectedLocations = [...document.querySelectorAll('#editEntryLocations option:checked')].map(
@@ -1998,20 +2095,28 @@ document.getElementById('editEntryForm').addEventListener('submit', async (e) =>
         render();
         return;
       }
-      body = { d, p, choreId: preset.id, locationIds: selectedLocations };
+      body = { d, p, choreId: preset.id, locationIds: selectedLocations, note };
     } else {
-      body = { d, p, choreId: preset.id, locationIds: [] };
+      body = { d, p, choreId: preset.id, locationIds: [], note };
     }
   } else {
-    body = { d, c: title, p, locationIds: [] };
+    body = { d, c: title, p, locationIds: [], note };
   }
   try {
     const r = await apiFetch(`/api/entries/${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, expectedUpdatedAt }),
     });
-    if (!r.ok) throw new Error();
+    if (!r.ok) {
+      const data = await readApiErrorPayload(r);
+      if (isUpdatedAtConflict(r, data)) {
+        app.loadError = t('errors.conflictEntry');
+        render();
+        return;
+      }
+      throw new Error();
+    }
     document.getElementById('editEntryDialog').close();
     app.pendingEditEntryId = null;
     await load();
@@ -2220,11 +2325,15 @@ document.getElementById('btnAddQuickChore').addEventListener('click', async () =
 document.getElementById('inChore')?.addEventListener('input', () => {
   syncLogLocationFieldVisibility();
 });
+document.getElementById('editEntryChore')?.addEventListener('input', () => {
+  syncEditLocationFieldVisibility();
+});
 
 initQuickChores();
 initScheduledLogSuggestions();
 initChoreInputSuggest();
 syncLogLocationFieldVisibility();
+syncEditLocationFieldVisibility();
 app.dashboardHiddenBlocks = readDashboardHiddenBlocks();
 app.dashboardHiddenStatCards = readDashboardHiddenStatCards();
 applyDashboardBlockOrder(readDashboardBlockOrder());

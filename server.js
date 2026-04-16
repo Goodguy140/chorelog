@@ -87,6 +87,24 @@ function browserPushAllowedForHousehold(hid) {
   return String(hid || '').trim() === BROWSER_PUSH_HOUSEHOLD_ID;
 }
 
+function hasUpdatedAtConflict(expectedUpdatedAt, currentUpdatedAt) {
+  const expected =
+    typeof expectedUpdatedAt === 'string' ? expectedUpdatedAt.trim() : '';
+  if (!expected) return false;
+  const current =
+    typeof currentUpdatedAt === 'string' ? currentUpdatedAt.trim() : '';
+  return expected !== current;
+}
+
+function sendUpdatedAtConflict(res, currentUpdatedAt) {
+  return res.status(409).json({
+    error: 'Resource was modified by another session. Refresh and try again.',
+    code: 'conflict_updated_at',
+    currentUpdatedAt:
+      typeof currentUpdatedAt === 'string' ? currentUpdatedAt : null,
+  });
+}
+
 /** @type {'environment' | 'file' | 'none'} */
 let VAPID_BOOT_SOURCE = 'none';
 (function initVapidKeysAtStartup() {
@@ -995,6 +1013,13 @@ app.put('/api/scheduled-chores/:id', requireReadWrite, async (req, res) => {
     const list = store.scheduledChores || [];
     const idx = list.findIndex((s) => s.id === id);
     if (idx === -1) return res.status(404).json({ error: 'Not found' });
+    const expectedUpdatedAt =
+      typeof req.body?.expectedUpdatedAt === 'string'
+        ? req.body.expectedUpdatedAt
+        : '';
+    if (hasUpdatedAtConflict(expectedUpdatedAt, list[idx].updatedAt)) {
+      return sendUpdatedAtConflict(res, list[idx].updatedAt);
+    }
     if (req.body.title != null) {
       const t = String(req.body.title).trim();
       if (t) list[idx].title = t;
@@ -1062,8 +1087,15 @@ app.delete('/api/scheduled-chores/:id', requireReadWrite, async (req, res) => {
     const store = await readStore(req.householdId);
     const list = store.scheduledChores || [];
     const removed = list.find((s) => s.id === id);
+    if (!removed) return res.status(404).json({ error: 'Not found' });
+    const expectedUpdatedAt =
+      typeof req.body?.expectedUpdatedAt === 'string'
+        ? req.body.expectedUpdatedAt
+        : '';
+    if (hasUpdatedAtConflict(expectedUpdatedAt, removed.updatedAt)) {
+      return sendUpdatedAtConflict(res, removed.updatedAt);
+    }
     const next = list.filter((s) => s.id !== id);
-    if (next.length === list.length) return res.status(404).json({ error: 'Not found' });
     store.scheduledChores = next;
     if (store.discordReminderSentAt && store.discordReminderSentAt[id]) {
       delete store.discordReminderSentAt[id];
@@ -1096,6 +1128,13 @@ app.post('/api/scheduled-chores/:id/complete', requireReadWrite, async (req, res
     const idx = list.findIndex((s) => s.id === id);
     if (idx === -1) return res.status(404).json({ error: 'Not found' });
     const chore = list[idx];
+    const expectedUpdatedAt =
+      typeof req.body?.expectedUpdatedAt === 'string'
+        ? req.body.expectedUpdatedAt
+        : '';
+    if (hasUpdatedAtConflict(expectedUpdatedAt, chore.updatedAt)) {
+      return sendUpdatedAtConflict(res, chore.updatedAt);
+    }
     const completedDate = parseCalendarDateParam(req.body && req.body.completedDate);
     if (!completedDate) {
       return res.status(400).json({ error: 'completedDate is required (YYYY-MM-DD calendar date)' });
@@ -1610,6 +1649,7 @@ app.post('/api/entries', requireReadWrite, async (req, res) => {
         c = row.c.trim();
         if (!c) continue;
       }
+      const note = typeof row.note === 'string' ? row.note.trim().slice(0, 280) : '';
       const ts = nowISO();
       const entry = {
         id: newId(),
@@ -1620,6 +1660,7 @@ app.post('/api/entries', requireReadWrite, async (req, res) => {
         locationIds,
         createdAt: ts,
         updatedAt: ts,
+        ...(note ? { note } : {}),
       };
       store.entries.push(entry);
       added.push(entry);
@@ -1628,7 +1669,7 @@ app.post('/api/entries', requireReadWrite, async (req, res) => {
       const summary =
         added.length === 1 ? added[0].c.slice(0, 200) : `${added.length} chores`;
       const detail = added
-        .map((e) => `${e.d} · ${e.c} · ${e.p}`)
+        .map((e) => `${e.d} · ${e.c} · ${e.p}${e.note ? ` · ${e.note}` : ''}`)
         .join(' · ')
         .slice(0, 800);
       appendAudit(store, req, {
@@ -1686,6 +1727,8 @@ app.put('/api/entries/:id', requireReadWrite, async (req, res) => {
     let c = '';
     let choreId = null;
     let locationIds = [];
+    const hasNoteField = Object.prototype.hasOwnProperty.call(req.body || {}, 'note');
+    let note = typeof req.body.note === 'string' ? req.body.note.trim().slice(0, 280) : '';
     const cid = typeof req.body.choreId === 'string' ? req.body.choreId.trim() : '';
     if (cid) {
       const preset = presets.find((x) => x.id === cid && !x.deletedAt);
@@ -1708,15 +1751,33 @@ app.put('/api/entries/:id', requireReadWrite, async (req, res) => {
     const idx = store.entries.findIndex((e) => e.id === id);
     if (idx === -1) return res.status(404).json({ error: 'Not found' });
     const prev = store.entries[idx];
+    const expectedUpdatedAt =
+      typeof req.body?.expectedUpdatedAt === 'string'
+        ? req.body.expectedUpdatedAt
+        : '';
+    if (hasUpdatedAtConflict(expectedUpdatedAt, prev.updatedAt)) {
+      return sendUpdatedAtConflict(res, prev.updatedAt);
+    }
     if (prev.deletedAt) {
       return res.status(400).json({ error: 'Cannot edit a removed entry; restore it first' });
     }
     const createdAt = typeof prev.createdAt === 'string' ? prev.createdAt : nowISO();
-    store.entries[idx] = { id, d, c, p, choreId, locationIds, createdAt, updatedAt: nowISO() };
+    if (!hasNoteField && typeof prev.note === 'string') note = prev.note.trim().slice(0, 280);
+    store.entries[idx] = {
+      id,
+      d,
+      c,
+      p,
+      choreId,
+      locationIds,
+      createdAt,
+      updatedAt: nowISO(),
+      ...(note ? { note } : {}),
+    };
     appendAudit(store, req, {
       action: 'entry.update',
       target: c.slice(0, 200),
-      detail: `Was: ${prev.d} · ${prev.c.slice(0, 120)} · ${prev.p}`,
+      detail: `Was: ${prev.d} · ${prev.c.slice(0, 120)} · ${prev.p}${prev.note ? ` · ${prev.note.slice(0, 120)}` : ''}`,
     });
     await writeStore(req.householdId, store);
     res.json({ entry: store.entries[idx] });
@@ -1733,6 +1794,13 @@ app.delete('/api/entries/:id', requireReadWrite, async (req, res) => {
     const idx = store.entries.findIndex((e) => e.id === id);
     if (idx === -1) return res.status(404).json({ error: 'Not found' });
     const row = store.entries[idx];
+    const expectedUpdatedAt =
+      typeof req.body?.expectedUpdatedAt === 'string'
+        ? req.body.expectedUpdatedAt
+        : '';
+    if (hasUpdatedAtConflict(expectedUpdatedAt, row.updatedAt)) {
+      return sendUpdatedAtConflict(res, row.updatedAt);
+    }
     if (row.deletedAt) {
       return res.status(400).json({ error: 'Entry already removed' });
     }

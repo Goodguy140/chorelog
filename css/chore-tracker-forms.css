@@ -12,11 +12,26 @@
 }
 
 .edit-entry-field input[type=text],
-.edit-entry-field select {
+.edit-entry-field select,
+.edit-entry-field textarea {
   width: 100%;
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
+}
+
+.edit-entry-field textarea {
+  min-height: 52px;
+  resize: vertical;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.35;
+  box-sizing: border-box;
+  outline: none;
 }
 
 .edit-entry-field .date-input-shell {
@@ -70,12 +85,44 @@
   grid-column: 1 / span 3;
 }
 
+.add-form .field-note {
+  grid-column: 1 / span 3;
+}
+
 .add-form input[type=text],
 .add-form .date-input-shell,
-.add-form select {
+.add-form select,
+.add-form textarea {
   width: 100%;
   max-width: 100%;
   min-width: 0;
+}
+
+.add-form textarea {
+  min-height: 52px;
+  resize: vertical;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.35;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.note-input-shell {
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.note-input-shell:focus-within {
+  border-color: var(--color-text-secondary);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-text-secondary) 28%, transparent);
 }
 
 .field label {
