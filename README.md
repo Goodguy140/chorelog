@@ -186,7 +186,7 @@ Sample compose files may define **`CHORELOG_USER`** for operator notes; **the ap
 
 ## Backup and restore
 
-Use **Settings → Export JSON** to download a file, or **GET /api/export**. **Import** (or **POST /api/import**) can **replace** all data or **merge** with what is on the server; confirm the prompt carefully before importing.
+Use **Settings → Export JSON** to download a file, or **GET /api/export**. **Import** (or **POST /api/import**) can **replace** all data or **merge** with what is on the server; choose merge or replace carefully in the import dialog on this site before importing.
 
 ## License
 

@@ -638,7 +638,7 @@
                       <input type="file" id="importFile" accept="application/json,.json" hidden>
                     </label>
                   </div>
-                  <p class="settings-hint" data-i18n="settings.dataHint" data-i18n-html>Import can <strong>replace</strong> everything or <strong>merge</strong> with a prompt. JSON export includes people, log entries, and scheduled chores. CSV is log entries only (spreadsheet-friendly).</p>
+                  <p class="settings-hint" data-i18n="settings.dataHint" data-i18n-html>Import can <strong>replace</strong> everything or <strong>merge</strong>; you choose in a dialog on this site. JSON export includes people, log entries, and scheduled chores. CSV is log entries only (spreadsheet-friendly).</p>
                 </div>
                 <div class="settings-subblock">
                   <p class="settings-block-title" data-i18n="settings.scheduledBlock">Scheduled chores</p>
@@ -662,6 +662,21 @@
       </div>
 
       <p class="settings-version" id="settingsAppVersion" hidden aria-live="polite"></p>
+    </div>
+  </dialog>
+
+  <dialog class="settings-dialog" id="importModeDialog" aria-labelledby="importModeTitle">
+    <div class="settings-inner">
+      <div class="settings-header">
+        <h2 id="importModeTitle" data-i18n="import.dialogTitle">Import JSON backup</h2>
+        <button type="button" class="settings-close" id="importModeDialogClose" data-i18n-aria="settings.closeAria" aria-label="Close">&times;</button>
+      </div>
+      <p class="settings-hint" data-i18n="import.dialogHint" data-i18n-html><strong>Merge</strong> appends imported entries and combines people lists with what is on the server. <strong>Replace all</strong> overwrites server data with this file.</p>
+      <div class="edit-entry-actions">
+        <button type="button" class="btn-secondary" id="btnImportCancel" data-i18n="import.cancel">Cancel</button>
+        <button type="button" class="btn-secondary" id="btnImportMerge" data-i18n="import.mergeBtn">Merge</button>
+        <button type="button" class="btn-secondary delete-entry-confirm" id="btnImportReplace" data-i18n="import.replaceBtn">Replace all</button>
+      </div>
     </div>
   </dialog>
 

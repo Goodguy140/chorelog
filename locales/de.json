@@ -563,7 +563,7 @@
     "export": "JSON exportieren",
     "exportCsv": "CSV exportieren",
     "import": "JSON importieren",
-    "dataHint": "Import kann <strong>alles ersetzen</strong> oder <strong>zusammenführen</strong> (mit Rückfrage). JSON-Export enthält Personen, Log und geplante Aufgaben. CSV nur Log-Einträge (tabellenfreundlich).",
+    "dataHint": "Import kann <strong>alles ersetzen</strong> oder <strong>zusammenführen</strong>; die Wahl erfolgt im Dialog auf dieser Website. JSON-Export enthält Personen, Log und geplante Aufgaben. CSV nur Log-Einträge (tabellenfreundlich).",
     "scheduledBlock": "Geplante Aufgaben"
   },
   "discordIntervals": {
@@ -619,7 +619,11 @@
     "undo": "Rückgängig"
   },
   "import": {
-    "confirm": "Mit vorhandenen Daten auf dem Server zusammenführen?\n\nOK = Zusammenführen (Einträge anhängen; Personenlisten vereinigen).\nAbbrechen = Alle Serverdaten durch diese Datei ersetzen.",
+    "dialogTitle": "JSON-Backup importieren",
+    "dialogHint": "<strong>Zusammenführen</strong> hängt importierte Einträge an und vereinigt Personenlisten mit dem Server. <strong>Alles ersetzen</strong> überschreibt die Serverdaten mit dieser Datei.",
+    "cancel": "Abbrechen",
+    "mergeBtn": "Zusammenführen",
+    "replaceBtn": "Alles ersetzen",
     "invalidJson": "Ungültige JSON-Datei."
   },
   "version": "Version {{v}}",

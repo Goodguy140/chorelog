@@ -563,7 +563,7 @@
     "export": "Export JSON",
     "exportCsv": "Export CSV",
     "import": "Import JSON",
-    "dataHint": "Import can <strong>replace</strong> everything or <strong>merge</strong> with a prompt. JSON export includes people, log entries, and scheduled chores. CSV is log entries only (spreadsheet-friendly).",
+    "dataHint": "Import can <strong>replace</strong> everything or <strong>merge</strong>; you choose in a dialog on this site. JSON export includes people, log entries, and scheduled chores. CSV is log entries only (spreadsheet-friendly).",
     "scheduledBlock": "Scheduled chores"
   },
   "discordIntervals": {
@@ -619,7 +619,11 @@
     "undo": "Undo"
   },
   "import": {
-    "confirm": "Merge with existing data on the server?\n\nOK = Merge (append imported entries; combine people lists).\nCancel = Replace all server data with this file.",
+    "dialogTitle": "Import JSON backup",
+    "dialogHint": "<strong>Merge</strong> appends imported entries and combines people lists with what is on the server. <strong>Replace all</strong> overwrites server data with this file.",
+    "cancel": "Cancel",
+    "mergeBtn": "Merge",
+    "replaceBtn": "Replace all",
     "invalidJson": "Invalid JSON file."
   },
   "version": "Version {{v}}",

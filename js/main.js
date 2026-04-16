@@ -23,6 +23,8 @@ import { escapeAttr, escapeHtml } from './utils/html.js';
 let auditLogRowsCache = [];
 /** True after a successful audit fetch so locale changes can re-render labels without faking “empty” before first load. */
 let auditLogLoadedOnce = false;
+/** Parsed JSON from the file picker until the user picks merge/replace or dismisses the import dialog. */
+let pendingImportPayload = null;
 import { intervalLabel, scheduledStatus } from './scheduled-logic.js';
 import { initChoreInputSuggest } from './chore-input-suggest.js';
 import {
@@ -2238,20 +2240,7 @@ document.getElementById('btnExportCsv').addEventListener('click', async () => {
   }
 });
 
-document.getElementById('importFile').addEventListener('change', async (e) => {
-  if (blockReadOnlyAction()) return;
-  const input = e.target;
-  const f = input.files && input.files[0];
-  input.value = '';
-  if (!f) return;
-  let data;
-  try {
-    data = JSON.parse(await f.text());
-  } catch {
-    alert(t('import.invalidJson'));
-    return;
-  }
-  const merge = confirm(t('import.confirm'));
+async function performImport(data, merge) {
   try {
     const r = await apiFetch('/api/import', {
       method: 'POST',
@@ -2279,6 +2268,51 @@ document.getElementById('importFile').addEventListener('change', async (e) => {
     app.loadError = t('errors.importFailed');
     render();
   }
+}
+
+document.getElementById('importFile').addEventListener('change', async (e) => {
+  if (blockReadOnlyAction()) return;
+  const input = e.target;
+  const f = input.files && input.files[0];
+  input.value = '';
+  if (!f) return;
+  let data;
+  try {
+    data = JSON.parse(await f.text());
+  } catch {
+    alert(t('import.invalidJson'));
+    return;
+  }
+  pendingImportPayload = data;
+  document.getElementById('importModeDialog').showModal();
+});
+
+const importModeDialog = document.getElementById('importModeDialog');
+document.getElementById('importModeDialogClose').addEventListener('click', () => {
+  importModeDialog.close();
+});
+document.getElementById('btnImportCancel').addEventListener('click', () => {
+  importModeDialog.close();
+});
+importModeDialog.addEventListener('click', (e) => {
+  if (e.target === importModeDialog) e.target.close();
+});
+importModeDialog.addEventListener('close', () => {
+  pendingImportPayload = null;
+});
+document.getElementById('btnImportMerge').addEventListener('click', async () => {
+  const data = pendingImportPayload;
+  if (!data) return;
+  pendingImportPayload = null;
+  importModeDialog.close();
+  await performImport(data, true);
+});
+document.getElementById('btnImportReplace').addEventListener('click', async () => {
+  const data = pendingImportPayload;
+  if (!data) return;
+  pendingImportPayload = null;
+  importModeDialog.close();
+  await performImport(data, false);
 });
 
 document.getElementById('btnScheduled').addEventListener('click', openScheduledDialog);
