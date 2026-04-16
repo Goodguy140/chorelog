@@ -81,6 +81,11 @@
   min-width: 0;
 }
 
+/* JS sets hidden on .field (e.g. locations); narrow layouts use display:flex on .add-form .field, which beats the UA [hidden] rule (see .toast[hidden] in chore-tracker-base.css). */
+.add-form .field[hidden] {
+  display: none !important;
+}
+
 .add-form .field-locations {
   grid-column: 1 / span 3;
 }
@@ -592,6 +597,64 @@ select {
 
   .quick-chores-buttons {
     gap: 6px;
+  }
+}
+
+/*
+ * Log chore dialog is capped (~780px). Don’t put Date / Chore / Person / Add on one row — chore needs a full row.
+ */
+.log-chore-dialog .add-form {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    'date person'
+    'chore chore'
+    'locations locations'
+    'note note'
+    'add add';
+  gap: 10px;
+  align-items: start;
+}
+
+.log-chore-dialog .field-date {
+  grid-area: date;
+}
+
+.log-chore-dialog .field-person {
+  grid-area: person;
+}
+
+.log-chore-dialog .field-chore {
+  grid-area: chore;
+}
+
+.log-chore-dialog .field-locations {
+  grid-area: locations;
+  grid-column: auto;
+}
+
+.log-chore-dialog .field-note {
+  grid-area: note;
+  grid-column: auto;
+}
+
+.log-chore-dialog .add-form .btn-add {
+  grid-area: add;
+  margin-top: 0;
+  justify-self: stretch;
+  width: 100%;
+  max-width: none;
+}
+
+@media (max-width: 440px) {
+  .log-chore-dialog .add-form {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'date'
+      'person'
+      'chore'
+      'locations'
+      'note'
+      'add';
   }
 }
 
