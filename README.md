@@ -2,7 +2,7 @@
 
 A small web app for logging household chores, viewing monthly stats, and comparing activity month over month. Data is stored on the server (not only in the browser) so everyone using the same instance sees the same log.
 
-This is the **public** source repository: you can browse, clone, and build from it freely. Practical deployment notes (environment variables, data paths) are described below; do not commit secrets or production credentials into your fork.
+Practical deployment notes (environment variables, data paths) are described below; do not commit secrets or production credentials into your fork.
 
 ## Requirements
 
