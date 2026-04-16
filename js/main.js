@@ -24,6 +24,7 @@ import {
   disableBrowserPush,
   enableBrowserPush,
   refreshPushNotificationsPanel,
+  saveBrowserPushPreferences,
   testBrowserPush,
 } from './push-notifications.js';
 import {
@@ -975,7 +976,10 @@ function syncDiscordWebhookForm() {
   const qhEnd = document.getElementById('discordQuietHoursEnd');
   const slackEl = document.getElementById('slackWebhookUrl');
   const genEl = document.getElementById('genericWebhookUrl');
-  const status = document.getElementById('discordWebhookStatus');
+  const statuses = [
+    document.getElementById('discordWebhookStatus'),
+    document.getElementById('notificationRoutingStatus'),
+  ];
   if (en) en.checked = Boolean(w.enabled);
   if (urlEl) urlEl.value = typeof w.url === 'string' ? w.url : '';
   if (intervalEl) {
@@ -998,19 +1002,35 @@ function syncDiscordWebhookForm() {
   if (dte) dte.checked = Boolean(w.dueTodayEnabled);
   if (dtw) dtw.checked = w.dueTodayNotifyWebhooks !== false;
   if (dtp) dtp.checked = w.dueTodayNotifyPush !== false;
-  if (status) {
+  syncDueTodayChannelToggleState();
+  statuses.forEach((status) => {
+    if (!status) return;
     status.textContent = '';
     status.hidden = true;
     status.style.color = '';
-  }
+  });
+}
+
+function syncDueTodayChannelToggleState() {
+  const master = document.getElementById('remindDueTodayEnabled');
+  const dueTodayWebhooks = document.getElementById('remindDueTodayWebhooks');
+  const dueTodayPush = document.getElementById('remindDueTodayPush');
+  const enabled = Boolean(master?.checked);
+  if (dueTodayWebhooks) dueTodayWebhooks.disabled = !enabled;
+  if (dueTodayPush) dueTodayPush.disabled = !enabled;
 }
 
 function setDiscordStatus(msg, isError) {
-  const status = document.getElementById('discordWebhookStatus');
-  if (!status) return;
-  status.textContent = msg || '';
-  status.hidden = !msg;
-  status.style.color = isError ? '#E24B4A' : '';
+  const statuses = [
+    document.getElementById('discordWebhookStatus'),
+    document.getElementById('notificationRoutingStatus'),
+  ];
+  statuses.forEach((status) => {
+    if (!status) return;
+    status.textContent = msg || '';
+    status.hidden = !msg;
+    status.style.color = isError ? '#E24B4A' : '';
+  });
 }
 
 async function saveDiscordWebhookSettings() {
@@ -1178,10 +1198,10 @@ const DASHBOARD_DESKTOP_LAYOUT_KEY = 'chorelog-dashboard-desktop-layout';
 const DEFAULT_DASHBOARD_BLOCK_ORDER = [
   'dashboardBlockStats',
   'dashboardBlockContributions',
-  'dashboardBlockHeatmap',
-  'dashboardBlockLog',
-  'dashboardBlockScheduled',
   'dashboardBlockMom',
+  'dashboardBlockHeatmap',
+  'dashboardBlockScheduled',
+  'dashboardBlockLog',
 ];
 const ALL_DASHBOARD_STAT_CARD_KEYS = [
   'tasks_totalTasks',
@@ -1198,16 +1218,17 @@ const ALL_DASHBOARD_STAT_CARD_KEYS = [
 const DEFAULT_DASHBOARD_DESKTOP_LAYOUT = Object.freeze({
   dashboardBlockStats: 'full',
   dashboardBlockContributions: 'third',
-  dashboardBlockHeatmap: 'third',
-  dashboardBlockLog: 'full',
-  dashboardBlockScheduled: 'third',
   dashboardBlockMom: 'third',
+  dashboardBlockHeatmap: 'third',
+  dashboardBlockScheduled: 'full',
+  dashboardBlockLog: 'full',
 });
 const VALID_SETTINGS_TABS = new Set([
   'interface',
   'household',
   'chores',
   'integrations',
+  'notifications',
   'account',
   'administration',
   'audit',
@@ -1828,11 +1849,19 @@ document.getElementById('newLocationName').addEventListener('keydown', (e) => {
 });
 
 document.getElementById('btnSaveDiscordWebhook').addEventListener('click', () => saveDiscordWebhookSettings());
+document.getElementById('btnSaveNotificationRouting')?.addEventListener('click', () => saveDiscordWebhookSettings());
+document.getElementById('remindDueTodayEnabled')?.addEventListener('change', () => syncDueTodayChannelToggleState());
 document.getElementById('btnTestDiscordWebhook').addEventListener('click', () => testDiscordWebhook());
 document.getElementById('btnDiscordRemindNow').addEventListener('click', () => discordRemindOverdueNow());
 document.getElementById('btnPushSubscribe')?.addEventListener('click', () => enableBrowserPush());
 document.getElementById('btnPushUnsubscribe')?.addEventListener('click', () => disableBrowserPush());
 document.getElementById('btnPushTest')?.addEventListener('click', () => testBrowserPush());
+document.getElementById('btnPushSavePrefs')?.addEventListener('click', () => saveBrowserPushPreferences());
+document.getElementById('pushPrefsQuietOverride')?.addEventListener('change', (e) => {
+  const row = document.getElementById('pushPrefsQuietRow');
+  if (!row) return;
+  row.hidden = !e.target.checked;
+});
 
 document.getElementById('btnExport').addEventListener('click', async () => {
   try {

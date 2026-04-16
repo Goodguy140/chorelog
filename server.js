@@ -71,6 +71,7 @@ const {
 } = require('./lib/webhook-channels.cjs');
 const {
   MAX_PUSH_SUBSCRIPTIONS,
+  normalizePushPreferencePrefs,
   normalizePushSubscription,
   normalizePushSubscriptions,
 } = require('./lib/push-subscriptions.cjs');
@@ -374,7 +375,12 @@ app.get('/api/push/subscriptions', async (req, res) => {
     }
     res.json({
       serverEnabled: pushSend.vapidKeysPresent(),
-      subscriptions: list.map((s) => ({ id: s.id, endpoint: s.endpoint })),
+      subscriptions: list.map((s) => ({
+        id: s.id,
+        endpoint: s.endpoint,
+        member: s.member || '',
+        prefs: normalizePushPreferencePrefs(s.prefs),
+      })),
     });
   } catch (e) {
     console.error(e);
@@ -396,10 +402,13 @@ app.post('/api/push/subscribe', requireReadWrite, async (req, res) => {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const sub =
       body.subscription && typeof body.subscription === 'object' ? body.subscription : body;
+    const prefs = normalizePushPreferencePrefs(body.preferences || body.prefs);
     const row = normalizePushSubscription({
       endpoint: sub.endpoint,
       keys: sub.keys,
       createdAt: nowISO(),
+      member: req.authPayload.user || '',
+      prefs,
     });
     if (!row) {
       return res.status(400).json({
@@ -410,7 +419,15 @@ app.post('/api/push/subscribe', requireReadWrite, async (req, res) => {
     const store = await readStore(req.householdId);
     let list = normalizePushSubscriptions(store.pushSubscriptions || []);
     const idx = list.findIndex((x) => x.endpoint === row.endpoint);
-    if (idx >= 0) list[idx] = { ...list[idx], keys: row.keys, createdAt: row.createdAt };
+    if (idx >= 0) {
+      list[idx] = {
+        ...list[idx],
+        keys: row.keys,
+        createdAt: row.createdAt,
+        member: row.member,
+        prefs: row.prefs,
+      };
+    }
     else {
       list.push(row);
       list = list.slice(-MAX_PUSH_SUBSCRIPTIONS);
@@ -426,6 +443,40 @@ app.post('/api/push/subscribe', requireReadWrite, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to save subscription' });
+  }
+});
+
+app.post('/api/push/preferences', requireReadWrite, async (req, res) => {
+  try {
+    if (!browserPushAllowedForHousehold(req.householdId)) {
+      return res.status(403).json({
+        error: 'Browser push is only available for the default household.',
+        code: 'push_household_not_allowed',
+      });
+    }
+    const endpoint = typeof req.body?.endpoint === 'string' ? req.body.endpoint.trim() : '';
+    if (!endpoint) return res.status(400).json({ error: 'endpoint is required' });
+    const prefs = normalizePushPreferencePrefs(req.body?.preferences || req.body?.prefs);
+    const store = await readStore(req.householdId);
+    const list = normalizePushSubscriptions(store.pushSubscriptions || []);
+    const idx = list.findIndex((s) => s.endpoint === endpoint);
+    if (idx < 0) return res.status(404).json({ error: 'Subscription not found' });
+    list[idx] = {
+      ...list[idx],
+      member: req.authPayload.user || list[idx].member || '',
+      prefs,
+    };
+    store.pushSubscriptions = normalizePushSubscriptions(list);
+    appendAudit(store, req, {
+      action: 'push.preferences',
+      target: 'web-push',
+      detail: 'Browser push preferences updated',
+    });
+    await writeStore(req.householdId, store);
+    res.json({ ok: true, prefs });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to save push preferences' });
   }
 });
 

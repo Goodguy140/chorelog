@@ -24,6 +24,53 @@ function setPushStatus(msg, isError) {
   el.style.color = isError ? '#E24B4A' : '';
 }
 
+function normalizePushPrefs(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  return {
+    enabled: src.enabled !== false,
+    overdue: src.overdue !== false,
+    dueToday: src.dueToday !== false,
+    quietHoursEnabled: src.quietHoursEnabled === true,
+    quietHoursStart: /^\d{2}:\d{2}$/.test(src.quietHoursStart || '') ? src.quietHoursStart : '22:00',
+    quietHoursEnd: /^\d{2}:\d{2}$/.test(src.quietHoursEnd || '') ? src.quietHoursEnd : '08:00',
+  };
+}
+
+function readPushPrefsFromForm() {
+  const quietOverride = document.getElementById('pushPrefsQuietOverride')?.checked;
+  return {
+    enabled: document.getElementById('pushPrefsEnabled')?.checked !== false,
+    overdue: document.getElementById('pushPrefsOverdue')?.checked !== false,
+    dueToday: document.getElementById('pushPrefsDueToday')?.checked !== false,
+    quietHoursEnabled: quietOverride ? true : null,
+    quietHoursStart: document.getElementById('pushPrefsQuietStart')?.value || '22:00',
+    quietHoursEnd: document.getElementById('pushPrefsQuietEnd')?.value || '08:00',
+  };
+}
+
+function applyPushPrefsToForm(raw, householdQuiet) {
+  const prefs = normalizePushPrefs(raw);
+  const quietOverride = raw && raw.quietHoursEnabled === true;
+  const quietStart = quietOverride ? prefs.quietHoursStart : householdQuiet.quietHoursStart;
+  const quietEnd = quietOverride ? prefs.quietHoursEnd : householdQuiet.quietHoursEnd;
+  const wrap = document.getElementById('pushPreferencesBlock');
+  if (wrap) wrap.hidden = false;
+  const enabled = document.getElementById('pushPrefsEnabled');
+  const overdue = document.getElementById('pushPrefsOverdue');
+  const dueToday = document.getElementById('pushPrefsDueToday');
+  const qh = document.getElementById('pushPrefsQuietOverride');
+  const qhStart = document.getElementById('pushPrefsQuietStart');
+  const qhEnd = document.getElementById('pushPrefsQuietEnd');
+  const qhRow = document.getElementById('pushPrefsQuietRow');
+  if (enabled) enabled.checked = prefs.enabled;
+  if (overdue) overdue.checked = prefs.overdue;
+  if (dueToday) dueToday.checked = prefs.dueToday;
+  if (qh) qh.checked = quietOverride;
+  if (qhStart) qhStart.value = quietStart || '22:00';
+  if (qhEnd) qhEnd.value = quietEnd || '08:00';
+  if (qhRow) qhRow.hidden = !quietOverride;
+}
+
 function pushSupportedInThisBrowser() {
   return (
     typeof window !== 'undefined' &&
@@ -69,6 +116,7 @@ export async function refreshPushNotificationsPanel() {
   const pushGeneralHint = document.getElementById('pushGeneralHint');
   const pushHouseholdOnlyHint = document.getElementById('pushHouseholdOnlyHint');
   const pushActions = document.getElementById('pushNotificationActions');
+  const prefsBlock = document.getElementById('pushPreferencesBlock');
   if (!block) return;
 
   setPushStatus('', false);
@@ -84,6 +132,7 @@ export async function refreshPushNotificationsPanel() {
     if (btnSub) btnSub.disabled = true;
     if (btnUn) btnUn.disabled = true;
     if (btnTest) btnTest.disabled = true;
+    if (prefsBlock) prefsBlock.hidden = true;
     return;
   }
 
@@ -95,6 +144,7 @@ export async function refreshPushNotificationsPanel() {
     const iosHint = document.getElementById('pushIosHint');
     if (iosHint) iosHint.hidden = true;
     if (httpsHint) httpsHint.hidden = true;
+    if (prefsBlock) prefsBlock.hidden = true;
     return;
   }
 
@@ -122,6 +172,7 @@ export async function refreshPushNotificationsPanel() {
     if (btnSub) btnSub.disabled = true;
     if (btnUn) btnUn.disabled = true;
     if (btnTest) btnTest.disabled = true;
+    if (prefsBlock) prefsBlock.hidden = true;
     return;
   }
 
@@ -150,6 +201,24 @@ export async function refreshPushNotificationsPanel() {
   if (btnUn) {
     btnUn.hidden = !registeredHere;
     btnUn.disabled = !registeredHere;
+  }
+  if (!registeredHere) {
+    if (prefsBlock) prefsBlock.hidden = true;
+    return;
+  }
+  try {
+    const r = await apiFetch('/api/push/subscriptions');
+    if (!r.ok) return;
+    const data = await r.json();
+    const list = Array.isArray(data.subscriptions) ? data.subscriptions : [];
+    const mine = list.find((s) => s.endpoint === localSub.endpoint);
+    const w = app.discordWebhook || {};
+    applyPushPrefsToForm(mine?.prefs, {
+      quietHoursStart: typeof w.quietHoursStart === 'string' ? w.quietHoursStart : '22:00',
+      quietHoursEnd: typeof w.quietHoursEnd === 'string' ? w.quietHoursEnd : '08:00',
+    });
+  } catch {
+    /* ignore */
   }
 }
 
@@ -192,7 +261,10 @@ export async function enableBrowserPush() {
     const r = await apiFetch('/api/push/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(sub.toJSON()),
+      body: JSON.stringify({
+        subscription: sub.toJSON(),
+        preferences: readPushPrefsFromForm(),
+      }),
     });
     if (!r.ok) {
       const errBody = await r.json().catch(() => ({}));
@@ -210,6 +282,37 @@ export async function enableBrowserPush() {
       }
     }
     setPushStatus(t('settings.pushEnabledOk'), false);
+    await refreshPushNotificationsPanel();
+  } catch {
+    setPushStatus(t('settings.pushEnableErr'), true);
+  }
+}
+
+export async function saveBrowserPushPreferences() {
+  setPushStatus('', false);
+  if (!sessionAllowsBrowserPushSettings()) {
+    setPushStatus(t('settings.pushHouseholdNotAllowed'), true);
+    return;
+  }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      setPushStatus(t('settings.pushEnableErr'), true);
+      return;
+    }
+    const prefs = readPushPrefsFromForm();
+    const r = await apiFetch('/api/push/preferences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: sub.endpoint, preferences: prefs }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      setPushStatus(data.error || t('settings.pushEnableErr'), true);
+      return;
+    }
+    setPushStatus(t('settings.pushPrefsSaved'), false);
     await refreshPushNotificationsPanel();
   } catch {
     setPushStatus(t('settings.pushEnableErr'), true);

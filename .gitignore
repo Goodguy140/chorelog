@@ -14,6 +14,9 @@ yarn-error.log*
 # Auto-generated Web Push keys (Docker / local)
 data/vapid-keys.env
 
+# Household backup artifacts (local/test data)
+data/households/*/backups/
+
 # SQLite runtime sidecars (WAL/SHM) - generated at runtime
 *.db-wal
 *.db-shm

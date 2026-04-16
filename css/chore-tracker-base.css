@@ -872,8 +872,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 20px;
-  padding-top: 16px;
+}
+
+.push-preferences-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 0.5px solid var(--color-border-tertiary);
 }
 
