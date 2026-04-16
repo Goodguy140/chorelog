@@ -432,16 +432,16 @@
 
           <div class="settings-panel" id="settingsPanelNotifications" role="tabpanel" aria-labelledby="settingsTabNotifications" data-settings-panel="notifications" hidden>
             <div class="settings-section settings-section--flat">
-              <div class="settings-section-body">
-                <div class="discord-webhook-block">
+              <div class="settings-section-body settings-section-body--notifications">
+                <div class="settings-subblock settings-subblock--stretch">
                   <p class="settings-block-title" data-i18n="settings.reminderRoutingTitle">Reminder delivery</p>
                   <p class="settings-hint" data-i18n="settings.reminderRoutingHint">Choose where reminders are delivered. Webhook destination URLs are configured in Integrations.</p>
-                  <p class="settings-block-title settings-block-title--sub" data-i18n="settings.reminderOverdueChannelsTitle">Overdue — send via</p>
-                  <p class="settings-hint" data-i18n="settings.remindOverdueIntro">Overdue reminders repeat using the interval configured in Integrations.</p>
+                  <p class="settings-block-title settings-block-title--sub" data-i18n="settings.reminderOverdueChannelsTitle">Overdue reminders</p>
+                  <p class="settings-hint" data-i18n="settings.remindOverdueIntro">Repeats on the interval set under Integrations (Discord / webhooks).</p>
                   <label class="discord-webhook-enable"><input type="checkbox" id="remindOverdueWebhooks" checked> <span data-i18n="settings.remindOverdueWebhooks">Webhooks (Discord, Slack, …)</span></label>
                   <label class="discord-webhook-enable"><input type="checkbox" id="remindOverduePush" checked> <span data-i18n="settings.remindOverduePush">Browser push</span></label>
                   <p class="settings-block-title settings-block-title--sub" data-i18n="settings.reminderDueTodayTitle">Due today</p>
-                  <p class="settings-hint" data-i18n="settings.remindDueTodayIntro">One automatic notification per chore on the calendar day it is due (same quiet hours as Integrations). Does not repeat on an interval like overdue reminders.</p>
+                  <p class="settings-hint" data-i18n="settings.remindDueTodayIntro">One notification per chore on the day it is due. Uses the same quiet hours as Integrations. Does not repeat on a timer like overdue reminders.</p>
                   <label class="discord-webhook-enable"><input type="checkbox" id="remindDueTodayEnabled"> <span data-i18n="settings.remindDueTodayEnable">Notify when a chore is due today</span></label>
                   <label class="discord-webhook-enable"><input type="checkbox" id="remindDueTodayWebhooks" checked> <span data-i18n="settings.remindDueTodayWebhooks">Webhooks for due today</span></label>
                   <label class="discord-webhook-enable"><input type="checkbox" id="remindDueTodayPush" checked> <span data-i18n="settings.remindDueTodayPush">Browser push for due today</span></label>
@@ -450,9 +450,9 @@
                   </div>
                   <p class="settings-hint discord-webhook-status" id="notificationRoutingStatus" hidden role="status"></p>
                 </div>
-                <div class="push-notifications-block">
+                <div class="settings-subblock settings-subblock--stretch push-notifications-block">
                   <p class="settings-block-title" data-i18n="settings.pushTitle">Browser push</p>
-                  <p class="settings-hint" id="pushGeneralHint" data-i18n="settings.pushHint">Enable browser push for this device and choose per-device preferences below. Channel toggles for overdue/due today are set above in this tab.</p>
+                  <p class="settings-hint" id="pushGeneralHint" data-i18n="settings.pushHint">Subscribe this device for push when the app is in the background. Choose which kinds of reminders to receive below; channel toggles (webhooks vs push) for overdue and due today are in Reminder delivery above.</p>
                   <p class="settings-hint" id="pushHouseholdOnlyHint" hidden data-i18n="settings.pushHouseholdOnly">Browser push (PWA) can only be set up while signed in to the default household (the admin household created on first install).</p>
                   <p class="settings-hint" id="pushServerOffHint" hidden data-i18n="settings.pushServerOff">Push is not configured on this server (administrator must set VAPID keys).</p>
                   <p class="settings-hint" id="pushHttpsHint" hidden data-i18n="settings.pushRequiresHttps">Use HTTPS (or localhost) for push notifications.</p>
@@ -462,22 +462,23 @@
                     <button type="button" class="btn-secondary" id="btnPushUnsubscribe" hidden data-i18n="settings.pushDisable">Turn off on this device</button>
                     <button type="button" class="btn-secondary" id="btnPushTest" data-i18n="settings.pushTest">Send test push</button>
                   </div>
-                <div class="push-preferences-block" id="pushPreferencesBlock" hidden>
-                  <p class="settings-block-title settings-block-title--sub" data-i18n="settings.pushPrefsTitle">Push preferences for this device</p>
-                  <label class="discord-webhook-enable"><input type="checkbox" id="pushPrefsEnabled" checked> <span data-i18n="settings.pushPrefsEnabled">Enable push reminders on this device</span></label>
-                  <label class="discord-webhook-enable"><input type="checkbox" id="pushPrefsOverdue" checked> <span data-i18n="settings.pushPrefsOverdue">Overdue reminders</span></label>
-                  <label class="discord-webhook-enable"><input type="checkbox" id="pushPrefsDueToday" checked> <span data-i18n="settings.pushPrefsDueToday">Due today reminders</span></label>
-                  <label class="discord-webhook-enable"><input type="checkbox" id="pushPrefsQuietOverride"> <span data-i18n="settings.pushPrefsQuietOverride">Use custom quiet hours for this device</span></label>
-                  <div class="discord-quiet-hours-row" id="pushPrefsQuietRow" hidden>
-                    <label class="analytics-filter-label" for="pushPrefsQuietStart" data-i18n="settings.quietHoursFrom">From</label>
-                    <input type="time" id="pushPrefsQuietStart" class="discord-webhook-time" value="22:00">
-                    <label class="analytics-filter-label" for="pushPrefsQuietEnd" data-i18n="settings.quietHoursTo">To</label>
-                    <input type="time" id="pushPrefsQuietEnd" class="discord-webhook-time" value="08:00">
+                  <div class="push-preferences-block" id="pushPreferencesBlock" hidden>
+                    <p class="settings-block-title settings-block-title--sub" data-i18n="settings.pushPrefsTitle">This device</p>
+                    <p class="settings-hint" data-i18n="settings.pushPrefsSectionHint">Fine-tune what this phone or browser receives after you enable push.</p>
+                    <label class="discord-webhook-enable"><input type="checkbox" id="pushPrefsEnabled" checked> <span data-i18n="settings.pushPrefsEnabled">Enable push reminders on this device</span></label>
+                    <label class="discord-webhook-enable"><input type="checkbox" id="pushPrefsOverdue" checked> <span data-i18n="settings.pushPrefsOverdue">Overdue reminders</span></label>
+                    <label class="discord-webhook-enable"><input type="checkbox" id="pushPrefsDueToday" checked> <span data-i18n="settings.pushPrefsDueToday">Due today reminders</span></label>
+                    <label class="discord-webhook-enable"><input type="checkbox" id="pushPrefsQuietOverride"> <span data-i18n="settings.pushPrefsQuietOverride">Use custom quiet hours for this device</span></label>
+                    <div class="discord-quiet-hours-row" id="pushPrefsQuietRow" hidden>
+                      <label class="analytics-filter-label" for="pushPrefsQuietStart" data-i18n="settings.quietHoursFrom">From</label>
+                      <input type="time" id="pushPrefsQuietStart" class="discord-webhook-time" value="22:00">
+                      <label class="analytics-filter-label" for="pushPrefsQuietEnd" data-i18n="settings.quietHoursTo">To</label>
+                      <input type="time" id="pushPrefsQuietEnd" class="discord-webhook-time" value="08:00">
+                    </div>
+                    <div class="settings-actions discord-webhook-actions">
+                      <button type="button" class="btn-secondary" id="btnPushSavePrefs" data-i18n="settings.save">Save</button>
+                    </div>
                   </div>
-                  <div class="settings-actions discord-webhook-actions">
-                    <button type="button" class="btn-secondary" id="btnPushSavePrefs" data-i18n="settings.save">Save</button>
-                  </div>
-                </div>
                   <p class="settings-hint discord-webhook-status" id="pushNotificationStatus" hidden role="status"></p>
                 </div>
               </div>
@@ -567,9 +568,25 @@
 
           <div class="settings-panel" id="settingsPanelAdministration" role="tabpanel" aria-labelledby="settingsTabAdministration" data-settings-panel="administration" hidden>
             <div class="settings-section settings-section--flat">
-              <div class="settings-section-body">
-                <p class="settings-hint settings-hint--tight" data-i18n="settings.adminIntro">VAPID keys for Web Push (PWA). Values are saved to the server data directory so they survive restarts when environment variables are not set.</p>
+              <div class="settings-section-body settings-section-body--admin">
+                <p class="settings-hint settings-hint--tight" data-i18n="settings.adminPageIntro">Server tools for the default household: read-only overview, on-demand JSON backups under the data directory, and Web Push (VAPID) keys.</p>
+                <div class="settings-subblock settings-subblock--stretch">
+                  <p class="settings-block-title" data-i18n="settings.adminOverviewTitle">Server overview</p>
+                  <p class="settings-hint" data-i18n="settings.adminOverviewHint">Non-secret flags and household ids registered on this process. Values come from environment variables and the household registry.</p>
+                  <dl class="about-info" id="adminOverviewDl"></dl>
+                  <p class="settings-hint audit-log-status" id="adminOverviewError" hidden role="alert"></p>
+                </div>
+                <div class="settings-subblock settings-subblock--stretch">
+                  <p class="settings-block-title" data-i18n="settings.adminBackupTitle">On-demand backup</p>
+                  <p class="settings-hint" data-i18n="settings.adminBackupHint">Writes a JSON snapshot of this household to data/households/&lt;id&gt;/backups/ (same format as automatic backups before import). Old files are pruned using CHORELOG_BACKUP_RETENTION.</p>
+                  <div class="settings-actions">
+                    <button type="button" class="btn-secondary" id="btnAdminBackup" data-i18n="settings.adminBackupNow">Create backup now</button>
+                  </div>
+                  <p class="settings-hint discord-webhook-status" id="adminBackupStatus" hidden role="status"></p>
+                </div>
+                <div class="settings-subblock settings-subblock--stretch">
                 <p class="settings-block-title" data-i18n="settings.adminVapidTitle">Web Push (VAPID) keys</p>
+                <p class="settings-hint" data-i18n="settings.adminIntro">VAPID keys for Web Push (PWA). Values are saved to the server data directory so they survive restarts when environment variables are not set.</p>
                 <p class="settings-hint" id="adminVapidBootHint" hidden role="note"></p>
                 <label class="analytics-filter-label" for="adminVapidPublic" data-i18n="settings.adminVapidPublic">Public key</label>
                 <textarea id="adminVapidPublic" class="settings-full-width settings-vapid-field" rows="3" spellcheck="false" autocomplete="off" data-i18n-aria="settings.adminVapidPublicAria" aria-label="VAPID public key"></textarea>
@@ -583,6 +600,7 @@
                   <button type="button" class="btn-secondary" id="btnAdminVapidGenerate" data-i18n="settings.adminVapidGenerate">Generate new keys</button>
                 </div>
                 <p class="settings-hint discord-webhook-status" id="adminVapidStatus" hidden role="status"></p>
+                </div>
               </div>
             </div>
           </div>
@@ -590,12 +608,19 @@
           <div class="settings-panel" id="settingsPanelAudit" role="tabpanel" aria-labelledby="settingsTabAudit" data-settings-panel="audit" hidden>
             <div class="settings-section settings-section--flat">
               <div class="settings-section-body">
-                <p class="settings-hint settings-hint--tight" data-i18n="settings.auditHint">Changes to the activity log and household settings (newest first). The signed-in account name is stored as the actor.</p>
-                <p class="settings-hint audit-log-status" id="auditLogStatus" hidden role="status"></p>
-                <div class="audit-log-wrap audit-log-wrap--settings-panel">
-                  <ul class="audit-log-list" id="auditLogList" data-i18n-aria="settings.auditAria" aria-label="Audit log"></ul>
+                <div class="settings-subblock settings-subblock--stretch">
+                  <p class="settings-block-title" data-i18n="settings.auditTitle">Audit log</p>
+                  <p class="settings-hint settings-hint--tight" data-i18n="settings.auditHint">Changes to the activity log and household settings (newest first). The signed-in account name is stored as the actor.</p>
+                  <p class="settings-hint audit-log-status" id="auditLogStatus" hidden role="status"></p>
+                  <div class="audit-log-toolbar">
+                    <input type="search" id="auditLogFilter" class="settings-full-width audit-log-filter-input" autocomplete="off" data-i18n-placeholder="settings.auditFilterPlaceholder" placeholder="Filter events…" data-i18n-aria="settings.auditFilterAria" aria-label="Filter audit log">
+                    <button type="button" class="btn-secondary audit-log-refresh-btn" id="btnRefreshAuditLog" data-i18n="settings.auditRefresh">Refresh audit log</button>
+                  </div>
+                  <p class="settings-hint audit-log-filter-count" id="auditLogCount" hidden aria-live="polite"></p>
+                  <div class="audit-log-wrap audit-log-wrap--settings-panel">
+                    <ul class="audit-log-list" id="auditLogList" data-i18n-aria="settings.auditAria" aria-label="Audit log"></ul>
+                  </div>
                 </div>
-                <button type="button" class="btn-secondary" id="btnRefreshAuditLog" data-i18n="settings.auditRefresh">Refresh audit log</button>
               </div>
             </div>
           </div>

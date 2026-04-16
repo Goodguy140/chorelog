@@ -18,6 +18,11 @@ import {
 import { app, DEFAULT_LOCATIONS, DEFAULT_PEOPLE } from './state.js';
 import { getMonthKey, localDateISO, thisCalendarMonthKey } from './utils/date.js';
 import { escapeAttr, escapeHtml } from './utils/html.js';
+
+/** Newest-first rows from last successful `GET /api/audit` (for filter + locale re-render). */
+let auditLogRowsCache = [];
+/** True after a successful audit fetch so locale changes can re-render labels without faking “empty” before first load. */
+let auditLogLoadedOnce = false;
 import { intervalLabel, scheduledStatus } from './scheduled-logic.js';
 import { initChoreInputSuggest } from './chore-input-suggest.js';
 import {
@@ -1137,11 +1142,94 @@ async function bootstrap() {
   }
 }
 
+function auditRowKind(action) {
+  const a = String(action || '');
+  if (a.startsWith('admin.')) return 'admin';
+  if (a.startsWith('account.')) return 'account';
+  if (a.startsWith('household.')) return 'household';
+  if (a.startsWith('entry.')) return 'entry';
+  if (a.startsWith('scheduled.')) return 'scheduled';
+  if (a.startsWith('push.')) return 'push';
+  if (a.startsWith('discord')) return 'discord';
+  if (a.startsWith('import.')) return 'import';
+  if (a.startsWith('api_token')) return 'token';
+  if (a.startsWith('settings.')) return 'settings';
+  return 'other';
+}
+
+function auditActionLabel(action) {
+  const raw = String(action || '');
+  const key = `settings.auditActions.${raw.replace(/\./g, '_')}`;
+  const label = t(key);
+  return label === key ? raw : label;
+}
+
+function auditRowSearchHaystack(row) {
+  const action = row.action || '';
+  const label = auditActionLabel(action);
+  const actor = row.actor || '';
+  const target = row.target || '';
+  const detail = row.detail || '';
+  const when = row.at
+    ? new Date(row.at).toLocaleString(getLocaleBcp47(), { dateStyle: 'short', timeStyle: 'short' })
+    : '';
+  return `${label} ${action} ${actor} ${target} ${detail} ${when}`.toLowerCase();
+}
+
+function renderAuditLogFromCache() {
+  const list = document.getElementById('auditLogList');
+  const countEl = document.getElementById('auditLogCount');
+  if (!list) return;
+  const filterEl = document.getElementById('auditLogFilter');
+  const q = (filterEl?.value || '').trim().toLowerCase();
+  const total = auditLogRowsCache.length;
+  let rows = auditLogRowsCache;
+  if (q) {
+    rows = auditLogRowsCache.filter((row) => auditRowSearchHaystack(row).includes(q));
+  }
+  if (countEl) {
+    if (q && total > 0) {
+      countEl.hidden = false;
+      countEl.textContent = t('settings.auditCountShowing', { shown: String(rows.length), total: String(total) });
+    } else {
+      countEl.hidden = true;
+      countEl.textContent = '';
+    }
+  }
+  if (!rows.length) {
+    const msg = total === 0 ? t('settings.auditEmpty') : t('settings.auditFilterEmpty');
+    list.innerHTML = `<li class="audit-log-item audit-log-item--empty">${escapeHtml(msg)}</li>`;
+    return;
+  }
+  list.innerHTML = rows
+    .map((row) => {
+      const actor = escapeHtml(row.actor || '—');
+      const actionRaw = String(row.action || '');
+      const kind = auditRowKind(actionRaw);
+      const label = escapeHtml(auditActionLabel(actionRaw));
+      const target = escapeHtml(row.target || '');
+      const detail = row.detail ? escapeHtml(row.detail) : '';
+      const when = row.at
+        ? new Date(row.at).toLocaleString(getLocaleBcp47(), { dateStyle: 'short', timeStyle: 'short' })
+        : '—';
+      const atIso = typeof row.at === 'string' && row.at ? row.at : '';
+      return `<li class="audit-log-item audit-log-item--${kind}">
+        <div class="audit-log-item-head">
+          <span class="audit-log-badge audit-log-badge--${kind}">${label}</span>
+          ${atIso ? `<time class="audit-log-time" datetime="${escapeAttr(atIso)}">${escapeHtml(when)}</time>` : `<span class="audit-log-time">${escapeHtml(when)}</span>`}
+        </div>
+        <div class="audit-log-target">${target}</div>
+        ${detail ? `<div class="audit-log-detail">${detail}</div>` : ''}
+        <div class="audit-log-actor">${actor}</div>
+      </li>`;
+    })
+    .join('');
+}
+
 async function loadAuditLogIntoSettings() {
   const list = document.getElementById('auditLogList');
   const status = document.getElementById('auditLogStatus');
   if (!list) return;
-  list.innerHTML = '';
   if (status) {
     status.hidden = false;
     status.textContent = t('settings.auditLoading');
@@ -1151,27 +1239,10 @@ async function loadAuditLogIntoSettings() {
     if (!r.ok) throw new Error();
     const data = await r.json();
     const rows = Array.isArray(data.auditLog) ? data.auditLog : [];
+    auditLogRowsCache = rows;
+    auditLogLoadedOnce = true;
     if (status) status.hidden = true;
-    if (!rows.length) {
-      list.innerHTML = `<li class="audit-log-item">${escapeHtml(t('settings.auditEmpty'))}</li>`;
-      return;
-    }
-    list.innerHTML = rows
-      .map((row) => {
-        const actor = escapeHtml(row.actor || '—');
-        const action = escapeHtml(row.action || '');
-        const target = escapeHtml(row.target || '');
-        const detail = row.detail ? escapeHtml(row.detail) : '';
-        const when = row.at
-          ? new Date(row.at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })
-          : '—';
-        return `<li class="audit-log-item">
-        <div class="audit-log-meta">${escapeHtml(when)} · ${actor}</div>
-        <div><span class="audit-log-action">${action}</span> — ${target}</div>
-        ${detail ? `<div class="audit-log-detail">${detail}</div>` : ''}
-      </li>`;
-      })
-      .join('');
+    renderAuditLogFromCache();
   } catch {
     if (status) {
       status.textContent = t('settings.auditErr');
@@ -1819,6 +1890,7 @@ document.getElementById('btnReorderDashboard')?.addEventListener('click', () => 
 });
 
 document.getElementById('btnRefreshAuditLog').addEventListener('click', () => loadAuditLogIntoSettings());
+document.getElementById('auditLogFilter')?.addEventListener('input', () => renderAuditLogFromCache());
 
 document.getElementById('btnSaveDisplayName')?.addEventListener('click', async () => {
   if (blockReadOnlyAction()) return;
@@ -3126,6 +3198,9 @@ subscribeLocale(() => {
   const adminPanel = document.getElementById('settingsPanelAdministration');
   if (adminPanel && !adminPanel.hidden) {
     void loadAdministrationPanel();
+  }
+  if (auditLogLoadedOnce) {
+    renderAuditLogFromCache();
   }
 });
 

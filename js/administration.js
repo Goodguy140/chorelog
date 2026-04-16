@@ -1,6 +1,7 @@
 import { apiFetch } from './api-fetch.js';
 import { t } from './i18n.js';
 import { app } from './state.js';
+import { escapeHtml } from './utils/html.js';
 import { refreshPushNotificationsPanel } from './push-notifications.js';
 
 export function administrationTabVisible() {
@@ -29,12 +30,74 @@ function setAdminVapidStatus(msg, isError) {
   el.style.color = isError ? '#E24B4A' : '';
 }
 
+function setAdminBackupStatus(msg, isError) {
+  const el = document.getElementById('adminBackupStatus');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.hidden = !msg;
+  el.style.color = isError ? '#E24B4A' : '';
+}
+
+function yn(v) {
+  return v ? t('settings.adminYes') : t('settings.adminNo');
+}
+
+function formatScheduledBackupMs(ms) {
+  const n = Number(ms);
+  if (!Number.isFinite(n) || n <= 0) return t('settings.adminScheduledBackupOff');
+  const hours = n / 3600000;
+  const hStr = hours % 1 === 0 ? String(Math.round(hours)) : hours.toFixed(1);
+  return t('settings.adminScheduledBackupEvery', { hours: hStr });
+}
+
+async function loadAdminOverview() {
+  const dl = document.getElementById('adminOverviewDl');
+  const errEl = document.getElementById('adminOverviewError');
+  if (!dl || !errEl) return;
+  errEl.hidden = true;
+  dl.innerHTML = '';
+  if (!administrationTabVisible()) return;
+  try {
+    const r = await apiFetch('/api/admin/overview');
+    if (!r.ok) throw new Error('bad status');
+    const d = await r.json();
+    const ids = Array.isArray(d.householdIds) ? d.householdIds : [];
+    const idLine = ids.length
+      ? `<span class="admin-overview-household-ids">${ids.map((x) => escapeHtml(String(x))).join(', ')}</span>`
+      : '—';
+    const rows = [
+      [t('settings.adminDlHouseholdCount'), String(d.householdCount != null ? d.householdCount : ids.length), false],
+      [t('settings.adminDlHouseholdIds'), idLine, true],
+      [t('settings.adminDlOpenRegistration'), yn(d.openRegistration), false],
+      [t('settings.adminDlGuestLogin'), yn(d.guestLoginEnabled), false],
+      [t('settings.adminDlMasterPassword'), yn(d.hasMasterPassword), false],
+      [t('settings.adminDlImportBackup'), yn(d.importBackupOnReplace), false],
+      [t('settings.adminDlBackupRetention'), String(d.backupRetention != null ? d.backupRetention : '—'), false],
+      [t('settings.adminDlScheduledBackup'), formatScheduledBackupMs(d.scheduledBackupIntervalMs), false],
+      [t('settings.adminDlSqlite'), yn(d.sqlitePerHousehold), false],
+    ];
+    dl.innerHTML = rows
+      .map(([label, val, rawHtml]) => {
+        const dd = rawHtml ? val : escapeHtml(val);
+        return `<dt>${escapeHtml(label)}</dt><dd>${dd}</dd>`;
+      })
+      .join('');
+  } catch {
+    errEl.textContent = t('settings.adminOverviewLoadErr');
+    errEl.hidden = false;
+  }
+}
+
 export async function loadAdministrationPanel() {
   setAdminVapidStatus('', false);
+  setAdminBackupStatus('', false);
   const bootEl = document.getElementById('adminVapidBootHint');
   const pub = document.getElementById('adminVapidPublic');
   const priv = document.getElementById('adminVapidPrivate');
   const subj = document.getElementById('adminVapidSubject');
+  const backupBtn = document.getElementById('btnAdminBackup');
+  if (backupBtn) backupBtn.disabled = Boolean(app.readOnly);
+  void loadAdminOverview();
   if (!administrationTabVisible() || !pub || !priv || !subj) return;
   try {
     const r = await apiFetch('/api/admin/vapid');
@@ -121,6 +184,24 @@ export function initAdministrationPanel() {
       void refreshPushNotificationsPanel();
     } catch {
       setAdminVapidStatus(t('settings.adminVapidGenErr'), true);
+    }
+  });
+
+  document.getElementById('btnAdminBackup')?.addEventListener('click', async () => {
+    if (app.readOnly) return;
+    setAdminBackupStatus('', false);
+    try {
+      const r = await apiFetch('/api/admin/backup', { method: 'POST' });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const msg = [data.error, data.detail].filter(Boolean).join(' — ') || t('settings.adminBackupErr');
+        setAdminBackupStatus(msg, true);
+        return;
+      }
+      const file = typeof data.filename === 'string' && data.filename.trim() ? data.filename.trim() : '';
+      setAdminBackupStatus(file ? t('settings.adminBackupOk', { file }) : t('settings.adminBackupOkShort'), false);
+    } catch {
+      setAdminBackupStatus(t('settings.adminBackupErr'), true);
     }
   });
 }

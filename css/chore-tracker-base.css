@@ -637,13 +637,48 @@ body {
 }
 
 .audit-log-wrap--settings-panel {
-  max-height: min(40vh, 320px);
+  max-height: min(48vh, 400px);
 }
 
 @media (min-width: 768px) {
   .audit-log-wrap--settings-panel {
-    max-height: min(42vh, 360px);
+    max-height: min(50vh, 440px);
   }
+}
+
+.audit-log-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 2px;
+}
+
+.audit-log-filter-input {
+  flex: 1 1 160px;
+  min-width: 0;
+  font-size: 14px;
+  padding: 8px 10px;
+  border-radius: var(--border-radius-md);
+  border: 0.5px solid var(--color-border-secondary);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  box-sizing: border-box;
+}
+
+.audit-log-filter-input:focus {
+  outline: 2px solid var(--color-text-primary);
+  outline-offset: 1px;
+}
+
+.audit-log-refresh-btn {
+  flex: 0 0 auto;
+}
+
+.audit-log-filter-count:not([hidden]) {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
 }
 
 .settings-close {
@@ -855,6 +890,36 @@ body {
   margin-bottom: 0;
   font-size: 14px;
   font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--color-text-primary);
+}
+
+/* Notifications tab: two main blocks (routing vs device), aligned with other settings panels */
+.settings-section-body--notifications {
+  gap: 0;
+}
+
+.settings-section-body--notifications > .settings-subblock + .settings-subblock {
+  margin-top: 4px;
+  padding-top: 18px;
+  border-top: 0.5px solid var(--color-border-tertiary);
+}
+
+.settings-section-body--admin {
+  gap: 0;
+}
+
+.settings-section-body--admin > .settings-subblock + .settings-subblock {
+  margin-top: 4px;
+  padding-top: 18px;
+  border-top: 0.5px solid var(--color-border-tertiary);
+}
+
+.admin-overview-household-ids {
+  font-size: 13px;
+  line-height: 1.4;
+  word-break: break-word;
 }
 
 .discord-webhook-actions {
@@ -879,8 +944,12 @@ body {
   flex-direction: column;
   gap: 8px;
   margin-top: 8px;
-  padding-top: 8px;
+  padding-top: 12px;
   border-top: 0.5px solid var(--color-border-tertiary);
+}
+
+.push-preferences-block > .settings-block-title--sub:first-child {
+  margin-top: 0;
 }
 
 .title {
@@ -918,12 +987,112 @@ body {
 }
 
 .audit-log-item {
-  padding: 8px 0;
+  padding: 10px 0;
   border-bottom: 1px solid var(--color-border-tertiary);
 }
 
 .audit-log-item:last-child {
   border-bottom: none;
+}
+
+.audit-log-item--empty {
+  padding: 12px 4px;
+  text-align: center;
+  color: var(--color-text-secondary);
+  border-bottom: none;
+}
+
+.audit-log-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.audit-log-badge {
+  display: inline-block;
+  max-width: 100%;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 0.5px solid var(--color-border-secondary);
+  color: var(--color-text-secondary);
+  background: var(--color-background-primary);
+}
+
+.audit-log-badge--entry {
+  border-color: rgba(55, 138, 221, 0.35);
+  color: #378add;
+}
+
+.audit-log-badge--scheduled {
+  border-color: rgba(29, 158, 117, 0.4);
+  color: #1d9e75;
+}
+
+.audit-log-badge--push {
+  border-color: rgba(127, 119, 221, 0.45);
+  color: #7f77dd;
+}
+
+.audit-log-badge--discord {
+  border-color: rgba(88, 101, 242, 0.45);
+  color: #5865f2;
+}
+
+.audit-log-badge--import {
+  border-color: rgba(216, 165, 48, 0.5);
+  color: #b8860b;
+}
+
+.audit-log-badge--settings {
+  border-color: rgba(120, 120, 128, 0.45);
+}
+
+.audit-log-badge--admin {
+  border-color: rgba(90, 98, 110, 0.5);
+  color: var(--color-text-secondary);
+}
+
+.audit-log-badge--account {
+  border-color: rgba(45, 179, 168, 0.45);
+  color: #2db3a8;
+}
+
+.audit-log-badge--household {
+  border-color: rgba(200, 115, 217, 0.45);
+  color: #c973d9;
+}
+
+.audit-log-badge--token {
+  border-color: rgba(184, 90, 110, 0.4);
+  color: #b85a6e;
+}
+
+.audit-log-badge--other {
+  border-color: var(--color-border-secondary);
+}
+
+.audit-log-time {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+}
+
+.audit-log-target {
+  font-size: 13px;
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+
+.audit-log-actor {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
 }
 
 .audit-log-meta {

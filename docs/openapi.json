@@ -1696,6 +1696,114 @@
         }
       }
     },
+    "/api/admin/overview": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Server-wide flags and household ids (admin household only, read-only)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "householdCount": {
+                      "type": "integer"
+                    },
+                    "householdIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "openRegistration": {
+                      "type": "boolean"
+                    },
+                    "hasMasterPassword": {
+                      "type": "boolean"
+                    },
+                    "guestLoginEnabled": {
+                      "type": "boolean"
+                    },
+                    "importBackupOnReplace": {
+                      "type": "boolean"
+                    },
+                    "backupRetention": {
+                      "type": "integer"
+                    },
+                    "scheduledBackupIntervalMs": {
+                      "type": "integer"
+                    },
+                    "sqlitePerHousehold": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admin household"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/admin/backup": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Write a JSON backup snapshot for this household (admin household only)",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "filename": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "relativePath": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admin household or read-only session"
+          },
+          "500": {
+            "description": "Backup failed"
+          }
+        }
+      }
+    },
     "/api/export": {
       "get": {
         "tags": [

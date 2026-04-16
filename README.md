@@ -2,6 +2,8 @@
 
 A small web app for logging household chores, viewing monthly stats, and comparing activity month over month. Data is stored on the server (not only in the browser) so everyone using the same instance sees the same log.
 
+This is the **public** source repository: you can browse, clone, and build from it freely. Practical deployment notes (environment variables, data paths) are described below; do not commit secrets or production credentials into your fork.
+
 ## Requirements
 
 - [Node.js](https://nodejs.org/) 18+ recommended (uses `fetch`-free server APIs and `crypto.randomUUID`).
@@ -47,4 +49,6 @@ Use **Settings → Export JSON** to download a file, or **GET /api/export**. **I
 
 ## License
 
-Private project unless you add a license file.
+Chorelog is released under the [MIT License](LICENSE).
+
+The `"private": true` field in `package.json` only prevents accidental publishing to the npm registry; it does not relate to Git hosting or visibility.

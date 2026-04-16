@@ -307,7 +307,7 @@ COMPLETED FUTURE IDEAS
 
 - Offline shell + guest view — sw.js read-through cache for static assets (see PWA); CHORELOG_GUEST_PASSWORD + sign-in View only (guest) for dashboard/log/stats without writes (requireReadWrite, js/render.js + js/main.js, i18n). See Auth and server and Settings (PWA).
 
-- **Entry photo attachments** — optional image per log entry (JPEG/PNG/WebP/GIF); files under `data/households/<id>/attachments/<entryId>.<ext>`; `POST/PUT /api/entries` accepts `attachmentBase64` + `attachmentMime` (or data URL); `GET /api/entries/:id/attachment`; per-file and per-household quotas via `CHORELOG_ATTACHMENT_MAX_BYTES` / `CHORELOG_ATTACHMENT_QUOTA_BYTES`; log + edit dialogs; activity log thumbnail; CSV `has_attachment`; export schema v6.
+- Entry photo attachments — optional image per log entry (JPEG/PNG/WebP/GIF); files under `data/households/<id>/attachments/<entryId>.<ext>`; `POST/PUT /api/entries` accepts `attachmentBase64` + `attachmentMime` (or data URL); `GET /api/entries/:id/attachment`; per-file and per-household quotas via `CHORELOG_ATTACHMENT_MAX_BYTES` / `CHORELOG_ATTACHMENT_QUOTA_BYTES`; log + edit dialogs; activity log thumbnail; CSV `has_attachment`; export schema v6.
 
 
 FUTURE IDEAS (IMPLEMENTATION-ORIENTED)

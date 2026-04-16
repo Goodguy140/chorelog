@@ -686,7 +686,7 @@ app.get('/api/admin/vapid', requireAdminHousehold, (req, res) => {
   }
 });
 
-app.put('/api/admin/vapid', requireReadWrite, requireAdminHousehold, (req, res) => {
+app.put('/api/admin/vapid', requireReadWrite, requireAdminHousehold, async (req, res) => {
   let webpushMod;
   try {
     webpushMod = require('web-push');
@@ -714,6 +714,18 @@ app.put('/api/admin/vapid', requireReadWrite, requireAdminHousehold, (req, res) 
     if (!pushSend.setRuntimeVapidKeys(publicKey, privateKey, subject)) {
       return res.status(500).json({ error: 'Could not apply VAPID keys at runtime' });
     }
+    try {
+      await ensureSeed(req.householdId);
+      const store = await readStore(req.householdId);
+      appendAudit(store, req, {
+        action: 'admin.vapid_save',
+        target: 'Web Push (VAPID)',
+        detail: subject.slice(0, 120),
+      });
+      await writeStore(req.householdId, store);
+    } catch (e) {
+      console.error(e);
+    }
     res.json({ ok: true, configured: true });
   } catch (e) {
     console.error(e);
@@ -721,7 +733,7 @@ app.put('/api/admin/vapid', requireReadWrite, requireAdminHousehold, (req, res) 
   }
 });
 
-app.post('/api/admin/vapid/generate', requireReadWrite, requireAdminHousehold, (req, res) => {
+app.post('/api/admin/vapid/generate', requireReadWrite, requireAdminHousehold, async (req, res) => {
   let webpushMod;
   try {
     webpushMod = require('web-push');
@@ -748,6 +760,18 @@ app.post('/api/admin/vapid/generate', requireReadWrite, requireAdminHousehold, (
     if (!pushSend.setRuntimeVapidKeys(keys.publicKey, keys.privateKey, subject)) {
       return res.status(500).json({ error: 'Could not apply generated VAPID keys' });
     }
+    try {
+      await ensureSeed(req.householdId);
+      const store = await readStore(req.householdId);
+      appendAudit(store, req, {
+        action: 'admin.vapid_generate',
+        target: 'Web Push (VAPID)',
+        detail: subject.slice(0, 120),
+      });
+      await writeStore(req.householdId, store);
+    } catch (e) {
+      console.error(e);
+    }
     res.json({
       ok: true,
       publicKey: keys.publicKey,
@@ -758,6 +782,64 @@ app.post('/api/admin/vapid/generate', requireReadWrite, requireAdminHousehold, (
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to generate VAPID keys' });
+  }
+});
+
+/** Safe server-wide flags and household list (admin / default household only). */
+app.get('/api/admin/overview', requireAdminHousehold, (req, res) => {
+  try {
+    ensureRegistryLoaded();
+    const registry = getRegistry();
+    const ids = Object.keys(registry.households || {}).sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base' }),
+    );
+    const guestPw = process.env.CHORELOG_GUEST_PASSWORD && String(process.env.CHORELOG_GUEST_PASSWORD);
+    res.json({
+      householdCount: ids.length,
+      householdIds: ids,
+      openRegistration: process.env.CHORELOG_OPEN_REGISTRATION === '1',
+      hasMasterPassword: Boolean(process.env.CHORELOG_MASTER_PASSWORD),
+      guestLoginEnabled: Boolean(guestPw && guestPw.trim()),
+      importBackupOnReplace: IMPORT_BACKUP_ENABLED,
+      backupRetention: BACKUP_RETENTION,
+      scheduledBackupIntervalMs: SCHEDULED_BACKUP_MS,
+      sqlitePerHousehold: USE_SQLITE_PER_HOUSEHOLD,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to load admin overview' });
+  }
+});
+
+/** Writes a JSON snapshot under `data/households/<id>/backups/` (same pipeline as import / scheduled backups). */
+app.post('/api/admin/backup', requireReadWrite, requireAdminHousehold, async (req, res) => {
+  try {
+    const out = await writeHouseholdBackupSnapshot(req.householdId, 'manual');
+    try {
+      await ensureSeed(req.householdId);
+      const store = await readStore(req.householdId);
+      const detail =
+        out && out.relativePath
+          ? `data/${String(out.relativePath).split(path.sep).join('/')}`
+          : undefined;
+      appendAudit(store, req, {
+        action: 'admin.backup_now',
+        target: 'Household JSON snapshot',
+        ...(detail ? { detail: detail.slice(0, 800) } : {}),
+      });
+      await writeStore(req.householdId, store);
+    } catch (e) {
+      console.error(e);
+    }
+    res.json({
+      ok: true,
+      filename: out && out.filename ? out.filename : null,
+      relativePath:
+        out && out.relativePath ? String(out.relativePath).split(path.sep).join('/') : null,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Backup failed', detail: e.message || String(e) });
   }
 });
 
@@ -783,12 +865,22 @@ app.get('/api/account', (req, res) => {
   }
 });
 
-app.put('/api/account/display-name', requireReadWrite, (req, res) => {
+app.put('/api/account/display-name', requireReadWrite, async (req, res) => {
   try {
     const p = req.authPayload;
     if (!p || !p.household) return res.status(401).json({ error: 'Unauthorized' });
     const name = String(req.body && req.body.user != null ? req.body.user : '').trim().slice(0, 120);
     if (!name) return res.status(400).json({ error: 'Display name is required' });
+    const hid = String(p.household).trim();
+    const prevUser = typeof p.user === 'string' ? p.user.trim().slice(0, 120) : '';
+    await ensureSeed(hid);
+    const store = await readStore(hid);
+    appendAudit(store, req, {
+      action: 'account.display_name',
+      target: name,
+      ...(prevUser && prevUser !== name ? { detail: `Was: ${prevUser}` } : {}),
+    });
+    await writeStore(hid, store);
     const token = createAuthToken(name, p.household);
     const maxAgeSec = Math.floor(COOKIE_MAX_AGE_MS / 1000);
     res.setHeader(
@@ -802,7 +894,7 @@ app.put('/api/account/display-name', requireReadWrite, (req, res) => {
   }
 });
 
-app.post('/api/account/password', requireReadWrite, (req, res) => {
+app.post('/api/account/password', requireReadWrite, async (req, res) => {
   try {
     ensureRegistryLoaded();
     const hid = req.householdId;
@@ -816,6 +908,13 @@ app.post('/api/account/password', requireReadWrite, (req, res) => {
       return res.status(401).json({ error: 'Current password is incorrect' });
     }
     householdReg.updateHouseholdPassword(DATA_DIR, getRegistry(), hid, newPw);
+    await ensureSeed(hid);
+    const store = await readStore(hid);
+    appendAudit(store, req, {
+      action: 'account.password_change',
+      target: 'Household login password',
+    });
+    await writeStore(hid, store);
     res.json({ ok: true });
   } catch (e) {
     console.error(e);
@@ -1080,7 +1179,7 @@ app.post('/api/logout', (req, res) => {
  * — Else if `CHORELOG_MASTER_PASSWORD` is set: body `{ id, password, masterPassword }`.
  * — Otherwise: 403.
  */
-app.post('/api/households', (req, res) => {
+app.post('/api/households', async (req, res) => {
   try {
     ensureRegistryLoaded();
     const master = process.env.CHORELOG_MASTER_PASSWORD;
@@ -1103,6 +1202,22 @@ app.post('/api/households', (req, res) => {
       return res.status(409).json({ error: 'Household already exists' });
     }
     householdReg.addHousehold(DATA_DIR, getRegistry(), id, pw);
+    try {
+      await ensureSeed(id);
+      const store = await readStore(id);
+      appendAudit(
+        store,
+        { authPayload: { user: 'Household registration', household: id } },
+        {
+          action: 'household.create',
+          target: id,
+          detail: openReg ? 'Open registration' : 'Master password',
+        },
+      );
+      await writeStore(id, store);
+    } catch (e) {
+      console.error(e);
+    }
     res.status(201).json({ ok: true, household: id });
   } catch (e) {
     console.error(e);
