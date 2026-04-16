@@ -102,7 +102,9 @@
     "exportFailed": "Export fehlgeschlagen.",
     "scheduledReminderUpdate": "Erinnerungseinstellung für diese geplante Aufgabe konnte nicht gespeichert werden.",
     "readOnlyAction": "Diese Sitzung ist schreibgeschützt. Melde dich mit Schreibzugriff an, um Änderungen vorzunehmen.",
-    "offlineWriteQueued": "Offline: Änderung wurde in die Warteschlange gelegt und wird bei Verbindung synchronisiert."
+    "offlineWriteQueued": "Offline: Änderung wurde in die Warteschlange gelegt und wird bei Verbindung synchronisiert.",
+    "attachmentSingleChoreOnly": "Fotos sind nur möglich, wenn du genau eine Aufgabe auf einmal einträgst (nicht mehrere Namen mit Semikolon).",
+    "attachmentRead": "Das ausgewählte Bild konnte nicht gelesen werden."
   },
   "analytics": {
     "person": "Person",
@@ -258,6 +260,9 @@
     "note": "Kommentar (optional)",
     "notePh": "Kurzen Kommentar hinzufügen",
     "noteHint": "Wird mit dem Eintrag gespeichert und im CSV-Export ausgegeben.",
+    "attachment": "Foto (optional)",
+    "attachmentHint": "Wird auf diesem Server gespeichert. JPEG, PNG, WebP oder GIF. Max. 2 MB pro Foto; 50 MB gesamt pro Haushalt (sofern der Server nicht andere Grenzen setzt, CHORELOG_ATTACHMENT_*).",
+    "attachmentClear": "Foto entfernen",
     "add": "+ Hinzufügen",
     "quickLog": "Schnell",
     "quickHint": "Nutzt Datum und Person oben — ein Tipp zum Eintragen.",
@@ -277,7 +282,8 @@
     "restore": "Wiederherstellen",
     "edit": "Bearbeiten",
     "deleteAria": "Eintrag aus dem Log entfernen",
-    "points": "+{{n}} Pkt."
+    "points": "+{{n}} Pkt.",
+    "attachmentOpen": "Foto öffnen"
   },
   "mom": {
     "title": "Monat zu Monat",
@@ -528,7 +534,10 @@
     "noteHint": "Wird mit dem Eintrag gespeichert und im CSV-Export ausgegeben.",
     "cancel": "Abbrechen",
     "save": "Speichern",
-    "personAria": "Person"
+    "personAria": "Person",
+    "attachment": "Foto (optional)",
+    "attachmentHint": "Aktuelles Bild ersetzen oder entfernen.",
+    "attachmentRemove": "Aktuelles Foto entfernen"
   },
   "deleteEntry": {
     "title": "Diesen Eintrag entfernen?",

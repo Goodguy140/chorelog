@@ -5,7 +5,7 @@ const express = require('express');
 
 const pkg = require('./package.json');
 /** Matches `version` in JSON export (`GET /api/export`) and `/api/version` `exportSchemaVersion`. */
-const EXPORT_SCHEMA_VERSION = 5;
+const EXPORT_SCHEMA_VERSION = 6;
 
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
@@ -55,6 +55,7 @@ const {
   verifyAuthCookie,
 } = require('./lib/auth-session.cjs');
 const { buildEntriesCsv } = require('./lib/csv-export.cjs');
+const entryAttachments = require('./lib/entry-attachments.cjs');
 const { createBackupManager } = require('./lib/backup-manager.cjs');
 const { createStoreAccess } = require('./lib/store-access.cjs');
 const { createReminderEngine } = require('./lib/reminder-engine.cjs');
@@ -1128,6 +1129,30 @@ app.get('/api/entries', async (req, res) => {
   }
 });
 
+app.get('/api/entries/:id/attachment', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const store = await readStore(req.householdId);
+    const entry = store.entries.find((e) => e && e.id === id);
+    if (!entry || entry.deletedAt || !entry.attachment || !entry.attachment.mime) {
+      return res.status(404).end();
+    }
+    const buf = entryAttachments.readEntryAttachmentFile(
+      DATA_DIR,
+      req.householdId,
+      id,
+      entry.attachment.mime,
+    );
+    if (!buf) return res.status(404).end();
+    res.setHeader('Content-Type', entry.attachment.mime);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(buf);
+  } catch (e) {
+    console.error(e);
+    res.status(500).end();
+  }
+});
+
 app.post('/api/scheduled-chores', requireReadWrite, async (req, res) => {
   try {
     const title = String(req.body && req.body.title ? req.body.title : '').trim();
@@ -1799,6 +1824,34 @@ app.post('/api/entries', requireReadWrite, async (req, res) => {
     if (!items || !items.length) {
       return res.status(400).json({ error: 'Expected { entries: [{ d, p, choreId? }, ...] }' });
     }
+    const attachmentRows = items.filter((r) => r && String(r.attachmentBase64 || '').trim());
+    if (attachmentRows.length > 1) {
+      return res.status(400).json({ error: 'Only one photo attachment per request' });
+    }
+    if (attachmentRows.length === 1 && items.length > 1) {
+      return res.status(400).json({
+        error: 'Photo attachments are only allowed when logging a single chore at a time',
+      });
+    }
+    let predecoded = null;
+    if (attachmentRows.length) {
+      try {
+        predecoded = entryAttachments.decodeAttachmentPayload(
+          attachmentRows[0].attachmentBase64,
+          attachmentRows[0].attachmentMime,
+        );
+        entryAttachments.assertAttachmentSize(predecoded.buffer);
+        if (!entryAttachments.validateImageMagic(predecoded.buffer, predecoded.mime)) {
+          return res.status(400).json({ error: 'Unsupported or corrupted image' });
+        }
+        if (!entryAttachments.extForMime(predecoded.mime)) {
+          return res.status(400).json({ error: 'Unsupported image type' });
+        }
+        entryAttachments.assertHouseholdQuota(DATA_DIR, req.householdId, predecoded.buffer.length);
+      } catch (err) {
+        return res.status(400).json({ error: err.message || 'Invalid attachment' });
+      }
+    }
     const store = await readStore(req.householdId);
     const presets = store.chorePresets || [];
     const added = [];
@@ -1846,6 +1899,21 @@ app.post('/api/entries', requireReadWrite, async (req, res) => {
         ...(note ? { note } : {}),
       };
       store.entries.push(entry);
+      if (predecoded && items.length === 1) {
+        try {
+          entry.attachment = entryAttachments.writeEntryAttachment(
+            DATA_DIR,
+            req.householdId,
+            entry.id,
+            predecoded.buffer,
+            predecoded.mime,
+          );
+        } catch (err) {
+          store.entries.pop();
+          return res.status(400).json({ error: err.message || 'Could not save image' });
+        }
+        predecoded = null;
+      }
       added.push(entry);
     }
     if (added.length) {
@@ -1946,6 +2014,39 @@ app.put('/api/entries/:id', requireReadWrite, async (req, res) => {
     }
     const createdAt = typeof prev.createdAt === 'string' ? prev.createdAt : nowISO();
     if (!hasNoteField && typeof prev.note === 'string') note = prev.note.trim().slice(0, 280);
+    const hasRemoveAttachment = req.body && req.body.removeAttachment === true;
+    const hasNewAttachment =
+      req.body &&
+      typeof req.body.attachmentBase64 === 'string' &&
+      req.body.attachmentBase64.trim().length > 0;
+    let attachmentMeta = prev.attachment;
+    if (hasNewAttachment) {
+      try {
+        const dec = entryAttachments.decodeAttachmentPayload(
+          req.body.attachmentBase64,
+          req.body.attachmentMime,
+        );
+        entryAttachments.assertAttachmentSize(dec.buffer);
+        if (!entryAttachments.validateImageMagic(dec.buffer, dec.mime)) {
+          return res.status(400).json({ error: 'Unsupported or corrupted image' });
+        }
+        if (!entryAttachments.extForMime(dec.mime)) {
+          return res.status(400).json({ error: 'Unsupported image type' });
+        }
+        attachmentMeta = entryAttachments.writeEntryAttachment(
+          DATA_DIR,
+          req.householdId,
+          id,
+          dec.buffer,
+          dec.mime,
+        );
+      } catch (err) {
+        return res.status(400).json({ error: err.message || 'Invalid attachment' });
+      }
+    } else if (hasRemoveAttachment) {
+      entryAttachments.deleteAnyEntryAttachmentFiles(DATA_DIR, req.householdId, id);
+      attachmentMeta = undefined;
+    }
     store.entries[idx] = {
       id,
       d,
@@ -1956,6 +2057,7 @@ app.put('/api/entries/:id', requireReadWrite, async (req, res) => {
       createdAt,
       updatedAt: nowISO(),
       ...(note ? { note } : {}),
+      ...(attachmentMeta ? { attachment: attachmentMeta } : {}),
     };
     appendAudit(store, req, {
       action: 'entry.update',

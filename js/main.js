@@ -651,6 +651,26 @@ async function undoLastAdd() {
   }
 }
 
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error || new Error('read failed'));
+    r.readAsDataURL(file);
+  });
+}
+
+function clearLogAttachmentPreview() {
+  const fileIn = document.getElementById('inAttachment');
+  if (fileIn) fileIn.value = '';
+  const prevWrap = document.getElementById('inAttachmentPreview');
+  const prevImg = document.getElementById('inAttachmentPreviewImg');
+  if (prevWrap) prevWrap.hidden = true;
+  if (prevImg) prevImg.removeAttribute('src');
+  const clr = document.getElementById('inAttachmentClear');
+  if (clr) clr.hidden = true;
+}
+
 async function addEntry() {
   if (blockReadOnlyAction()) return;
   const d = document.getElementById('inDate').value;
@@ -684,11 +704,35 @@ async function addEntry() {
       rows.push({ d, p, choreId: row.choreId, locationIds: [], ...(note ? { note } : {}) });
     }
   }
+  const fileIn = document.getElementById('inAttachment');
+  const file = fileIn && fileIn.files && fileIn.files[0];
+  if (file && rows.length > 1) {
+    app.loadError = t('errors.attachmentSingleChoreOnly');
+    render();
+    return;
+  }
+  let payloadRows = rows;
+  if (file && rows.length === 1) {
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      payloadRows = [
+        {
+          ...rows[0],
+          attachmentBase64: dataUrl,
+          attachmentMime: file.type || 'image/jpeg',
+        },
+      ];
+    } catch {
+      app.loadError = t('errors.attachmentRead');
+      render();
+      return;
+    }
+  }
   try {
     const r = await apiFetch('/api/entries', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entries: rows }),
+      body: JSON.stringify({ entries: payloadRows }),
     });
     if (!r.ok) throw new Error('save failed');
     const data = await r.json();
@@ -698,6 +742,7 @@ async function addEntry() {
     document.getElementById('inChore').value = '';
     const noteEl = document.getElementById('inNote');
     if (noteEl) noteEl.value = '';
+    clearLogAttachmentPreview();
     [...document.querySelectorAll('#inLocations option')].forEach((o) => {
       o.selected = false;
     });
@@ -798,6 +843,19 @@ function openEditEntry(id) {
   syncEditLocationFieldVisibility();
   const noteEl = document.getElementById('editEntryNote');
   if (noteEl) noteEl.value = e.note || '';
+  const editFile = document.getElementById('editEntryAttachment');
+  if (editFile) editFile.value = '';
+  const rm = document.getElementById('editEntryRemoveAttachment');
+  if (rm) rm.checked = false;
+  const curWrap = document.getElementById('editEntryAttachmentCurrent');
+  const thumb = document.getElementById('editEntryAttachmentThumb');
+  if (e.attachment && curWrap && thumb) {
+    thumb.src = `/api/entries/${encodeURIComponent(id)}/attachment`;
+    curWrap.hidden = false;
+  } else if (curWrap && thumb) {
+    curWrap.hidden = true;
+    thumb.removeAttribute('src');
+  }
   document.getElementById('editEntryDialog').showModal();
 }
 
@@ -2220,6 +2278,21 @@ document.getElementById('editEntryForm').addEventListener('submit', async (e) =>
   } else {
     body = { d, c: title, p, locationIds: [], note };
   }
+  const editFile = document.getElementById('editEntryAttachment');
+  const file = editFile && editFile.files && editFile.files[0];
+  const removeAtt = document.getElementById('editEntryRemoveAttachment')?.checked;
+  if (file) {
+    try {
+      body.attachmentBase64 = await readFileAsDataUrl(file);
+      body.attachmentMime = file.type || 'image/jpeg';
+    } catch {
+      app.loadError = t('errors.attachmentRead');
+      render();
+      return;
+    }
+  } else if (removeAtt) {
+    body.removeAttachment = true;
+  }
   try {
     const r = await apiFetch(`/api/entries/${encodeURIComponent(id)}`, {
       method: 'PUT',
@@ -2256,6 +2329,10 @@ document.getElementById('editEntryDialog').addEventListener('click', (e) => {
 });
 document.getElementById('editEntryDialog').addEventListener('close', () => {
   app.pendingEditEntryId = null;
+  const editFile = document.getElementById('editEntryAttachment');
+  if (editFile) editFile.value = '';
+  const rm = document.getElementById('editEntryRemoveAttachment');
+  if (rm) rm.checked = false;
 });
 
 document.getElementById('deleteEntryDialogClose').addEventListener('click', () => {
@@ -2443,6 +2520,24 @@ document.getElementById('btnAddQuickChore').addEventListener('click', async () =
 document.getElementById('inChore')?.addEventListener('input', () => {
   syncLogLocationFieldVisibility();
 });
+document.getElementById('inAttachment')?.addEventListener('change', async () => {
+  const fileIn = document.getElementById('inAttachment');
+  const prevWrap = document.getElementById('inAttachmentPreview');
+  const prevImg = document.getElementById('inAttachmentPreviewImg');
+  const clr = document.getElementById('inAttachmentClear');
+  const f = fileIn && fileIn.files && fileIn.files[0];
+  if (!f || !prevWrap || !prevImg) return;
+  try {
+    prevImg.src = await readFileAsDataUrl(f);
+    prevWrap.hidden = false;
+    if (clr) clr.hidden = false;
+  } catch {
+    clearLogAttachmentPreview();
+  }
+});
+document.getElementById('inAttachmentClear')?.addEventListener('click', () => {
+  clearLogAttachmentPreview();
+});
 document.getElementById('editEntryChore')?.addEventListener('input', () => {
   syncEditLocationFieldVisibility();
 });
@@ -2464,6 +2559,7 @@ document.getElementById('addToastUndo').addEventListener('click', () => {
 
 document.getElementById('logList').addEventListener('click', (ev) => {
   if (ev.target.closest('.btn-del') || ev.target.closest('.btn-edit')) return;
+  if (ev.target.closest('.log-entry-thumb-link')) return;
   if (!window.matchMedia('(max-width: 560px)').matches) return;
   const row = ev.target.closest('.log-item');
   if (!row || row.classList.contains('log-item--removed')) return;

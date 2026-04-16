@@ -102,7 +102,9 @@
     "exportFailed": "Export failed.",
     "scheduledReminderUpdate": "Could not update reminder setting for this scheduled chore.",
     "readOnlyAction": "This session is view-only. Sign in with write access to make changes.",
-    "offlineWriteQueued": "Offline: change queued and will sync when back online."
+    "offlineWriteQueued": "Offline: change queued and will sync when back online.",
+    "attachmentSingleChoreOnly": "Photos can only be attached when logging one chore at a time (not with multiple names separated by semicolons).",
+    "attachmentRead": "Could not read the selected image."
   },
   "analytics": {
     "person": "Person",
@@ -258,6 +260,9 @@
     "note": "Comment (optional)",
     "notePh": "Add a short note",
     "noteHint": "Saved with the log entry and included in CSV export.",
+    "attachment": "Photo (optional)",
+    "attachmentHint": "Stored on this server. JPEG, PNG, WebP, or GIF. Max 2 MB per photo; 50 MB total per household unless the server sets different limits (CHORELOG_ATTACHMENT_*).",
+    "attachmentClear": "Remove photo",
     "add": "+ Add",
     "quickLog": "Quick log",
     "quickHint": "Uses the date and person above — one tap to log.",
@@ -277,7 +282,8 @@
     "restore": "Restore",
     "edit": "Edit",
     "deleteAria": "Remove entry from log",
-    "points": "+{{n}} pts"
+    "points": "+{{n}} pts",
+    "attachmentOpen": "Open photo"
   },
   "mom": {
     "title": "Month-over-month",
@@ -528,7 +534,10 @@
     "noteHint": "Saved with the log entry and included in CSV export.",
     "cancel": "Cancel",
     "save": "Save",
-    "personAria": "Person"
+    "personAria": "Person",
+    "attachment": "Photo (optional)",
+    "attachmentHint": "Replace or remove the image stored with this entry.",
+    "attachmentRemove": "Remove current photo"
   },
   "deleteEntry": {
     "title": "Remove this entry?",

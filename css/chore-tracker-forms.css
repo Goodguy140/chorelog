@@ -372,6 +372,83 @@ select {
   gap: 6px 10px;
 }
 
+.log-entry-thumb-link {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin-top: 1px;
+  line-height: 0;
+}
+
+.log-entry-thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: var(--border-radius-md);
+  border: 0.5px solid var(--color-border-secondary);
+  display: block;
+  background: var(--color-background-secondary);
+}
+
+.log-attachment-input {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font-size: 16px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+}
+
+.log-attachment-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin-top: 6px;
+  max-width: 100%;
+}
+
+.log-attachment-preview-img,
+.log-attachment-current .log-attachment-preview-img {
+  max-width: min(100%, 320px);
+  width: 100%;
+  height: auto;
+  max-height: 200px;
+  object-fit: contain;
+  border-radius: var(--border-radius-md);
+  border: 0.5px solid var(--color-border-secondary);
+  background: var(--color-background-secondary);
+}
+
+.log-attachment-clear {
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.log-attachment-current {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.log-attachment-remove-label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.log-attachment-remove-label input {
+  margin-top: 2px;
+}
+
 .log-date {
   color: var(--color-text-tertiary);
   width: 58px;
@@ -610,6 +687,7 @@ select {
     'chore chore'
     'locations locations'
     'note note'
+    'attachment attachment'
     'add add';
   gap: 10px;
   align-items: start;
@@ -637,6 +715,10 @@ select {
   grid-column: auto;
 }
 
+.log-chore-dialog .field-attachment {
+  grid-area: attachment;
+}
+
 .log-chore-dialog .add-form .btn-add {
   grid-area: add;
   margin-top: 0;
@@ -654,6 +736,7 @@ select {
       'chore'
       'locations'
       'note'
+      'attachment'
       'add';
   }
 }

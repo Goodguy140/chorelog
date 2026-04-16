@@ -266,7 +266,7 @@ Settings and data lifecycle
 
 - Export — GET /api/export (full JSON backup) and GET /api/export/entries.csv (log rows only, UTF-8 BOM, RFC 4180-style quoting); Settings → Data Export JSON / Export CSV.
 
-- Import — file upload; replace or merge with confirmation; replace triggers a JSON snapshot under households/<id>/backups/ unless CHORELOG_IMPORT_BACKUP=0; imported backup may include auditLog (export v5).
+- Import — file upload; replace or merge with confirmation; replace triggers a JSON snapshot under households/<id>/backups/ unless CHORELOG_IMPORT_BACKUP=0; imported backup may include auditLog (export v6).
 
 - Audit log UI — Settings → load GET /api/audit on open + Refresh; shows actor (signed-in account) and action summaries.
 
@@ -307,11 +307,9 @@ COMPLETED FUTURE IDEAS
 
 - Offline shell + guest view — sw.js read-through cache for static assets (see PWA); CHORELOG_GUEST_PASSWORD + sign-in View only (guest) for dashboard/log/stats without writes (requireReadWrite, js/render.js + js/main.js, i18n). See Auth and server and Settings (PWA).
 
+- **Entry photo attachments** — optional image per log entry (JPEG/PNG/WebP/GIF); files under `data/households/<id>/attachments/<entryId>.<ext>`; `POST/PUT /api/entries` accepts `attachmentBase64` + `attachmentMime` (or data URL); `GET /api/entries/:id/attachment`; per-file and per-household quotas via `CHORELOG_ATTACHMENT_MAX_BYTES` / `CHORELOG_ATTACHMENT_QUOTA_BYTES`; log + edit dialogs; activity log thumbnail; CSV `has_attachment`; export schema v6.
+
 
 FUTURE IDEAS (IMPLEMENTATION-ORIENTED)
-
-- **Tags or categories** orthogonal to presets (schema + filters + UI).
-
-- **Attachments** — optional image per log entry (object storage, quotas, retention, privacy copy).
 
 

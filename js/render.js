@@ -389,8 +389,12 @@ function fullRender() {
       ? `<span class="log-chore-points">${escapeHtml(e.locationIds.join(', '))}</span>`
       : '';
     const noteHtml = e.note ? `<span class="log-chore-points">- ${escapeHtml(e.note)}</span>` : '';
+    const attHtml = e.attachment
+      ? `<a href="/api/entries/${encodeURIComponent(e.id)}/attachment" target="_blank" rel="noopener noreferrer" class="log-entry-thumb-link" aria-label="${escapeAttr(t('logList.attachmentOpen'))}"><img src="/api/entries/${encodeURIComponent(e.id)}/attachment" alt="" width="48" height="48" class="log-entry-thumb" loading="lazy" decoding="async" /></a>`
+      : '';
     return `<div class="log-item" data-entry-id="${escapeHtml(e.id)}">
     <div class="log-item-main" style="${barStyle}">
+      ${attHtml}
       <span class="log-date">${m}/${d}</span>
       <span class="log-chore">${escapeHtml(e.c)}</span>
       ${ptsHtml}
@@ -422,8 +426,12 @@ function fullRender() {
       ? `<span class="log-chore-points">${escapeHtml(e.locationIds.join(', '))}</span>`
       : '';
     const noteHtml = e.note ? `<span class="log-chore-points">- ${escapeHtml(e.note)}</span>` : '';
+    const attHtml = e.attachment
+      ? `<a href="/api/entries/${encodeURIComponent(e.id)}/attachment" target="_blank" rel="noopener noreferrer" class="log-entry-thumb-link" aria-label="${escapeAttr(t('logList.attachmentOpen'))}"><img src="/api/entries/${encodeURIComponent(e.id)}/attachment" alt="" width="48" height="48" class="log-entry-thumb" loading="lazy" decoding="async" /></a>`
+      : '';
     return `<div class="log-item log-item--removed" data-entry-id="${escapeHtml(e.id)}">
     <div class="log-item-main" style="${barStyle}">
+      ${attHtml}
       <span class="log-date">${m}/${d}</span>
       <span class="log-chore">${escapeHtml(e.c)}</span>
       ${ptsHtml}

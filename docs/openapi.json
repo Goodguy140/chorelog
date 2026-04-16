@@ -3,7 +3,7 @@
   "info": {
     "title": "Chorelog API",
     "version": "1.0.0",
-    "description": "HTTP API for Chorelog (household chore tracker).\n\nMost routes require a session cookie **`chorelog_auth`** set by **`POST /api/login`** (HttpOnly, SameSite=Lax). Send cookies on subsequent requests.\n\nJSON bodies use `Content-Type: application/json`."
+    "description": "HTTP API for Chorelog (household chore tracker).\n\nMost routes require a session cookie **`chorelog_auth`** set by **`POST /api/login`** (HttpOnly, SameSite=Lax). Send cookies on subsequent requests.\n\nIntegrations can alternatively send `Authorization: Bearer <api-token>` after creating a token in Account settings.\n\nJSON bodies use `Content-Type: application/json`."
   },
   "servers": [
     {
@@ -64,6 +64,12 @@
         "in": "cookie",
         "name": "chorelog_auth",
         "description": "Set by POST /api/login; include in Cookie header for protected routes."
+      },
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "API token",
+        "description": "Create in Account settings; use `Authorization: Bearer <token>`."
       }
     },
     "schemas": {
@@ -228,6 +234,9 @@
   "security": [
     {
       "cookieAuth": []
+    },
+    {
+      "bearerAuth": []
     }
   ],
   "paths": {
@@ -671,6 +680,114 @@
         }
       }
     },
+    "/api/account/api-tokens": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "List active API tokens for the current household",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Create a new API token (token value returned once)",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "label"
+                ],
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "rw",
+                      "ro"
+                    ]
+                  },
+                  "ownerType": {
+                    "type": "string",
+                    "enum": [
+                      "household",
+                      "personal"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/api/account/api-tokens/{id}": {
+      "delete": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Revoke an API token",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revoked"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
     "/api/audit": {
       "get": {
         "tags": [
@@ -770,6 +887,18 @@
                           "items": {
                             "type": "string"
                           }
+                        },
+                        "note": {
+                          "type": "string",
+                          "description": "Optional short comment (max 280)"
+                        },
+                        "attachmentBase64": {
+                          "type": "string",
+                          "description": "Optional image: base64 or data URL (only when posting a single entry). JPEG, PNG, WebP, GIF; max size enforced server-side."
+                        },
+                        "attachmentMime": {
+                          "type": "string",
+                          "description": "MIME type when sending raw base64 (e.g. image/jpeg). Optional for data URLs."
                         }
                       }
                     }
@@ -836,6 +965,23 @@
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "note": {
+                    "type": "string"
+                  },
+                  "expectedUpdatedAt": {
+                    "type": "string"
+                  },
+                  "attachmentBase64": {
+                    "type": "string",
+                    "description": "Replace image: base64 or data URL"
+                  },
+                  "attachmentMime": {
+                    "type": "string"
+                  },
+                  "removeAttachment": {
+                    "type": "boolean",
+                    "description": "Remove stored image from this entry"
                   }
                 }
               }
@@ -912,6 +1058,46 @@
           },
           "400": {
             "description": "Not removed"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/api/entries/{id}/attachment": {
+      "get": {
+        "tags": [
+          "Entries"
+        ],
+        "summary": "Download optional photo attached to a log entry",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Image bytes",
+            "content": {
+              "image/jpeg": {},
+              "image/png": {},
+              "image/webp": {},
+              "image/gif": {}
+            }
           },
           "404": {
             "description": "Not found"
@@ -1353,6 +1539,48 @@
           },
           "502": {
             "description": "Push failed"
+          }
+        }
+      }
+    },
+    "/api/push/preferences": {
+      "post": {
+        "tags": [
+          "Push"
+        ],
+        "summary": "Update preferences for a registered browser push endpoint",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "endpoint"
+                ],
+                "properties": {
+                  "endpoint": {
+                    "type": "string"
+                  },
+                  "preferences": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "404": {
+            "description": "Subscription not found"
           }
         }
       }

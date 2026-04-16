@@ -723,6 +723,15 @@
             </div>
             <p class="field-hint" data-i18n="logForm.noteHint">Saved with the log entry and included in CSV export.</p>
           </div>
+          <div class="field field-attachment">
+            <label for="inAttachment" data-i18n="logForm.attachment">Photo (optional)</label>
+            <input type="file" id="inAttachment" class="log-attachment-input" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment">
+            <p class="field-hint" data-i18n="logForm.attachmentHint">Stored on this server. JPEG, PNG, WebP, or GIF. Max size applies per photo and per household.</p>
+            <div id="inAttachmentPreview" class="log-attachment-preview" hidden>
+              <img id="inAttachmentPreviewImg" alt="" class="log-attachment-preview-img">
+              <button type="button" class="btn-secondary log-attachment-clear" id="inAttachmentClear" hidden data-i18n="logForm.attachmentClear">Remove photo</button>
+            </div>
+          </div>
           <button class="btn-add" onclick="addEntry()" data-i18n="logForm.add">+ Add</button>
         </div>
         <div id="scheduledLogSuggestionsWrap" class="scheduled-log-suggestions" hidden>
@@ -771,6 +780,15 @@
             <textarea id="editEntryNote" rows="2" maxlength="280" data-i18n-placeholder="editEntry.notePh" placeholder="Add a short note"></textarea>
           </div>
           <p class="field-hint" data-i18n="editEntry.noteHint">Saved with the log entry and included in CSV export.</p>
+        </div>
+        <div class="edit-entry-field" id="editEntryAttachmentBlock">
+          <label for="editEntryAttachment" data-i18n="editEntry.attachment">Photo (optional)</label>
+          <input type="file" id="editEntryAttachment" class="log-attachment-input" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment">
+          <p class="field-hint" data-i18n="editEntry.attachmentHint">Replace or remove the image stored with this entry.</p>
+          <div id="editEntryAttachmentCurrent" class="log-attachment-current" hidden>
+            <img id="editEntryAttachmentThumb" alt="" class="log-attachment-preview-img">
+            <label class="log-attachment-remove-label"><input type="checkbox" id="editEntryRemoveAttachment"> <span data-i18n="editEntry.attachmentRemove">Remove current photo</span></label>
+          </div>
         </div>
         <div class="edit-entry-actions">
           <button type="button" class="btn-secondary" id="editEntryCancel" data-i18n="editEntry.cancel">Cancel</button>
